@@ -1,0 +1,96 @@
+id: stage5_2_reward_surrogate_interface_skeleton
+name: Stage 5.2 Reward Surrogate Interface Skeleton
+task_type: project_improvement
+prompt: >
+  Implement only the minimal pure reward-surrogate interface skeleton with
+  contract tests. The interface must consume registered evaluation quantities,
+  preserve reliability as a constraint with a plateau above tau, require
+  explicit normalization references and weights, emit training-only surrogate
+  diagnostics, and keep those diagnostics out of deployment actor inputs. It
+  must not train, calibrate weights, add actor/critic/model code, select final
+  tau, or migrate v5 code.
+required_artifacts:
+  - pure surrogate interface module
+  - replay column boundary update for training-only surrogate diagnostics
+  - Stage 5.2 interface document
+  - reward and surrogate contract updates
+  - metric and replay contract updates
+  - project state update
+  - unit tests for surrogate behavior and replay leakage
+  - contract tests for Stage 5.2 boundary
+  - post-task self-review report
+expected_evidence:
+  - interface consumes only consensus_success_probability latency energy and topology_diagnostics
+  - reliability penalty is zero above tau and no reliability bonus is added
+  - low reliability is penalized even when latency and energy are low
+  - lower latency and energy improve the signal when reliability is equal
+  - normalization references are explicit and invalid references fail fast
+  - surrogate replay columns are training-only and forbidden as deployment actor inputs
+  - no reward weight calibration training model code final tau selection or v5 migration occurs
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - reward weights are selected calibrated or presented as final
+  - training actor critic COMA GNN LSTM optimizer or model code is introduced
+  - final tau lower than 0.9 is selected or recommended
+  - old v5 reward formulas weights aliases phase scripts or P_eff names are introduced
+  - timeout quorum deadline edge count density full graph or full mask become active reward terms
+  - surrogate columns enter deployment actor inputs
+  - surrogate outputs are registered as evaluation metrics
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L004_reliability_plateau_before_resource_objective
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+required_tests:
+  - Stage 5.2 interface document exists
+  - surrogate interface consumes registered input concepts only
+  - above-tau reliability has no additional reliability bonus
+  - unreliable low-cost topology is penalized below a feasible higher-cost case
+  - lower latency and lower energy improve the signal under equal reliability
+  - invalid normalization references fail fast
+  - surrogate replay columns are training-only and rejected as actor inputs
+  - no training model v5 or legacy metric code is introduced
+forbidden_v5_inheritance:
+  - old reward formulas weights penalties or sentinel constants
+  - old effective-success metric aliases
+  - old phase scripts as reward implementation
+  - full-mask optimality assumptions
+  - fixed 0.5 deployment threshold defaults
+  - actor global-info or oracle-label leakage
+expected_outputs:
+  - Stage 5.2 pure surrogate interface skeleton
+  - training-only replay boundary for surrogate diagnostics
+  - contract tests and unit tests
+  - project state waiting for owner decision before Stage 5.3
+  - residual risk list for normalization reference selection

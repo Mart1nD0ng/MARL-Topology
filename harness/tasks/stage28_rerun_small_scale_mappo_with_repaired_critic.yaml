@@ -1,0 +1,117 @@
+id: stage28_rerun_small_scale_mappo_with_repaired_critic
+name: Stage 28 Rerun Small-Scale MAPPO With Repaired Critic
+task_type: project_improvement
+prompt: >
+  Rerun the fixed Stage 25 small-scale MAPPO pilot with the Stage 27 selected
+  repaired value critic, compare against the supervised GNN baseline and the
+  Stage 25 old-critic pilot, generate visualization/report artifacts, and keep
+  scale-up and further architecture changes owner-gated.
+controlled_object: >
+  The small-scale policy-gradient training loop with frozen active stack
+  semantics and repaired graph value critic: Stage 25 base protocol, actor,
+  sampler, assembler, evaluator, reward/surrogate, value/advantage path,
+  run manifest, reports, visualization artifacts, and PROJECT_STATE.
+desired_state: >
+  The fixed Stage 25 base protocol is rerun with the selected Stage 27 graph
+  value critic, at least two seeds complete, critic diagnostics remain healthy,
+  MAPPO is evaluated against the supervised baseline and Stage 25 pilot, no
+  forbidden stack changes or scale-up occur, reports are manifest-approved, and
+  Stage 29 is recommended without self-authorizing further training.
+stage_boundary: >
+  Stage 28 may run only the small-scale fixed Stage 25 protocol with the
+  repaired critic. It must not tune hyperparameters or reward weights, switch
+  the sampler, change the actor stack, create checkpoints, run scale-up, select
+  final tau, implement COMA/Transformer/GRU/LSTM/recurrent PPO, modify v5, or
+  leak centralized critic-only fields into actor inputs.
+acceptance_criteria: >
+  PASS requires fixed Stage 25 base protocol reuse, train/eval split, at least
+  two completed seeds, repaired critic used in the value/GAE path, critic health
+  retained, supervised baseline comparison, Stage 25 old-critic comparison when
+  artifacts are available, visualization/report artifacts, reward weights and
+  sampler unchanged, no checkpoint or scale-up, tests, harness validation, and
+  post-task self-review.
+failure_criteria: >
+  FAIL if the repaired critic cannot be loaded or used, fewer than two seeds
+  complete, eval reliability degrades beyond the Stage 25 bound, no objective
+  or projection/reward metric improves, critic diagnostics collapse, reward
+  weights or sampler change, actor inputs receive critic-only fields,
+  checkpoint/scale-up/forbidden architecture appears, manifests are invalid,
+  PROJECT_STATE cannot be synchronized, or tests fail.
+post_task_self_review_requirement: >
+  Closeout must answer whether the fixed Stage 25 base protocol was used,
+  whether the repaired critic was used and stayed healthy, whether all seeds
+  completed, whether MAPPO improved the supervised baseline, whether Stage 28
+  improved over Stage 25, whether reward/sampler/actor boundaries were
+  preserved, whether scale-up or LSTM remains blocked, and the exact
+  recommended Stage 29.
+required_artifacts:
+  - docs/STAGE28_REPAIRED_CRITIC_POLICY_GRADIENT_RERUN.md
+  - docs/STAGE28_REPAIRED_CRITIC_TRAINING_REPORT.md
+  - docs/STAGE28_REPAIRED_CRITIC_COMPARISON.md
+  - docs/STAGE28_POLICY_GRADIENT_READINESS_AFTER_RERUN.md
+  - src/marl_topology/training/mappo/stage28_repaired_critic_pilot.py
+  - src/marl_topology/training/critic_repair_trainer.py
+  - scripts/train/stage28_rerun_small_scale_mappo_with_repaired_critic.py
+  - tests/unit/test_stage28_repaired_critic_pilot.py
+  - tests/contract/test_stage28_repaired_critic_boundaries.py
+  - tests/contract/test_stage28_report_coverage.py
+  - harness/reports/post_task_self_review_stage28.md
+  - docs/PROJECT_STATE.md
+expected_evidence:
+  - Stage 28 manifest validates report artifacts under the approved result_save scope
+  - Stage 25 pilot base protocol values are unchanged and reused
+  - Active critic is centralized_message_passing_graph_value_critic_v1
+  - Critic values are denormalized before GAE while value loss uses normalized returns
+  - At least two seeds complete without forbidden stop conditions
+  - Eval tau-feasible rate does not degrade by more than 0.05 absolute from supervised baseline
+  - At least one eval objective, projection, or surrogate metric improves without material reliability degradation
+  - Stage 25 comparison is reported when Stage 25 artifacts are available
+  - Reward weights, sampler, actor stack, evaluator, and action semantics stay fixed
+  - No checkpoint artifact is created and no scale-up training is run
+negative_checks:
+  - Reward weights, sampler, actor, evaluator, tau, or action semantics are changed
+  - COMA, Transformer, GRU/LSTM, recurrent PPO, checkpoint creation, scale-up, or v5 migration occurs
+  - Actor input includes centralized critic-only features or post-action oracle fields
+  - Stage 28 artifacts are written outside the manifest-approved Stage 28 artifact root
+  - Diagnostic probe results are treated as the primary result
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 90
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 28 repaired-critic small-scale MAPPO rerun report
+  - Stage 28 Stage 25 comparison report
+  - Stage 28 visualization artifacts
+  - Stage 28 post-task self-review

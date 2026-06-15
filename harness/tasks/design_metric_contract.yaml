@@ -1,0 +1,40 @@
+id: design_metric_contract
+name: Design Metric Contract
+task_type: harness_design
+prompt: >
+  Design or review metric governance for consensus_success, consensus_success_probability,
+  latency, energy, topology_diagnostics, metric registration, CSV schema, and diagnostic boundaries.
+required_artifacts:
+  - metric definitions
+  - metric registration table
+  - CSV schema
+  - legacy mapping notes
+expected_evidence:
+  - registered name definition range unit level used_for formula source dependencies tests
+  - CSV fields mapped to registered metrics
+  - reward names separated from metric names
+  - diagnostics separated from primary objectives
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - observability_gap_checked
+  - reliability_or_error_control_checked
+pass_threshold: 80
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - unregistered metric enters CSV or summary
+  - same metric has multiple names or same name has multiple meanings
+  - reward timeout quorum or diagnostic field is used as metric alias
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-002
+  - EC-RULE-004
+  - EC-RULE-028
+  - EC-RULE-029

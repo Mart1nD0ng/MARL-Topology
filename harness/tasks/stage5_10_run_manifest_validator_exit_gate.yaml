@@ -1,0 +1,88 @@
+id: stage5_10_run_manifest_validator_exit_gate
+name: Stage 5.10 Run Manifest Validator Exit Gate
+task_type: project_improvement
+prompt: >
+  Implement a dry-run run manifest validator as the Stage 5 exit gate. The
+  validator must check required manifest fields, owner approval id, artifact
+  root containment under result_save, path escape, legacy reference artifact
+  roots, seed/config/code-version/contract ids, metric registry, physics,
+  protocol, objective, surrogate, normalization, architecture, replay schema,
+  and artifact policy ids. It must not write artifacts, implement real run
+  artifact writers, export datasets, create checkpoints, run training, add
+  model code, calibrate weights, select final tau, or migrate v5 code.
+required_artifacts:
+  - dry-run run manifest validator module
+  - Stage 5.10 exit-gate document
+  - unit tests for validator acceptance and rejection cases
+  - contract tests for project state harness task and no-write boundary
+  - post-task self-review report
+expected_evidence:
+  - valid dry-run manifest is accepted
+  - missing required fields are rejected
+  - artifact root path escape is rejected
+  - legacy reference artifact root is rejected
+  - result_save remains at scaffold baseline with .gitkeep only
+  - Stage 5 is closed after the exit gate
+  - Stage 6 requires owner approval before execution
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - path escape is accepted by the validator
+  - legacy reference path is accepted as artifact root
+  - result_save receives new files beyond .gitkeep
+  - training execution is allowed
+  - artifact writer dataset export checkpoint or model code is introduced
+  - reward weights or final tau are selected
+  - additional Stage 5.x planning tasks are opened instead of closing Stage 5
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+  - L011_debug_hypotheses_need_status
+required_tests:
+  - validator accepts a valid dry-run manifest
+  - validator rejects missing required fields
+  - validator rejects artifact root path escape
+  - validator rejects legacy reference artifact root
+  - result_save contains only .gitkeep
+  - replay script prints Stage 5 closed and Stage 6 owner-approval boundary
+  - source scan rejects training model v5 and legacy metric terms
+forbidden_v5_inheritance:
+  - old artifact roots or phase output directories
+  - old replay columns or phase CSV fields
+  - old effective-success metric aliases
+  - old reward formulas weights penalties or sentinel constants
+  - old actor or critic checkpoint loading
+expected_outputs:
+  - dry-run validator result object
+  - Stage 5 closed marker
+  - recommended Stage 6 owner-approved next task
+  - owner decision required marker

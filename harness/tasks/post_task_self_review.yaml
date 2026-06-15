@@ -1,0 +1,70 @@
+id: post_task_self_review
+name: Post-Task Self Review
+task_type: project_analysis
+prompt: >
+  After every substantial task, produce a structured self-review that compares
+  the intended desired state against the actual achieved state, cites evidence,
+  lists tests and gates, updates project-state recommendations, and requests
+  owner decision before any next task starts.
+required_artifacts:
+  - completed task summary
+  - desired versus achieved state comparison
+  - evidence and tests summary
+  - gates passed and deferred
+  - new risks and regressions
+  - candidate next tasks
+  - recommended next task
+  - owner decision required statement
+expected_evidence:
+  - command outputs or manual sensor notes
+  - references to changed files or docs
+  - active and deferred gate list
+  - project state update or explicit no-update rationale
+  - statement that next stage is not self-authorized
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - self-review omits tests or evidence
+  - recommends a next task without owner decision required
+  - starts or authorizes the next stage from the self-review
+  - hides failed or deferred gates
+  - treats residual risks as resolved without a sensor
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-007
+  - EC-RULE-010
+  - EC-RULE-013
+  - EC-RULE-034
+self_review_fields:
+  - completed task
+  - intended desired state
+  - actual achieved state
+  - evidence
+  - tests
+  - gates passed
+  - gates deferred
+  - new risks
+  - regressions
+  - candidate next tasks
+  - recommended next task
+  - owner decision required

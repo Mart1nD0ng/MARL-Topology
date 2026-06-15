@@ -1,0 +1,67 @@
+id: review_decentralized_baselines
+name: Review Decentralized Non-Learning Baselines
+task_type: code_review
+prompt: >
+  Review decentralized non-learning topology baselines that consume ActorObservation,
+  emit EdgeActionDecision, and assemble JointTopologyAction without global topology,
+  oracle labels, model code, reward implementation, or training.
+required_artifacts:
+  - local baseline rule list
+  - actor observation field proof
+  - edge decision output proof
+  - leakage-negative tests
+  - evaluator or demo evidence
+expected_evidence:
+  - baseline rules consume ActorObservation only
+  - local decisions emit EdgeActionDecision
+  - fixed threshold values are explicit baseline parameters not deployment defaults
+  - no oracle labels or centralized training views enter local decisions
+  - no actor critic COMA GNN LSTM or training code added
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - controllability_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 84
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - baseline rule reads global topology or oracle label
+  - fixed 0.5 threshold is treated as deployment default
+  - baseline imports actor critic COMA GNN LSTM or training code
+  - local decisions bypass candidate edge validation
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-034
+relevant_lessons:
+  - L006_fixed_threshold_deployment_risk
+  - L009_dec_pomdp_boundary_before_actor
+required_tests:
+  - local observations pass actor schema validation
+  - no edges baseline selects empty topology
+  - all local edges baseline selects full candidate graph but is not oracle
+  - threshold baseline requires explicit threshold parameter
+  - local random baseline is seeded and deterministic
+forbidden_v5_inheritance:
+  - global graph tensors as local decision inputs
+  - fixed threshold deployment default
+  - oracle labels in action selection
+  - actor critic COMA GNN LSTM or checkpoint loading
+expected_outputs:
+  - review verdict
+  - baseline behavior evidence
+  - leakage risks and deferred gates

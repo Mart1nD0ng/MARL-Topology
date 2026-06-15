@@ -1,0 +1,85 @@
+id: stage3_6_urlcc_finite_blocklength_link_reliability
+name: Stage 3.6 URLLC Finite-Blocklength Link Reliability
+task_type: code_review
+prompt: >
+  Review the Stage 3.6 replacement of the active link reliability model with
+  URLLC finite-blocklength reliability. Confirm channel records produce SINR
+  only, link transmission records couple reliability latency and energy through
+  one transmission model, deadline retransmission is explicit, and no reward,
+  consensus metric, training, actor critic model code, or v5 migration is added.
+required_artifacts:
+  - finite-blocklength link transmission implementation
+  - channel contract update removing active SINR-only packet success
+  - link transmission contract update with deadline retransmission fields
+  - Stage 3 coupling review update
+  - unit tests for monotonicity inverse reliability and retransmission
+  - contract tests for regime id and forbidden old success model
+  - project state update
+  - post-task self-review report
+expected_evidence:
+  - packet success increases with SINR
+  - packet success increases with bandwidth
+  - packet success increases with transmission duration
+  - required transmission time increases with payload
+  - required transmission time decreases with SINR
+  - deadline delivery probability increases with max attempts
+  - expected energy increases with expected attempts
+  - source and docs scan rejects the old active success surrogate
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - old SINR-only success surrogate is still active
+  - channel layer outputs packet success probability
+  - reliability latency and energy are implemented as unrelated formulas
+  - deadline retransmission silently reports zero latency as success
+  - Stage 3 emits PBFT consensus metrics
+  - reward training actor critic COMA GNN LSTM or v5 code is introduced
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - finite-blocklength monotonicity in SINR bandwidth and duration
+  - inverse reliability monotonicity in payload and SINR
+  - deadline retransmission attempts probability expected latency and expected energy
+  - channel source no longer exports packet success
+  - source scan for no reward no consensus metric no v5 no training
+forbidden_v5_inheritance:
+  - v5 channel fading BLER or SINR implementations
+  - old metric aliases
+  - old reward shaping
+  - phase scripts
+  - torch autograd or training-oriented communication code
+expected_outputs:
+  - active URLLC finite-blocklength link regime
+  - updated contracts and tests
+  - residual risks and next-stage recommendation

@@ -1,0 +1,69 @@
+id: stage3_micro_fixture_suite_review
+name: Stage 3.5 Micro-Fixture Suite Review
+task_type: code_review
+prompt: >
+  Review Stage 3.5 deterministic communication micro-fixture suite coverage
+  across geometry, channel, link transmission, and network communication. Confirm
+  required fixtures are represented, reports are replay-only, and communication
+  records are not promoted into PBFT metrics, rewards, or training data.
+required_artifacts:
+  - Stage 3.5 micro-fixture suite review document
+  - fixture suite review helper or replay report
+  - fixture coverage tests
+  - boundary and negative-check tests
+expected_evidence:
+  - required Stage 3 fixture concepts are covered
+  - geometry and channel fixture expectations match
+  - link and network latency and energy records are nonnegative
+  - network records are not oracle records
+  - report command writes no result files
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - fixture report introduces PBFT consensus metrics or reward fields
+  - fixture report writes CSV checkpoint replay or result files
+  - fixture labels full graph or network delivery as oracle
+  - fixture imports v5 code starts training or adds actor critic model code
+  - communication record fields are treated as registered project metrics
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L003_full_mask_not_oracle
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - required micro-fixture coverage
+  - fixture suite report checks pass
+  - replay script is print-only
+  - no PBFT reward training or v5 inheritance
+forbidden_v5_inheritance:
+  - old topology phase scripts
+  - old full-mask optimality assumptions
+  - old reward or metric aliases
+  - v5 fixture or result directory structure
+expected_outputs:
+  - Stage 3.5 review document
+  - fixture suite review report helper
+  - tests and residual risks

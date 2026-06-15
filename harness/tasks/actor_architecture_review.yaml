@@ -1,0 +1,44 @@
+id: actor_architecture_review
+name: Actor Architecture Review
+task_type: code_review
+prompt: >
+  Review LSTM actor, GNN actor, GNN+LSTM actor, centralized critic, COMA,
+  or direct edge-delta critic proposals for Dec-POMDP compliance and metric fidelity.
+required_artifacts:
+  - actor observation schema
+  - critic information schema
+  - deployment boundary tests
+  - metric fidelity checks
+expected_evidence:
+  - local observation proof
+  - centralized critic training-only declaration
+  - checkpoint loading boundary
+  - registered metric evaluation plan
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - controllability_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+pass_threshold: 82
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - global graph enters deployment actor
+  - critic-only tensors are required for actor inference
+  - architecture is accepted without registered metric evaluation plan
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-013
+  - EC-RULE-035

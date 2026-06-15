@@ -1,0 +1,66 @@
+id: stage3_channel_model_review
+name: Stage 3.2 Channel Model Review
+task_type: code_review
+prompt: >
+  Review Stage 3.2 channel model implementation for path loss, LoS/NLoS
+  penalty, optional seeded shadowing, tx/rx power, noise, interference, SINR,
+  and packet success probability.
+required_artifacts:
+  - channel model implementation
+  - channel record schema
+  - deterministic channel fixtures
+  - monotonicity and interference tests
+expected_evidence:
+  - path loss increases with distance
+  - NLoS is no better than LoS under the same setup
+  - tx power increases rx power
+  - same-resource interference lowers SINR
+  - packet success probability increases with SINR
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - packet success probability is called consensus reliability
+  - unseeded shadowing appears in deterministic tests
+  - W dBm and dB units are mixed without conversion
+  - PBFT reward actor critic training or v5 code is introduced
+  - full graph is treated as oracle
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+relevant_lessons:
+  - L001_metric_governance_first
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - free_space_close channel
+  - free_space_far channel
+  - blocked_by_building channel
+  - two_transmitters_interference channel
+  - orthogonal_channel_no_interference channel
+forbidden_v5_inheritance:
+  - v5 fading BLER or resource-mask code
+  - old P_eff aliases
+  - old reward terms
+expected_outputs:
+  - channel records and tests
+  - no consensus metric or reward implementation
+  - updated residual risks

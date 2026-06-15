@@ -1,0 +1,83 @@
+"""Design-only training contracts for MARL-Topology."""
+
+from .critic_interface import (
+    CRITIC_OUTPUT_HEAD_NAMES,
+    CentralizedCriticInput,
+    CriticInterfaceViolation,
+    CriticOutputHeads,
+    EdgeDeltaCriticOutput,
+    assert_critic_payload_cannot_be_actor_input,
+)
+from .design_contract import (
+    STAGE5_6_RECOMMENDED_NEXT_TASK,
+    STAGE5_6_TRAINING_DESIGN_STAGE_ID,
+    STAGE5_6_VERDICT,
+    build_stage5_6_training_design_contract,
+)
+from .run_manifest_contract import (
+    PLANNED_ARTIFACT_GROUPS,
+    REQUIRED_RUN_MANIFEST_FIELDS,
+    STAGE5_9_RECOMMENDED_NEXT_TASK,
+    STAGE5_9_RUN_MANIFEST_ARTIFACT_STAGE_ID,
+    STAGE5_9_VERDICT,
+    build_stage5_9_run_manifest_artifact_contract,
+)
+from .run_manifest_validator import (
+    STAGE5_10_RECOMMENDED_STAGE6_TASK,
+    STAGE5_10_RUN_MANIFEST_VALIDATOR_STAGE_ID,
+    STAGE5_10_VERDICT,
+    RunManifestValidationIssue,
+    RunManifestValidationResult,
+    build_stage5_10_exit_gate_report,
+    build_valid_stage5_10_dry_run_manifest,
+    validate_run_manifest_dry_run,
+)
+from .minimal_stack import (
+    ALLOWED_DRY_RUN_OPERATIONS,
+    BLOCKED_OPERATION_CODES,
+    REQUIRED_CONTRACT_MARKERS,
+    STAGE6_0_MINIMAL_STACK_STAGE_ID,
+    STAGE6_0_RECOMMENDED_NEXT_TASK,
+    STAGE6_0_VERDICT,
+    MinimalTrainingStackIssue,
+    MinimalTrainingStackReport,
+    build_stage6_0_minimal_stack_report,
+    prepare_minimal_training_stack,
+)
+
+__all__ = [
+    "CRITIC_OUTPUT_HEAD_NAMES",
+    "PLANNED_ARTIFACT_GROUPS",
+    "REQUIRED_RUN_MANIFEST_FIELDS",
+    "STAGE5_6_RECOMMENDED_NEXT_TASK",
+    "STAGE5_6_TRAINING_DESIGN_STAGE_ID",
+    "STAGE5_6_VERDICT",
+    "STAGE5_9_RECOMMENDED_NEXT_TASK",
+    "STAGE5_9_RUN_MANIFEST_ARTIFACT_STAGE_ID",
+    "STAGE5_9_VERDICT",
+    "STAGE5_10_RECOMMENDED_STAGE6_TASK",
+    "STAGE5_10_RUN_MANIFEST_VALIDATOR_STAGE_ID",
+    "STAGE5_10_VERDICT",
+    "RunManifestValidationIssue",
+    "RunManifestValidationResult",
+    "ALLOWED_DRY_RUN_OPERATIONS",
+    "BLOCKED_OPERATION_CODES",
+    "CentralizedCriticInput",
+    "CriticInterfaceViolation",
+    "CriticOutputHeads",
+    "EdgeDeltaCriticOutput",
+    "REQUIRED_CONTRACT_MARKERS",
+    "STAGE6_0_MINIMAL_STACK_STAGE_ID",
+    "STAGE6_0_RECOMMENDED_NEXT_TASK",
+    "STAGE6_0_VERDICT",
+    "MinimalTrainingStackIssue",
+    "MinimalTrainingStackReport",
+    "assert_critic_payload_cannot_be_actor_input",
+    "build_stage5_10_exit_gate_report",
+    "build_stage5_6_training_design_contract",
+    "build_stage5_9_run_manifest_artifact_contract",
+    "build_stage6_0_minimal_stack_report",
+    "build_valid_stage5_10_dry_run_manifest",
+    "prepare_minimal_training_stack",
+    "validate_run_manifest_dry_run",
+]

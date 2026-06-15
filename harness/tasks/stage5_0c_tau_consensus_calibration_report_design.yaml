@@ -1,0 +1,94 @@
+id: stage5_0c_tau_consensus_calibration_report_design
+name: Stage 5.0c Tau Consensus Calibration Report Design
+task_type: code_review
+prompt: >
+  Review the Stage 5.0c tau-consensus calibration report design. Confirm it
+  defines future report inputs, output tables, diagnostics, fixture families,
+  validation gates, and owner-decision packet fields without running
+  calibration, selecting tau_consensus, adding default numeric tau candidates,
+  implementing reward, tuning weights, training, adding actor critic code, or
+  migrating v5 code.
+required_artifacts:
+  - tau consensus calibration report design documentation
+  - TAU_CONSENSUS_CALIBRATION_PLAN update
+  - OBJECTIVE_CONTRACT update
+  - REWARD_CONTRACT update
+  - REWARD_SURROGATE_CONTRACT update
+  - METRIC_CONTRACT update
+  - project state update
+  - contract tests for report design schema and forbidden shortcuts
+  - post-task self-review report
+expected_evidence:
+  - report design states no calibration is run and no final tau is selected
+  - report inputs include scenario manifest topology evaluation rows candidate tau rows and protocol regime rows
+  - output tables include scenario summary tau feasibility summary topology by tau detail and owner decision packet
+  - candidate tau rows require owner-declared or configured candidates and no default numeric values
+  - metric-valued fields map to registered metric concepts
+  - validation gates reject threshold copying full graph oracle actor-input oracle labels and unregistered metrics
+  - reward implementation reward weights training actor critic and v5 migration remain blocked
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - final tau_consensus is selected during report design
+  - default numeric tau candidates are introduced
+  - Stage 4.8 reliability_threshold 0.2 is copied as tau_consensus
+  - network delivery probability is renamed as consensus_success_probability
+  - full graph is treated as oracle or resource optimum
+  - oracle-candidate labels are exposed as deployment actor inputs
+  - unregistered metrics or legacy P_eff aliases enter the report schema
+  - reward implementation reward weights training actor critic COMA GNN LSTM or v5 code is introduced
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L004_reliability_plateau_before_resource_objective
+  - L005_oracle_before_infeasible_claims
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - tau calibration report design exists and states no final tau is selected
+  - design lists required input collections and output tables
+  - design forbids default numeric tau candidates and Stage 4.8 threshold copying
+  - design maps metric-valued fields to registered metric concepts only
+  - project state marks Stage 5.0c complete and keeps implementation blocked
+  - no report implementation code reward implementation training actor critic COMA GNN LSTM or v5 code is added
+forbidden_v5_inheritance:
+  - old reward formulas weights penalties or sentinel constants
+  - old effective-success metric aliases
+  - old phase scripts as calibration report implementation
+  - full-mask optimality assumptions
+  - fixed 0.5 deployment threshold defaults
+  - actor global-info or oracle-label leakage
+expected_outputs:
+  - tau consensus calibration report design document
+  - updated Stage 5 contracts and project state
+  - tests and harness validation evidence
+  - residual risk list for future report implementation

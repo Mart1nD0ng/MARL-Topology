@@ -1,0 +1,121 @@
+id: stage26_full_system_health_diagnostic
+name: Stage 26 Full-System Health Diagnostic
+task_type: project_improvement
+prompt: >
+  Diagnose the full pre-scale MAPPO training system after Stage 25 using frozen
+  artifacts and evaluation-only evidence. Produce component health reports,
+  a root-cause matrix, and an owner decision packet without training, tuning,
+  sampler switching, checkpoint creation, or scale-up execution.
+controlled_object: >
+  The active Stage 25 stack and project-control surface: PROJECT_STATE,
+  harness coverage, scenario/evidence data, Stage 3 communication model, Stage
+  4 PBFT consensus reliability, Stage 5 frozen reward surrogate, topology
+  assembler, Plackett-Luce physical-link sampler, local message-passing GNN
+  actor, centralized critic, MAPPO rollout/optimization logs, visualization
+  outputs, and scale-readiness gates.
+desired_state: >
+  Every major component has a data-backed PASS/WARN/FAIL health label, metric
+  evidence, diagnosis labels, scale-up blocking status, and a root-cause
+  contribution estimate explaining the weak Stage 25 improvement. The stage
+  recommends exactly one next task while leaving owner approval required.
+stage_boundary: >
+  Stage 26 is not a training stage. It may read Stage 25 artifacts and run
+  frozen diagnostic evaluation, but it must not run new training updates,
+  change reward weights, tune hyperparameters, switch samplers, select final
+  tau, create checkpoints, implement recurrent actors, COMA, or Transformers,
+  modify v5, or authorize scale-up.
+acceptance_criteria: >
+  PASS requires completed diagnostics for harness/state, data, communication,
+  consensus, reward/objective, assembler, sampler, actor, critic, MAPPO loop,
+  visualization, and scale-readiness; a component health scorecard; a
+  root-cause matrix; a decision packet with one recommended option; manifest
+  validation for report artifacts; no forbidden training or tuning; tests; and
+  harness validation. PASS does not approve scale-up.
+failure_criteria: >
+  FAIL if Stage 25 artifacts cannot be read, diagnostics are incomplete,
+  health reports lack component-level evidence, PROJECT_STATE or manifests are
+  inconsistent, tests fail, or any forbidden training/tuning/checkpoint/sampler
+  change occurs.
+post_task_self_review_requirement: >
+  Closeout must answer which component is healthiest, which component most
+  likely limits Stage 25 improvement, whether critic/data/reward/sampler/actor
+  are the main blocker, whether the MAPPO loop is healthy enough for a larger
+  pilot, whether LSTM remains blocked, and the exact recommended next stage.
+required_artifacts:
+  - docs/STAGE26_FULL_SYSTEM_HEALTH_DIAGNOSTIC.md
+  - docs/STAGE26_HARNESS_STATE_HEALTH.md
+  - docs/STAGE26_DATA_HEALTH.md
+  - docs/STAGE26_COMMUNICATION_HEALTH.md
+  - docs/STAGE26_CONSENSUS_HEALTH.md
+  - docs/STAGE26_REWARD_OBJECTIVE_HEALTH.md
+  - docs/STAGE26_ASSEMBLER_HEALTH.md
+  - docs/STAGE26_SAMPLER_HEALTH.md
+  - docs/STAGE26_ACTOR_HEALTH.md
+  - docs/STAGE26_CRITIC_HEALTH.md
+  - docs/STAGE26_MAPPO_LOOP_HEALTH.md
+  - docs/STAGE26_ROOT_CAUSE_MATRIX_AND_DECISION_PACKET.md
+  - scripts/replay/stage26_full_system_health_report.py
+  - src/marl_topology/evaluation/stage26_health_diagnostics.py
+  - tests/unit/test_stage26_health_diagnostics.py
+  - tests/contract/test_stage26_no_training_or_tuning.py
+  - tests/contract/test_stage26_health_report_coverage.py
+  - harness/reports/post_task_self_review_stage26.md
+  - docs/PROJECT_STATE.md
+expected_evidence:
+  - PROJECT_STATE records Stage 25 completion before Stage 26 closeout
+  - Stage 25 and Stage 26 manifests validate without writes
+  - result_save contains only approved artifact scopes
+  - No dynamic torch import remains and Stage 26 source adds no forbidden architecture or checkpoint path
+  - Stage 26 diagnostic report pass_gate is true while scale_up_allowed is false
+  - Component scorecard covers all required system components
+  - Root-cause matrix covers all required rows and includes contribution, confidence, repair, and block columns
+  - Critic health, data health, reward/objective health, assembler/sampler health, actor health, and MAPPO loop health are diagnosed from Stage 25 evidence
+  - Communication and consensus health use frozen evaluation-only metrics
+  - Recommended next task is recorded but not executed
+negative_checks:
+  - New MAPPO training updates, scale-up training, or hyperparameter sweeps are run
+  - Reward weights, tau, sampler, actor stack, critic stack, or active evaluator are changed
+  - COMA, Transformer, GRU/LSTM, recurrent PPO, checkpoint creation, or v5 migration occurs
+  - Diagnostic probe output is treated as model selection
+  - Report artifacts are written outside the manifest-approved Stage 26 artifact root
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 90
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 26 full-system health diagnostic report
+  - Stage 26 component health reports
+  - Stage 26 root cause matrix and decision packet
+  - Stage 26 post-task self-review

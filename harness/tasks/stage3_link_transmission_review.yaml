@@ -1,0 +1,67 @@
+id: stage3_link_transmission_review
+name: Stage 3.3 Link Transmission Review
+task_type: code_review
+prompt: >
+  Review Stage 3.3 point-to-point link transmission implementation for payload,
+  bandwidth, propagation delay, transmission delay, processing delay, queueing
+  placeholder, tx/rx/processing energy, p2p latency, and p2p energy.
+required_artifacts:
+  - link transmission implementation
+  - link transmission record schema
+  - latency and energy component tests
+  - queueing placeholder declaration
+expected_evidence:
+  - payload increases transmission delay
+  - bandwidth decreases transmission delay
+  - tx power increases tx energy
+  - distance increases propagation delay
+  - latency and energy are nonnegative
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - link latency is treated as application deadline success
+  - packet success probability is treated as PBFT consensus success
+  - unselected edge consumes tx energy
+  - queueing is hidden rather than explicit placeholder
+  - reward training actor critic COMA or v5 phase-script code is introduced
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+relevant_lessons:
+  - L001_metric_governance_first
+  - L004_reliability_plateau_before_resource_objective
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - payload monotonicity
+  - bandwidth monotonicity
+  - tx energy monotonicity
+  - propagation delay distance monotonicity
+  - nonnegative latency and energy
+forbidden_v5_inheritance:
+  - old reward weights
+  - old latency aliases
+  - phase scripts as implementation
+expected_outputs:
+  - link transmission records and tests
+  - no PBFT or reward implementation
+  - updated residual risks

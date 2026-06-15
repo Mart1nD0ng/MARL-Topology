@@ -1,0 +1,109 @@
+id: stage23_selected_physical_policy_gradient_landing
+name: Stage 23 Selected Physical Policy Gradient Landing
+task_type: project_improvement
+prompt: >
+  Build and run a bounded selected-physical policy-gradient micro-pilot for
+  undirected_physical_link_v1, compare stochastic proposal sampler A/B/C fairly,
+  promote exactly one low-entropy active sampler if gates pass, and keep
+  scale-up blocked pending owner decision.
+controlled_object: >
+  Selected-physical policy-gradient pilot harness, stochastic proposal sampler
+  registry, physical-link projection diagnostics, Stage 5 reward-surrogate
+  adapter, and Stage 23 closeout state.
+desired_state: >
+  The actor outputs edge logits only; policy action is a stochastic proposal
+  over undirected physical links; environment-side assembler produces selected
+  physical topology; Stage 3/4 evaluator and frozen Stage 5 surrogate score the
+  outcome; all three samplers are trialed; exactly one active sampler remains
+  after promotion or zero if no sampler passes.
+selected_action_semantics: undirected_physical_link_v1
+sampler_ab_c_trial_requirement: >
+  Run PhysicalBernoulliProposalSampler, PhysicalPlackettLuceTopKSampler, and
+  EndpointBudgetedPhysicalProposalSampler under the same scenario subset, actor,
+  seeds, evaluator, assembler, and reward-surrogate config.
+reward_no_weight_change_rule: >
+  Use the existing Stage 5.2 surrogate interface with Stage 5.3 selected
+  normalization references. Do not add, tune, calibrate, or rename reward
+  weights, and do not select a final tau.
+low_entropy_winner_promotion_rule: >
+  On PASS the active policy-gradient sampler registry must contain exactly one
+  selected sampler. Losing trial samplers may remain only as historical
+  comparison implementations and must be absent from the active registry.
+pass_fail_gate: >
+  PASS requires selected-physical PG harness execution, at least two stochastic
+  samplers run, winning sampler or blocker report, losing samplers removed from
+  active registry, active selected semantics, unchanged reward weights, no actor
+  leakage, no uncontrolled checkpoint or artifact, and passing validation.
+post_task_self_review_requirement: >
+  Closeout must answer which samplers were tested, which won, whether losing
+  samplers were removed from active code, tau/latency/energy/projection effects,
+  collapse status, reward-weight status, scale-up block, and Stage 24
+  recommendation.
+required_artifacts:
+  - src/marl_topology/training/policy_gradient/samplers.py
+  - src/marl_topology/training/policy_gradient/pilot_runner.py
+  - src/marl_topology/training/policy_gradient/policy_gradient_losses.py
+  - scripts/train/stage23_selected_physical_policy_gradient_pilot.py
+  - docs/STAGE23_SELECTED_PHYSICAL_POLICY_GRADIENT_LANDING.md
+  - docs/STAGE23_POLICY_GRADIENT_SAMPLER_COMPARISON.md
+  - docs/STAGE23_POLICY_GRADIENT_PILOT_REPORT.md
+  - harness/reports/post_task_self_review_stage23.md
+  - docs/PROJECT_STATE.md
+expected_evidence:
+  - Preflight confirms undirected_physical_link_v1 is active
+  - Preflight confirms discarded action semantics is not active
+  - Actor boundary confirms local_message_passing_gnn_edge_scorer_v2 outputs logits only
+  - Physical-link assembler and Stage 3/4 objective evaluator are active
+  - Reward config fingerprint is unchanged before and after pilot
+  - Sampler comparison records proposal logprob entropy and projection diagnostics
+  - Active sampler registry contains exactly one promoted sampler on PASS
+  - Tests and harness validation pass
+negative_checks:
+  - Actor input receives consensus_success_probability latency energy reward surrogate oracle label global topology or future outcome
+  - Sampler uses objective metrics reward latency energy or oracle labels to sample
+  - Logprob is claimed exact for projected topology
+  - Deterministic top-k is promoted as policy-gradient sampler
+  - Reward weights are tuned added renamed or calibrated
+  - COMA Transformer new GNN GRU LSTM scale-up training final tau selection checkpoint or v5 migration occurs
+  - More than one active policy-gradient sampler remains after closeout
+  - Pilot writes unmanifested result_save artifacts
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 90
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 23 selected-physical policy-gradient landing report
+  - Stage 23 sampler comparison report
+  - Stage 23 pilot report
+  - Stage 23 post-task self-review

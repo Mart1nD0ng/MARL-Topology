@@ -1,0 +1,93 @@
+id: stage5_0d_tau_consensus_calibration_report_implementation
+name: Stage 5.0d Tau Consensus Calibration Report Implementation
+task_type: project_improvement
+prompt: >
+  Implement the Stage 5.0d tau-consensus calibration report as a report-only
+  sensor. It must require owner-declared candidate tau values, summarize
+  registered Stage 4.8 communication/consensus boundary rows, and keep final
+  tau_consensus selection, reward implementation, training, model work, and v5
+  migration blocked.
+required_artifacts:
+  - report builder under src/marl_topology/evaluation
+  - print-only replay script requiring explicit tau candidates
+  - Stage 5.0d report documentation
+  - updated Stage 5 contracts and project state
+  - contract and unit tests for report-only behavior
+  - post-task self-review report
+expected_evidence:
+  - builder fails when no candidate tau values are supplied
+  - builder fails for out-of-range selected or default tau candidates
+  - report contains scenario manifest topology rows tau rows feasibility summary topology-by-tau detail and owner decision packet
+  - final_tau_consensus owner_selected_tau and recommended_tau_candidate remain unset
+  - Stage 4.8 rows are marked smoke-test only and not a final calibration set
+  - metric-valued fields map only to registered metric concepts
+  - full graph remains baseline not oracle and oracle labels are not actor inputs
+  - reward training actor critic model and v5 migration remain absent
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - final tau_consensus is selected or recommended
+  - default numeric tau candidates are introduced
+  - Stage 4.8 reliability_threshold 0.2 is copied as tau_consensus
+  - Stage 4.8 smoke-test rows are represented as a final calibration set
+  - network delivery probability is renamed as consensus_success_probability
+  - full graph is treated as oracle or resource optimum
+  - oracle-candidate labels are exposed as deployment actor inputs
+  - unregistered metrics or legacy P_eff aliases enter the report schema
+  - reward implementation reward weights training actor critic COMA GNN LSTM or v5 code is introduced
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L004_reliability_plateau_before_resource_objective
+  - L005_oracle_before_infeasible_claims
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - tau report builder requires explicit candidate tau values
+  - tau report rejects out-of-range default or selected tau rows
+  - replay script requires --tau and prints JSON only
+  - report owner decision packet leaves final tau unset
+  - report marks Stage 4.8 source as smoke-test only
+  - report uses registered metric-valued fields only
+  - no reward training actor critic COMA GNN LSTM or v5 code is introduced
+forbidden_v5_inheritance:
+  - old reward formulas weights penalties or sentinel constants
+  - old effective-success metric aliases
+  - old phase scripts as calibration report implementation
+  - full-mask optimality assumptions
+  - fixed 0.5 deployment threshold defaults
+  - actor global-info or oracle-label leakage
+expected_outputs:
+  - executable tau consensus calibration report sensor
+  - print-only replay script with explicit tau inputs
+  - updated documentation project state and tests
+  - residual risk list for scenario-family calibration coverage

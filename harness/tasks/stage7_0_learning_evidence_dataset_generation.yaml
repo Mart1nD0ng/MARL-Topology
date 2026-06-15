@@ -1,0 +1,92 @@
+id: stage7_0_learning_evidence_dataset_generation
+name: Stage 7.0 Learning Evidence Dataset Generation
+task_type: project_improvement
+prompt: >
+  Define the Stage 7 learning evidence dataset boundary and implement a
+  minimal in-memory evidence row builder plus guarded evidence-only artifact
+  export. The task must keep actor-safe rows separate from critic views,
+  learning targets, diagnostics, oracle labels, objective metrics, and future
+  outcomes. It must not train, implement actor or critic model code, create
+  checkpoints, calibrate weights, select final tau, or migrate v5 code.
+required_artifacts:
+  - Stage 7 learning evidence dataset contract
+  - Stage 7.0 implementation report document
+  - in-memory learning evidence builder module
+  - guarded evidence artifact writer
+  - replay script for Stage 7.0 evidence report
+  - unit tests for evidence rows targets and writer guards
+  - contract tests for Stage 7.0 docs task script and project-state boundary
+  - post-task self-review report
+expected_evidence:
+  - actor_safe_view contains only deployment actor fields
+  - critic_centralized_view contains centralized training-only context
+  - learning_target_view contains edge-delta targets marked learning-target only
+  - diagnostics_view carries oracle and topology diagnostics outside actor input
+  - artifact writer rejects missing owner approval invalid manifest and wrong scope
+  - report script generates evidence without writing project result_save artifacts
+  - Stage 7 recommends data quality review before Stage 8 actor policy interface
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - oracle labels objective metrics future outcomes surrogate components or global topology enter actor_safe_view
+  - evidence targets are mixed into deployment actor rows
+  - artifact writing bypasses owner approval or run manifest validation
+  - checkpoint model output or training log is created
+  - actor critic COMA GNN LSTM implementation is introduced
+  - result_save receives project files during the default report run
+  - old v5 code reward metric aliases or phase scripts are inherited
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L004_policy_failure_not_infeasible
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+required_tests:
+  - Stage 7 contract document exists and defines four data views
+  - actor view leakage negative cases fail
+  - oracle labels are excluded from actor view
+  - objective metrics are excluded from actor view
+  - learning targets are separated from actor view
+  - edge-delta rows include add remove and keep targets where applicable
+  - artifact writer blocks missing approval invalid manifest and wrong scope
+  - default replay report writes no project artifacts
+  - source scan rejects training model checkpoint v5 and legacy metric terms
+forbidden_v5_inheritance:
+  - old phase dataset directories or result naming
+  - old reward formulas weights or shortcut labels
+  - old metric aliases or effective-success naming
+  - old actor critic checkpoint loading
+  - old oracle labels as deployment actor inputs
+expected_outputs:
+  - in-memory learning evidence dataset summary
+  - guarded evidence-only artifact writer capability
+  - Stage 7 project-state update
+  - recommendation for Stage 7.1 data quality report before Stage 8
+  - owner decision required marker

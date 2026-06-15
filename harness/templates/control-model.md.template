@@ -1,0 +1,43 @@
+# Control Model
+
+## Controlled Object
+
+Project/subsystem boundary:
+
+## Desired State
+
+Observable acceptance criteria:
+
+## State Variables
+
+Internal state or project conditions that influence behavior:
+
+## Inputs And Outputs
+
+Inputs:
+
+Outputs:
+
+## Sensors
+
+Tests, logs, metrics, traces, static checks, manual review:
+
+## Actuators
+
+Safe code/config/interface/test changes:
+
+Unsafe or unavailable actions:
+
+## Disturbances And Constraints
+
+External services, user data, timing, CI, flaky behavior, security, compatibility:
+
+## Coupling Map
+
+Target modules:
+
+Potential non-target outputs:
+
+## Rule Basis
+
+Relevant rule IDs:

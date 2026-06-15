@@ -1,0 +1,89 @@
+id: stage7_1_learning_evidence_data_quality_report
+name: Stage 7.1 Learning Evidence Data Quality Report
+task_type: project_improvement
+prompt: >
+  Audit the Stage 7.0 learning evidence dataset for view coverage, actor-safe
+  leakage, topology family coverage, metric range sanity, edge-delta target
+  coverage, target informativeness, and feasibility class diversity. Close
+  Stage 7 if blocking gates pass, but do not train, implement actor or critic
+  model code, create checkpoints, export project artifacts by default,
+  calibrate weights, select final tau, or migrate v5 code.
+required_artifacts:
+  - Stage 7.1 learning evidence data quality report document
+  - learning evidence quality sensor module
+  - replay script for Stage 7.1 quality report
+  - unit tests for pass warning and blocking cases
+  - contract tests for docs task script project state and source boundaries
+  - PROJECT_STATE update marking Stage 7 closed if gates pass
+  - post-task self-review report
+expected_evidence:
+  - required evidence views are present
+  - actor-safe leakage issue count is zero
+  - weak sparse and dense topology families are covered
+  - edge-delta targets cover add remove and keep actions
+  - nonzero edge-delta targets exist
+  - warnings distinguish training insufficiency from Stage 8 interface readiness
+  - Stage 8 actor policy interface remains owner-approved and contract-only
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - minimal evidence is claimed sufficient for training execution
+  - actor leakage warnings are downgraded to non-blocking
+  - oracle candidate diagnostics become deployment actor inputs
+  - Stage 8 interface readiness is confused with model implementation approval
+  - checkpoint model output training log or default project artifact export is created
+  - another Stage 7 planning loop is recommended after exit gates pass
+  - old v5 code reward metric aliases or phase scripts are inherited
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L004_policy_failure_not_infeasible
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+required_tests:
+  - quality report passes blocking gates for Stage 7.0 demo evidence
+  - quality report emits warnings when feasibility class diversity is low
+  - actor leakage detector blocks forbidden actor fields
+  - missing topology family coverage blocks Stage 7 exit readiness
+  - missing targets block Stage 7 exit readiness
+  - report script prints Stage 7.1 quality report and Stage 8 recommendation
+  - result_save remains scaffold baseline during default report run
+  - source scan rejects training model checkpoint v5 and legacy metric terms
+forbidden_v5_inheritance:
+  - old phase report scoring style
+  - old reward formulas weights or shortcut labels
+  - old metric aliases or effective-success naming
+  - old actor critic checkpoint loading
+  - old oracle labels as deployment actor inputs
+expected_outputs:
+  - Stage 7.1 quality report summary
+  - Stage 7 closed marker when blocking gates pass
+  - Stage 8.0 actor policy interface contract recommendation
+  - owner decision required marker

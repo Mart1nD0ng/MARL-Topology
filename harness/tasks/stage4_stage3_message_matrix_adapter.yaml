@@ -1,0 +1,85 @@
+id: stage4_stage3_message_matrix_adapter
+name: Stage 4.3 Stage 3 Message-Matrix Adapter
+task_type: code_review
+prompt: >
+  Review the Stage 4.3 adapter from Stage 3 network communication records to
+  PBFT phase message matrices. Confirm it gates delivery by phase latency
+  budget, keeps network delivery separate from consensus success probability,
+  preserves latency energy timeout and reward boundaries, and avoids v5
+  migration, training, actor critic model code, and direct metric aliasing.
+required_artifacts:
+  - Stage 4.3 message-matrix adapter module
+  - Stage 4.3 adapter documentation
+  - unit tests for deadline gating disconnected records interference comparison and wrapper evaluation
+  - protocol contract update
+  - metric contract update
+  - project state update
+  - post-task self-review report
+expected_evidence:
+  - Stage 3 records create PBFT phase matrix entries
+  - late messages past phase budget are zeroed
+  - disconnected records produce zero matrix entries
+  - same-resource interference lowers matrix delivery relative to orthogonal resources
+  - zero-delivery zero-latency records do not become consensus success
+  - adapter does not export consensus metrics
+  - source scan rejects v5 reward training and model routes
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - network_delivery_probability is directly exported as consensus_success_probability
+  - adapter emits CSV metric rows or a new metric name
+  - adapter implements reward timeout quorum penalty training or model code
+  - adapter changes Stage 3 channel link or network simulation behavior
+  - v5 code phase scripts old metrics or old reward logic are copied
+  - full graph is labelled oracle
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - phase matrix construction from Stage 3 records
+  - phase deadline gating
+  - disconnected delivery remains zero
+  - same-resource interference versus orthogonal resource comparison
+  - zero-latency failed communication is not consensus success
+  - adapter source scan for no v5 no reward no training no actor critic code
+forbidden_v5_inheritance:
+  - v5 consensus adapters or phase scripts
+  - old P_succ or P_eff aliases
+  - hard soft legacy effective-success modes
+  - old reward shaping
+  - torch autograd or training-oriented protocol code
+expected_outputs:
+  - standalone Stage 3 to PBFT matrix adapter
+  - tests and documentation
+  - residual risks and Stage 4.4 recommendation

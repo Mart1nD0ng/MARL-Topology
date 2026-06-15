@@ -1,0 +1,102 @@
+id: stage23_controlled_policy_gradient_pilot_readiness_review
+name: Stage 23 Controlled Policy Gradient Pilot Readiness Review
+task_type: project_improvement
+prompt: >
+  Run a Stage 23 preflight that removes executable low-entropy hazards from
+  Stage 22 A/B work, confirms the selected physical-link action semantics is
+  the only active semantics, and reviews whether a controlled policy-gradient
+  pilot can be executed without reusing stale directed-action or old pilot
+  paths.
+controlled_object: >
+  Active topology action semantics, executable Stage 22 A/B leftovers, full
+  GNN actor boundary, selected objective-stack evidence, and policy-gradient
+  pilot readiness gate.
+desired_state: >
+  Executable src/scripts/tests no longer contain the discarded Stage 22 action
+  option or old GNN identifier, the active registry exposes only
+  undirected_physical_link_v1, evidence remains objective-stack-aligned, and
+  policy-gradient execution remains blocked unless a selected-physical pilot
+  harness exists.
+required_evidence:
+  - Stage 22 A/B executable evaluation training and report scripts are removed
+  - Active action-semantics registry exposes only undirected_physical_link_v1
+  - Selected physical-link evidence uses Stage 3/4 objective stack without fallback
+  - Full message-passing GNN remains the active GNN model
+  - Actor targets retain non-uniform high mid low distribution and ranking pairs
+  - Readiness report explicitly does not execute policy-gradient or write artifacts
+  - Readiness report blocks pilot execution until selected physical-link pilot harness exists
+negative_checks:
+  - Discarded Stage 22 action semantics remains in executable src scripts or tests
+  - Old toy GNN identifier remains in executable src scripts or tests
+  - Stage 22 A/B report script remains executable
+  - Stage 23 readiness review runs PPO MAPPO or any policy-gradient update
+  - Stage 23 readiness review creates checkpoint or result_save artifact
+  - Historical Stage 15 pilot is reused as selected Stage 23 pilot
+  - COMA Transformer reward tuning final tau selection or v5 modification occurs
+low_entropy_cleanup_requirement: >
+  Cleanup must delete executable A/B leftovers rather than merely marking them
+  archived. Historical documentation may retain Stage 22 comparison results,
+  but src/scripts/tests must not provide discarded action semantics or old GNN
+  identifiers as callable paths.
+policy_gradient_readiness_rule: >
+  The readiness review may pass cleanup while still blocking policy-gradient.
+  Pilot execution requires selected physical-link semantics, Stage 3/4
+  objective evaluation, same assembler projection, no actor leakage, a
+  controlled selected-semantics pilot harness, manifest guard, and explicit
+  owner approval.
+post_task_self_review_requirement: >
+  Closeout must answer what was removed, whether cleanup passed, whether
+  policy-gradient was run, whether pilot execution is allowed, why any gate is
+  blocked, and the exact recommended next task.
+required_artifacts:
+  - src/marl_topology/evaluation/stage23_policy_gradient_readiness.py
+  - scripts/train/stage23_controlled_policy_gradient_pilot_readiness_review.py
+  - docs/STAGE23_LOW_ENTROPY_PREFLIGHT_CLEANUP.md
+  - docs/STAGE23_CONTROLLED_POLICY_GRADIENT_PILOT_READINESS_REVIEW.md
+  - harness/reports/post_task_self_review_stage23.md
+  - PROJECT_STATE update after closeout
+expected_evidence:
+  - Low-entropy cleanup gate passes
+  - Selected physical action semantics gate passes
+  - Full message-passing GNN gate passes
+  - Objective-stack selected evidence gate passes
+  - Policy-gradient execution guard passes
+  - Selected physical pilot harness readiness gate blocks execution if missing
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 23 low-entropy preflight report
+  - Stage 23 policy-gradient readiness review
+  - Stage 23 blocked-or-ready verdict
+  - Owner-gated next-task recommendation

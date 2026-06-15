@@ -1,0 +1,52 @@
+id: v5_learning_audit
+name: V5 Learning Audit
+task_type: project_analysis
+prompt: >
+  Inspect v5 as read-only experience library to extract goal definitions, simulation environment lessons,
+  failure lessons, routes worth borrowing, and routes to avoid. Do not search for code assets to copy.
+required_artifacts:
+  - v5 goal summary
+  - simulation structure lesson summary
+  - failure lesson list
+  - borrow or avoid decision table
+  - learning ledger update
+expected_evidence:
+  - read-only v5 references
+  - clean skeleton layer mapping
+  - contract or test affected by each lesson
+  - no writes under v5
+  - explicit no-copy statement for code reward metrics phase scripts and actor critic architecture
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 82
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - modifies v5
+  - frames v5 as a code template
+  - prioritizes copyable assets over goal and failure lessons
+  - copies old reward metric names phase scripts or actor critic architecture
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-007
+  - EC-RULE-010
+  - EC-RULE-013
+  - EC-RULE-034
+

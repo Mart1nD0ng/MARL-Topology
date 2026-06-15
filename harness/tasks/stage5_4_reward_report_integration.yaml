@@ -1,0 +1,91 @@
+id: stage5_4_reward_report_integration
+name: Stage 5.4 Reward Report Integration Without Training
+task_type: project_improvement
+prompt: >
+  Integrate Stage 5.2 surrogate decomposition and Stage 5.3 normalization
+  references into an evaluation report as training-only diagnostics. The report
+  must show component terms without reporting a scalar surrogate or calibrating
+  weights. It must not train, add model code, select final tau, or migrate v5
+  code.
+required_artifacts:
+  - reward surrogate diagnostic report builder
+  - replay script for Stage 5.4 report
+  - Stage 5.4 report integration document
+  - reward and surrogate contract updates
+  - metric contract update
+  - project state update
+  - unit tests for report behavior
+  - contract tests for Stage 5.4 boundary
+  - post-task self-review report
+expected_evidence:
+  - report uses Stage 5.0l source rows and Stage 5.3 references
+  - component policy is component_only_no_scalar_reward_v1
+  - reliability violation and plateau rows are visible
+  - normalized latency and energy are present
+  - all surrogate rows are training-only and not actor inputs
+  - scalar surrogate is not reported
+  - reward weights are not calibrated or selected
+  - no training model code final tau selection or v5 migration occurs
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - scalar surrogate is reported as an evaluation metric
+  - reward weights are calibrated selected or presented as final
+  - training actor critic COMA GNN LSTM or model code is introduced
+  - final tau lower than 0.9 is selected or recommended
+  - old v5 reward formulas weights aliases phase scripts or P_eff names are introduced
+  - surrogate diagnostics enter deployment actor inputs
+  - surrogate output fields are registered as evaluation metrics
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L004_reliability_plateau_before_resource_objective
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+required_tests:
+  - Stage 5.4 document exists and states component-only report boundary
+  - report rows are training-only and not actor inputs
+  - scalar surrogate is not reported
+  - constraint violation and plateau rows are visible
+  - normalization references are applied
+  - replay script prints the Stage 5.4 report
+  - source scan rejects training model v5 and legacy metric terms
+forbidden_v5_inheritance:
+  - old reward formulas weights penalties or sentinel constants
+  - old effective-success metric aliases
+  - old phase scripts as reward implementation
+  - full-mask optimality assumptions
+  - fixed 0.5 deployment threshold defaults
+  - actor global-info or oracle-label leakage
+expected_outputs:
+  - component-only training diagnostic report
+  - blocked work list for reward weights training model work final tau and v5 migration
+  - recommended Stage 5.5 training preflight review task

@@ -1,0 +1,101 @@
+id: stage4_8_boundary_audit
+name: Stage 4.8 Communication Consensus Boundary Audit
+task_type: code_review
+prompt: >
+  Review the Stage 4.8 communication/consensus boundary audit. Confirm it
+  exposes scheduled latency separately from success-conditioned latency,
+  diagnoses capped inverse-reliability solves, covers non-saturated and failure
+  fixtures, keeps expected-initiator PBFT as the only consensus reliability
+  route, reports only registered metric concepts, and avoids reward, training,
+  actor critic code, Monte Carlo, subset enumeration, and v5 migration.
+required_artifacts:
+  - Stage 4.8 boundary audit module
+  - Stage 4.8 audit documentation
+  - replay helper that prints the audit report only
+  - updated link transmission contract
+  - updated network layer contract
+  - updated protocol and metric contracts
+  - unit tests for boundary cases and latency semantics
+  - contract tests for documentation harness state exports and forbidden routes
+  - project state update
+  - post-task self-review report
+expected_evidence:
+  - all required Stage 4.8 boundary cases are present
+  - at least one consensus_success_probability value is non-saturated
+  - failed scheduled messages keep scheduled latency and energy visible
+  - inverse reliability caps expose required_reliability_met and capped fields
+  - weak-primary and center-primary cases are distinguishable
+  - full graph remains baseline and not oracle
+  - metric rows are registered and no new metric names are introduced
+  - source scan rejects reward training actor critic v5 old metric aliases and sampling routes
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - failed scheduled message is reported with zero scheduled latency or zero scheduled energy
+  - inverse reliability target is capped without a diagnostic flag
+  - all consensus_success_probability values are saturated at one
+  - network delivery probability is renamed as consensus_success_probability
+  - full graph is labelled oracle
+  - oracle-candidate labels are exposed as deployment actor inputs
+  - unregistered metric appears in report output
+  - reward training actor critic COMA GNN LSTM or v5 code is introduced
+  - Monte Carlo random sampling or subset enumeration is used for PBFT reliability
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L004_reward_redundancy_bias
+  - L005_oracle_before_infeasible_claims
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - all Stage 4.8 required cases are present
+  - non-saturated consensus probability exists
+  - failed scheduled message has positive scheduled latency and energy
+  - successful delivery latency is zero when delivery probability is zero
+  - unreachable inverse reliability target exposes capped diagnostics
+  - weak primary has lower per-primary reliability than stronger primaries
+  - center primary is stronger than edge primaries in the center-vs-edge case
+  - full graph baseline is not oracle
+  - replay script is print-only
+  - source scan for no v5 no reward no training no actor critic no sampling routes
+forbidden_v5_inheritance:
+  - old P_succ or P_eff aliases
+  - hard soft legacy effective-success modes
+  - old reward shaping or timeout penalties
+  - phase scripts
+  - fixed-primary topology reliability
+  - actor critic COMA MAPPO training code
+  - any direct v5 import or copied route
+expected_outputs:
+  - Stage 4.8 boundary audit helper
+  - print-only replay helper
+  - tests and documentation
+  - residual risks and next-stage recommendation

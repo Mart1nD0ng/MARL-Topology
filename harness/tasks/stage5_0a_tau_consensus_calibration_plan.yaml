@@ -1,0 +1,93 @@
+id: stage5_0a_tau_consensus_calibration_plan
+name: Stage 5.0a Tau Consensus Calibration Plan
+task_type: code_review
+prompt: >
+  Review the Stage 5.0a tau-consensus calibration plan. Confirm it defines an
+  evidence and owner-decision process for selecting tau_consensus, keeps Stage
+  4.8 reliability_threshold 0.2 as diagnostic only, uses registered metrics
+  only, requires scenario coverage and baseline/oracle diagnostics, and does
+  not choose a final tau, implement reward, tune weights, train, add actor
+  critic code, or migrate v5 code.
+required_artifacts:
+  - tau consensus calibration plan documentation
+  - OBJECTIVE_CONTRACT update
+  - REWARD_CONTRACT update
+  - REWARD_SURROGATE_CONTRACT update
+  - METRIC_CONTRACT update
+  - project state update
+  - contract tests for tau plan and forbidden shortcuts
+  - post-task self-review report
+expected_evidence:
+  - plan states tau_consensus is not selected in Stage 5.0a
+  - Stage 4.8 reliability_threshold 0.2 remains non-authoritative
+  - calibration inputs use registered metric concepts
+  - candidate tau reporting is planned without default numeric candidates
+  - scenario coverage includes near threshold blocked interference sparse dense and failed scheduled cases
+  - full graph remains baseline and oracle candidates remain diagnostics
+  - owner decision is required before final tau selection
+  - reward implementation reward weights training actor critic and v5 migration remain blocked
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - Stage 4.8 reliability_threshold 0.2 is copied as tau_consensus
+  - final tau_consensus is selected without scenario calibration or owner decision
+  - unregistered metrics or legacy P_eff aliases enter the calibration table
+  - full graph is treated as oracle or resource optimum
+  - policy failure is treated as infeasibility proof
+  - reward implementation reward weights training actor critic COMA GNN LSTM or v5 code is introduced
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L004_reliability_plateau_before_resource_objective
+  - L005_oracle_before_infeasible_claims
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - tau calibration plan exists and states no final tau is selected
+  - Stage 4.8 threshold 0.2 is documented as diagnostic only
+  - objective reward and metric contracts reference the calibration plan
+  - project state marks Stage 5.0a complete and keeps implementation blocked
+  - no reward implementation module is added
+  - no training actor critic COMA GNN LSTM code is added
+  - harness task includes negative checks for threshold copying and v5 inheritance
+forbidden_v5_inheritance:
+  - old reward formulas weights penalties or sentinel constants
+  - old effective-success metric aliases
+  - old phase scripts as calibration implementation
+  - full-mask optimality assumptions
+  - fixed 0.5 deployment threshold defaults
+  - actor global-info or oracle-label leakage
+expected_outputs:
+  - tau consensus calibration plan document
+  - updated Stage 5 contracts and project state
+  - tests and harness validation evidence
+  - residual risk list for future calibration report design

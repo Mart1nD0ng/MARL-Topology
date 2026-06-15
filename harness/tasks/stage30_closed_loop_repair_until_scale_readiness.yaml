@@ -1,0 +1,166 @@
+id: stage30_closed_loop_repair_until_scale_readiness
+name: Stage 30 Closed-Loop Repair Until Scale Readiness
+task_type: project_improvement
+prompt: >
+  Run a bounded closed-loop repair controller that starts from the Stage 29
+  pre-scale blockers, diagnoses all active-stack health components, applies up
+  to four implementation-bearing diagnostic repairs, validates the result, and
+  either certifies large-scale readiness for owner decision or stops with a
+  blocker review.
+controlled_object: >
+  The pre-scale active policy-gradient stack and control plane: Stage 26-29
+  evidence, active actor/sampler/assembler/critic/evaluator/objective stack,
+  reward-objective alignment diagnostics, projection friction diagnostics,
+  reliability margin diagnostics, data scale assessment, readiness gate,
+  PROJECT_STATE, harness task registry, and post-task self-review.
+desired_state: >
+  Stage 30 produces executable diagnostics, bounded repair evidence, a root
+  cause matrix, readiness decision, and owner-gated next action. Large-scale
+  training remains blocked unless every readiness component passes. If four
+  repair iterations do not clear readiness, the project closes Stage 30 as a
+  blocker review requiring owner decision.
+active_stack: >
+  action_semantics_id=undirected_physical_link_v1; actor=local_message_passing_gnn_edge_scorer_v2;
+  sampler=physical_plackett_luce_top_k_sampler; assembler=selected physical-link assembler;
+  critic=centralized_message_passing_graph_value_critic_v1; evaluator=Stage 3
+  finite-blocklength communication plus Stage 4 expected-initiator PBFT;
+  objective=Stage 5 reliability-constrained latency/energy objective;
+  tau_requirement_min=0.9.
+allowed_repair_classes:
+  - reward_objective_alignment_diagnostics
+  - reliability_margin_diagnostics
+  - projection_assembler_alignment_diagnostics
+  - scenario_data_scale_assessment
+  - critic_regression_check
+  - sampler_actor_loop_health_reassessment
+iteration_protocol: >
+  Each internal iteration must diagnose current evidence, choose the dominant
+  blocker by the documented priority order, apply the smallest safe repair or
+  owner-gated repair candidate, validate with tests or report evidence, update
+  the root-cause matrix, and either continue, certify readiness, or stop for
+  owner decision. Internal iteration ids are stage30_iter_01 through
+  stage30_iter_04; no extra stage numbers are created.
+readiness_gate: >
+  PASS requires healthy harness/state, sufficient data diversity, aligned
+  reward-objective rank behavior, stable reliability margin with no material
+  tau-feasible or violation degradation, reduced or controlled projection
+  friction, healthy repaired critic, stable policy-gradient loop diagnostics,
+  no forbidden architecture or dynamic import hygiene regression, and no
+  boundary violation. PASS authorizes only an owner decision on Stage 31, not
+  automatic scale-up execution.
+stop_conditions: >
+  Stop if a hard correctness failure appears, required Stage 26-29 evidence is
+  missing, a forbidden action would be needed, the project reaches four repair
+  iterations without readiness, or owner approval is required for activating a
+  repair. In these cases write a blocker review and keep large-scale training
+  blocked.
+stage_boundary: >
+  Stage 30 may read frozen evidence, generate reports, implement diagnostics,
+  add readiness gates, and run the Stage 30 diagnostic scripts. It must not run
+  large-scale training, lower tau, select final tau, tune reward weights by
+  sweep, run uncontrolled hyperparameter search, switch the active sampler,
+  create checkpoints, implement COMA/Transformer/GRU/LSTM/recurrent PPO, leak
+  centralized fields into the actor, modify v5, or write unmanifested
+  artifacts.
+acceptance_criteria: >
+  PASS for the Stage 30 task requires the closed-loop harness, diagnostics,
+  repair reports, root-cause matrix, readiness decision, blocker review or
+  readiness certificate, tests, harness validation, PROJECT_STATE sync, and
+  post-task self-review. Large-scale readiness itself may fail; that is an
+  acceptable Stage 30 closeout only if the blocker is evidence-backed and
+  owner-gated.
+failure_criteria: >
+  FAIL if Stage 26-29 evidence cannot be read, diagnostics are incomplete,
+  component evidence is missing from the health snapshot, PROJECT_STATE or
+  harness cannot be synchronized, tests or harness validation fail, or any
+  forbidden training, tuning, architecture, sampler, tau, checkpoint, actor
+  leakage, unmanifested artifact, or v5 modification occurs.
+post_task_self_review_requirement: >
+  Closeout must answer how many iterations ran, which repairs were applied,
+  which blocker improved most, which blocker remains dominant, whether
+  reward/objective alignment improved, whether projection friction improved,
+  whether reliability margin improved, whether data diversity improved,
+  whether critic remained healthy, whether large-scale training is allowed, and
+  the exact next repair or owner decision needed.
+required_artifacts:
+  - docs/STAGE30_CLOSED_LOOP_REPAIR_PLAN.md
+  - docs/STAGE30_CURRENT_HEALTH_SNAPSHOT.md
+  - docs/STAGE30_REWARD_OBJECTIVE_REPAIR.md
+  - docs/STAGE30_PROJECTION_ALIGNMENT_REPAIR.md
+  - docs/STAGE30_RELIABILITY_MARGIN_REPAIR.md
+  - docs/STAGE30_DATA_EXPANSION_REPAIR.md
+  - docs/STAGE30_ROOT_CAUSE_MATRIX.md
+  - docs/STAGE30_REPAIR_LOOP_BLOCKER_REVIEW.md
+  - docs/STAGE30_DIAGNOSTIC_MAPPO_PILOT.md
+  - src/marl_topology/evaluation/stage30_repair_diagnostics.py
+  - scripts/replay/stage30_repair_diagnostics_report.py
+  - scripts/train/stage30_diagnostic_mappo_pilot.py
+  - tests/unit/test_stage30_repair_diagnostics.py
+  - tests/unit/test_stage30_reward_objective_repair.py
+  - tests/unit/test_stage30_projection_alignment_repair.py
+  - tests/unit/test_stage30_reliability_margin.py
+  - tests/unit/test_stage30_data_expansion.py
+  - tests/contract/test_stage30_repair_loop_boundaries.py
+  - tests/contract/test_stage30_large_scale_readiness_gate.py
+  - harness/reports/post_task_self_review_stage30.md
+  - docs/PROJECT_STATE.md
+expected_evidence:
+  - Stage 30 reads Stage 26, Stage 27, Stage 28, and Stage 29 evidence
+  - Four internal repair iterations are recorded before blocker closeout
+  - Reward-objective rank repair candidate improves diagnostic alignment without a weight sweep
+  - Projection friction remains visible and is not falsely marked repaired
+  - Reliability margin is computed against tau_requirement_min 0.9 without changing tau
+  - Data remains small-pilot-only and owner-gated for expansion
+  - Repaired critic health remains positive based on Stage 28 evidence
+  - Large-scale readiness gate fails when any required component is FAIL
+  - Stage 30 scripts write docs only and do not create result_save artifacts
+  - Recommended next task is owner decision on data expansion and active alignment repair
+negative_checks:
+  - Large-scale training, checkpoint creation, or uncontrolled artifact writes occur
+  - Reward weights, tau, sampler, actor, evaluator, action semantics, or active critic are changed
+  - COMA, Transformer, GRU/LSTM, recurrent PPO, or v5 migration occurs
+  - Actor input receives centralized critic-only fields or post-action oracle fields
+  - Diagnostic repair candidate is silently activated for training without owner decision
+  - Four-iteration stop logic is bypassed without readiness certificate
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 90
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 30 closed-loop repair plan
+  - Stage 30 current health snapshot
+  - Stage 30 root-cause matrix
+  - Stage 30 blocker review or readiness certificate
+  - Stage 30 post-task self-review

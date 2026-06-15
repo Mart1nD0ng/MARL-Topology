@@ -1,0 +1,136 @@
+id: stage27_critic_baseline_repair
+name: Stage 27 Critic Baseline Repair Before More MAPPO Training
+task_type: project_improvement
+prompt: >
+  Repair the centralized critic baseline before any further policy-gradient
+  actor training by separating critic semantics, enriching centralized
+  pre-action value features, adding return normalization, collecting a larger
+  frozen-policy critic-only dataset, training critic candidates, selecting one
+  active future value critic, and keeping further MAPPO owner-gated.
+controlled_object: >
+  The training-only critic subsystem and its coupling to the future MAPPO
+  advantage path: critic input schema, diagnostic feature boundary, return
+  normalizer, critic-only frozen-policy dataset, enriched MLP critic,
+  centralized message-passing graph critic, model registry active critic flag,
+  report artifacts, and PROJECT_STATE.
+desired_state: >
+  A usable action-independent centralized value critic is selected for future
+  MAPPO, value predictions are on the same raw scale as returns after
+  denormalization, critic metrics improve over the Stage 26 failed baseline,
+  exactly one active future value critic is registered, and no actor update,
+  policy-gradient update, reward tuning, sampler switch, checkpoint creation,
+  recurrent model, COMA, Transformer, scale-up, or v5 modification occurs.
+stage_boundary: >
+  Stage 27 may collect frozen-policy critic-only rollouts and train critics
+  only. It must not update actor weights, run PPO/MAPPO actor training, tune
+  reward weights or hyperparameters for policy performance, switch samplers,
+  create checkpoints, implement COMA/Transformer/GRU/LSTM/recurrent PPO,
+  select final tau, modify v5, or leak critic-only fields into actor input.
+acceptance_criteria: >
+  PASS requires documented critic semantic split, enriched value critic
+  feature schema, return normalization with train-only fitting, a critic-only
+  dataset meeting minimum transition and variance gates, at least the enriched
+  MLP critic trained, graph critic implemented/tested or honestly blocked, a
+  train/eval critic evaluation, at least one critic passing the minimum gate,
+  exactly one active future value critic selected, no actor or policy-gradient
+  update, no reward tuning or forbidden architecture, tests, harness
+  validation, and post-task self-review.
+failure_criteria: >
+  FAIL if no critic passes the minimum gate, critic input leaks post-action
+  outcomes into the value baseline, return scaling remains mismatched, data is
+  insufficient, actor/policy-gradient updates occur, reward weights change,
+  artifacts are unmanifested, PROJECT_STATE cannot be synchronized, tests
+  fail, or forbidden architecture/checkpoint/scale-up/v5 changes occur.
+post_task_self_review_requirement: >
+  Closeout must answer whether value predictions reached return scale,
+  explained variance improved, value-return correlation became meaningful,
+  advantage variance improved, which critic was selected and why, whether the
+  graph critic was implemented or blocked, whether Stage 28 is allowed or
+  blocked, whether actor and reward weights were unchanged, and the exact
+  recommended Stage 28.
+required_artifacts:
+  - docs/STAGE27_CRITIC_BASELINE_REPAIR.md
+  - docs/STAGE27_CRITIC_SEMANTICS.md
+  - docs/STAGE27_RETURN_VALUE_SCALE_ALIGNMENT.md
+  - docs/STAGE27_CRITIC_DATASET_HEALTH.md
+  - docs/STAGE27_CRITIC_ARCHITECTURE_REPAIR.md
+  - docs/STAGE27_CRITIC_PRETRAINING_REPORT.md
+  - docs/STAGE27_MAPPO_READINESS_AFTER_CRITIC_REPAIR.md
+  - src/marl_topology/training/critic_features.py
+  - src/marl_topology/training/return_normalization.py
+  - src/marl_topology/training/critic_dataset.py
+  - src/marl_topology/training/critic_repair_trainer.py
+  - src/marl_topology/models/enriched_centralized_mlp_critic.py
+  - src/marl_topology/models/centralized_message_passing_graph_critic.py
+  - scripts/train/stage27_critic_baseline_repair.py
+  - tests/unit/test_stage27_critic_features.py
+  - tests/unit/test_stage27_return_normalization.py
+  - tests/unit/test_stage27_critic_dataset.py
+  - tests/unit/test_stage27_critic_models.py
+  - tests/unit/test_stage27_critic_repair_trainer.py
+  - tests/contract/test_stage27_critic_semantics.py
+  - tests/contract/test_stage27_no_actor_update.py
+  - tests/contract/test_stage27_mappo_blocked.py
+  - harness/reports/post_task_self_review_stage27.md
+  - docs/PROJECT_STATE.md
+expected_evidence:
+  - Stage 27 manifest validates report artifacts under the approved result_save scope
+  - Value critic fields exclude current reward, current consensus, current latency, and current energy
+  - Diagnostic critic records are tagged action-conditioned and are not used as the value baseline
+  - Return normalizer is fitted on train returns only and normalized train targets are centered/scaled
+  - Future GAE path denormalizes critic predictions back to raw return scale
+  - Frozen-policy critic dataset has at least 512 train and 128 eval transitions with nonzero reward and return variance
+  - Actor checksum is unchanged and actor/policy-gradient update flags remain false
+  - Enriched MLP critic and graph critic produce finite outputs
+  - Graph critic is structure-sensitive and permutation-invariant
+  - At least one critic passes minimum eval EV, value-return correlation, bias, scale, and advantage variance gates
+  - Exactly one active future value critic is registered
+  - PROJECT_STATE recommends Stage 28 but keeps scale-up and LSTM/recurrent PPO blocked pending owner decision
+negative_checks:
+  - Actor weights are updated or a policy-gradient update is run
+  - Stage 25/26 policy training scripts are invoked as part of Stage 27
+  - Reward weights, sampler, actor stack, tau, or active evaluator are changed
+  - COMA, Transformer, GRU/LSTM, recurrent PPO, checkpoint creation, scale-up, or v5 migration occurs
+  - Critic-only features are exported to deployment actor input
+  - Report artifacts are written outside the manifest-approved Stage 27 artifact root
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 90
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 27 critic baseline repair report
+  - Stage 27 critic semantics and return-scale documentation
+  - Stage 27 critic dataset/pretraining/readiness reports
+  - Stage 27 post-task self-review

@@ -1,0 +1,54 @@
+id: skill_calibration_audit
+name: Skill Calibration Audit
+task_type: project_improvement
+prompt: >
+  Audit local project skills for v5 anti-inheritance calibration. Ensure each skill routes
+  recommendations through metric governance, clean skeleton layers, learning-lesson status,
+  negative checks, and contract tests before accepting v5-inspired advice.
+required_artifacts:
+  - skill inventory
+  - stale semantic scan
+  - v5 anti-inheritance gap list
+  - bounded skill patch proposal
+  - post-change verification evidence
+expected_evidence:
+  - rg scan for stale metric reward threshold full-mask phase COMA and actor-global assumptions
+  - references to docs/SKILL_CALIBRATION.md
+  - references to V5 failure lessons or do-not-learn routes when applicable
+  - contract test output
+  - harness validation output
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - skill recommends v5 code structure as default
+  - skill promotes old metric names without registration
+  - skill allows old reward formulas or weights as starting point
+  - skill treats full-mask as oracle or fixed 0.5 as deployment default
+  - skill treats COMA Q critics or global actor tensors as default architecture
+  - skill omits a negative test for known v5 failure modes
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-007
+  - EC-RULE-010
+  - EC-RULE-013
+  - EC-RULE-034

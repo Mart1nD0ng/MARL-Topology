@@ -1,0 +1,4 @@
+| v5 path | candidate component | proposed action | evidence from v5 | required tests before migration | semantic risks | owner decision | status |
+|---|---|---|---|---|---|---|---|
+| `...` | ... | migrate / wrap / rewrite / reject / legacy-only | ... | ... | ... | pending | pending |
+

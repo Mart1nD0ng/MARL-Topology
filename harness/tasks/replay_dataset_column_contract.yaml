@@ -1,0 +1,76 @@
+id: replay_dataset_column_contract
+name: Replay Dataset Column Contract
+task_type: code_review
+prompt: >
+  Review the Stage 2.6 replay dataset column contract. Confirm deployment actor
+  input columns are separated from local action columns, centralized-training-only
+  columns, and evaluation-only metric/oracle/report columns before any replay
+  writer, reward, model, or training code exists.
+required_artifacts:
+  - replay dataset contract document
+  - replay column schema module
+  - actor input validation tests
+  - mixed replay row classification tests
+  - project state update
+expected_evidence:
+  - actor-safe columns pass validation
+  - global topology oracle metric action reward and future columns fail as actor input
+  - registered mixed replay rows classify by boundary
+  - actor projection returns only ActorObservation columns
+  - no replay writer training reward model or v5 import is added
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - replay column contract allows global topology oracle labels or metrics into actor input
+  - reward return advantage or value target columns are accepted before reward training contracts
+  - unknown columns are silently accepted
+  - replay writer or dataset file generation is added
+  - actor critic COMA GNN LSTM training or v5 migration code is added
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L005_oracle_before_infeasible_claims
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+required_tests:
+  - actor-safe columns pass
+  - forbidden actor columns fail
+  - mixed replay columns classify into all expected groups
+  - actor projection excludes centralized and evaluation-only columns
+  - unknown and reward columns fail
+forbidden_v5_inheritance:
+  - old v5 phase CSV columns
+  - old P_eff hard soft legacy fields
+  - old reward or return labels
+  - global actor tensors
+  - actor critic COMA checkpoint columns
+expected_outputs:
+  - replay column contract
+  - schema validation functions
+  - tests and harness validation evidence
+  - residual risk list for future replay writer implementation

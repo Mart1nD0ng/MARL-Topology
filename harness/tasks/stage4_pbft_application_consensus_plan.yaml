@@ -1,0 +1,84 @@
+id: stage4_pbft_application_consensus_plan
+name: Stage 4.0 PBFT Application Consensus Contract Plan
+task_type: harness_design
+prompt: >
+  Plan the Stage 4 PBFT/application consensus reliability contract. Confirm
+  that Stage 3 communication delivery, latency, and energy remain separate from
+  PBFT consensus reliability, and that the planned reliability calculation uses
+  an analytic heterogeneous three-phase cascade rather than subset enumeration,
+  sampling, Monte Carlo, reward logic, training, or v5 code migration.
+required_artifacts:
+  - Stage 3 latency energy reliability coupling review
+  - Stage 4 PBFT application consensus plan
+  - PROTOCOL_CONTRACT Stage 4 update
+  - METRIC_CONTRACT Stage 4 planning note
+  - project state update
+  - post-task self-review report
+expected_evidence:
+  - stage4_pbft_three_phase_closed_form_v0 variant is declared
+  - PBFT pre-prepare prepare and commit phases are represented
+  - heterogeneous quorum tail is analytic and does not enumerate subsets
+  - consensus_success_probability remains the only consensus probability metric
+  - network_delivery_probability is not promoted directly to consensus success
+  - no reward training actor critic COMA or v5 migration is added
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - Stage 3 network delivery is renamed as consensus success probability
+  - Monte Carlo random sampling learned prediction or subset enumeration is used
+  - reward timeout quorum penalty or training surrogate is introduced
+  - v5 metric aliases reward shaping phase scripts or actor critic code are copied
+  - full graph is labelled oracle
+  - latency or energy is hidden inside an unregistered effective reliability metric
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L004_reliability_plateau_before_resource_objective
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - Stage 4 plan and coupling review exist
+  - protocol contract declares the Stage 4 variant and closed-form boundary
+  - metric contract keeps consensus_success_probability governance-first
+  - docs reject Monte Carlo sampling subset enumeration reward and v5 inheritance
+  - project state marks Stage 4.0 complete but waits for owner decision
+forbidden_v5_inheritance:
+  - old metric aliases and mode taxonomy
+  - old reward shaping or protocol penalties
+  - old phase scripts
+  - v5 quorum formula as silent default
+  - actor critic COMA GNN LSTM training interfaces
+expected_outputs:
+  - Stage 4.0 PBFT application consensus contract plan
+  - Stage 3 coupling review
+  - tests and harness validation evidence
+  - residual risks and recommended Stage 4.1 task

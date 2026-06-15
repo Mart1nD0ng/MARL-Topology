@@ -1,0 +1,176 @@
+id: stage33_gnn_stability_and_mappo_loop_unification
+name: Stage 33 GNN Stability Repair and MAPPO Loop Unification
+task_type: project_improvement
+prompt: >
+  Retire Stage32/32a custom training from the active path, route production
+  training through the official Stage24/25/28 MAPPO infrastructure, implement
+  bounded GNN stability repairs, strengthen graph-structure data, compare full
+  GNN variants against an MLP diagnostic baseline, and close with a pass/fail
+  production-actor gate.
+controlled_object: >
+  Active production training path and actor selection surface: Stage24/25/28
+  MAPPO rollout, GAE, clipped loss, repaired graph critic adapter, active local
+  GNN production actor registry, Plackett-Luce physical-link sampler, selected
+  physical-link assembler, Stage3/4 evaluator, frozen Stage5 reward surrogate,
+  graph-structure Stage33 dataset, manifest-validated reports, and project state.
+desired_state: >
+  Production training no longer calls the Stage32 custom loop; exactly one GNN is
+  active for Stage33 production; Stage33 uses official MAPPO rollout/advantage/loss
+  components; graph-structure-necessary data exists; bounded low-LR/warmup/gradient
+  controls are logged; full GNN variants are compared fairly with MLP diagnostic
+  baseline; reward weights and tau remain unchanged; and closeout records PASS or
+  FAIL with owner decision required.
+state_variables: >
+  Active trainer path, active production actor registry count, selected actor id,
+  stability config id, learning rates, warmup updates, gradient clipping, seed
+  collapse count/rate, tau feasible rate, reliability margin, latency, energy,
+  surrogate reward, KL, entropy, clip fraction, actor/critic grad norms, value
+  loss, explained variance, projection rejection, graph family coverage, split
+  leakage, reward fingerprint, manifest validation, and pass/fail verdict.
+sensors: >
+  Stage33 pytest/contract tests, Stage33 training report, failure-attribution
+  replay report, manifest validation, dataset quality report, model registry
+  inspection, Stage32 inactive flag, source scans for forbidden architecture and
+  loop calls, full pytest, and harness/scripts/validate_tasks.py.
+actuators: >
+  Stage33 production MAPPO adapter, GNN v3 architecture code, graph-structure
+  procedural dataset, Stage32 legacy execution guard, model registry role flags,
+  fixed stability config, gradient clipping and LR scheduler, Stage33 training
+  script, replay failure report, documentation, PROJECT_STATE update, and
+  post-task self-review.
+disturbances: >
+  Seed-level GNN collapse, KL explosion, local-edge-dominated data, critic/value
+  scale mismatch, projection rejection, small bounded protocol noise, historical
+  Stage32 script confusion, strong MLP diagnostic baseline, and artifact-policy
+  limits on checkpoints.
+coupling_map: >
+  Actor logits couple to Plackett-Luce proposal distribution; sampler proposals
+  couple to assembler projection; selected topology couples to Stage3/4 reliability
+  and Stage5 surrogate; critic value scale couples to GAE and PPO loss; graph family
+  structure couples to whether message passing is necessary; registry state couples
+  to the production actor gate; and Stage32 archival state couples to active-loop
+  ambiguity.
+official_mappo_loop_requirement: >
+  Stage33 production training must call official Stage24/25/28 MAPPO rollout,
+  GAE/advantage, and clipped policy/value loss modules. It must not reimplement
+  PPO loss, rollout collection, REINFORCE updates, or call Stage32 custom training.
+gnn_mandatory_direction: >
+  GNN remains the required production actor direction. MLP may be reported only as
+  diagnostic baseline and cannot be selected or promoted as production actor.
+low_entropy_cleanup_requirement: >
+  Exactly one active Stage33 production GNN may remain in the model registry. Losing
+  GNN variants may remain as inactive/diagnostic code only, and Stage32 custom loop
+  must be archived or guarded as historical reproducibility only.
+graph_structure_data_requirement: >
+  Stage33 data must include bridge-node, weak-primary repair, RSU hub/role-structured,
+  redundant-local-quality, multi-hop/sparse-backbone, near-threshold structural, and
+  full-graph-resource-failure/sparse-feasible families; feasibility and graph
+  necessity must be measured by the Stage3/4 evaluator and objective-aware teacher,
+  not hardcoded labels or SimpleLinkModel fallback.
+no_reward_tuning_requirement: >
+  Reward weights, tau_requirement_min, Stage3 finite-blocklength reliability, and
+  Stage4 expected-initiator PBFT formulas must remain unchanged. No final tau
+  selection, COMA, Transformer, GRU, LSTM, or recurrent PPO is allowed.
+pass_fail_gate: >
+  PASS requires active official MAPPO production path, retired Stage32 custom loop,
+  improved GNN stability with collapse_rate <= 20 percent, exactly one active
+  production GNN, selected GNN matching that active entry, graph-structure data
+  used, best GNN matching or beating MLP diagnostic on graph-structure families,
+  no reward/forbidden architecture changes, passing tests and harness validation,
+  and manifest-valid artifacts. FAIL requires a root-cause report and no MLP
+  production fallback.
+post_task_self_review_requirement: >
+  Closeout must answer whether production training used official MAPPO, whether
+  Stage32 custom loop was retired, whether lower LR/warmup improved stability,
+  which GNN architecture won, whether toy GNNs are absent from active path, whether
+  graph-structure data exposed GNN advantage, whether GNN matched or beat MLP,
+  whether collapse seeds reduced, whether a production artifact exists, whether
+  LSTM remains blocked, and the exact recommended next stage.
+required_artifacts:
+  - docs/STAGE33_GNN_STABILITY_AND_MAPPO_LOOP_UNIFICATION.md
+  - docs/STAGE33_TRAINING_LOOP_AUDIT.md
+  - docs/STAGE33_GNN_OPTIMIZATION_STABILITY_REPAIR.md
+  - docs/STAGE33_GNN_ARCHITECTURE_AUDIT_AND_REPAIR.md
+  - docs/STAGE33_GRAPH_STRUCTURE_NECESSITY_DATA.md
+  - docs/STAGE33_GNN_VS_MLP_DIAGNOSTIC_COMPARISON.md
+  - docs/STAGE33_PRODUCTION_GNN_ARTIFACT_POLICY.md
+  - docs/STAGE33_GNN_REPAIR_FAILURE_REVIEW.md
+  - src/marl_topology/training/production_mappo_adapter.py
+  - src/marl_topology/data/stage33_graph_structure_dataset.py
+  - src/marl_topology/models/local_gnn_edge_scorer.py
+  - scripts/train/stage33_gnn_stability_repair_training.py
+  - scripts/replay/stage33_gnn_failure_attribution_report.py
+  - tests/unit/test_stage33_production_mappo_adapter.py
+  - tests/unit/test_stage33_gnn_stability_config.py
+  - tests/unit/test_stage33_gnn_architecture_variants.py
+  - tests/unit/test_stage33_graph_structure_dataset.py
+  - tests/contract/test_stage33_no_stage32_custom_loop_active.py
+  - tests/contract/test_stage33_no_reward_tuning_no_lstm_coma_transformer.py
+  - tests/contract/test_stage33_gnn_production_gate.py
+  - harness/reports/post_task_self_review_stage33.md
+  - docs/PROJECT_STATE.md
+expected_evidence:
+  - Stage33 adapter reports official MAPPO rollout collector, GAE, clipped loss, and repaired critic loss adapter
+  - Stage32 custom loop active flag is false and legacy script requires an explicit inactive-loop flag
+  - Fixed Stage33 configs are limited to low_lr_no_warmup, low_lr_with_warmup, and low_lr_with_warmup_stronger_grad_clip
+  - LR warmup schedule and gradient clipping are recorded
+  - Graph-structure dataset covers all seven families with no split leakage and no SimpleLinkModel fallback
+  - Full GNN v3 variants expose residual/norm/message-passing diagnostics and preserve actor boundary
+  - MLP remains diagnostic-only in registry and gate logic
+  - Stage33 training report records seed-level collapse and official-loop diagnostics
+  - Failure review is written if no GNN passes and does not promote MLP
+  - Reward config fingerprint is unchanged and tau_requirement_min remains 0.9
+  - Full pytest and harness task validation pass or any deferral is explicitly documented
+negative_checks:
+  - Stage32/32a custom training loop remains active production path
+  - MLP becomes production actor
+  - More than three fixed GNN stability configs are run
+  - Reward weights, tau requirement, Stage3 formula, or Stage4 formula are changed
+  - COMA, Transformer, GRU, LSTM, recurrent PPO, or final tau selection is added
+  - Actor input receives global topology, oracle labels, centralized critic outputs, reward values, or future outcome fields
+  - Graph necessity is faked through hardcoded labels or SimpleLinkModel fallback
+  - Multiple active production GNNs remain at closeout
+  - Checkpoint or report artifacts are written outside the manifest-approved root
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - delay_or_async_risk_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 90
+minimum_required_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - verification_plan_present
+  - observability_gap_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+expected_outputs:
+  - Stage 33 official MAPPO adapter and loop audit
+  - Stage 33 GNN stability repair protocol and training report
+  - Stage 33 graph-structure dataset report
+  - Stage 33 architecture audit and diagnostic comparison
+  - Stage 33 failure review if no GNN passes
+  - Stage 33 post-task self-review

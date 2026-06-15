@@ -1,0 +1,76 @@
+id: baseline_evaluation_report
+name: Baseline Evaluation Report
+task_type: code_review
+prompt: >
+  Review the Stage 2.4 baseline evaluation report over the deterministic demo
+  scenario. Confirm that global baselines, decentralized ActorObservation to
+  EdgeActionDecision baselines, and oracle references remain separated and that
+  only registered metrics appear in report rows.
+required_artifacts:
+  - report generator
+  - report documentation
+  - metric registry evidence
+  - decentralized baseline env-step evidence
+  - oracle boundary statement
+expected_evidence:
+  - baseline rows contain only registered metric names
+  - decentralized rows consume ActorObservation and emit EdgeActionDecision
+  - full graph is a baseline and never labelled oracle
+  - oracle reference is not a deployment actor input
+  - script prints JSON and writes no result files
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - report introduces unregistered metric names
+  - diagnostic topology fields are presented as primary objectives
+  - full graph is labelled as oracle or feasibility proof
+  - oracle labels enter ActorObservation or EdgeActionDecision rules
+  - report script starts training writes result files or imports v5 code
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L003_full_mask_not_oracle
+  - L005_oracle_before_infeasible_claims
+  - L009_dec_pomdp_boundary_before_actor
+  - L010_training_after_oracle_baseline_contracts
+required_tests:
+  - report contains global and decentralized baseline rows
+  - every metric row uses a registered metric name
+  - full graph row has is_oracle false
+  - decentralized rows use ActorObservation boundary evidence
+  - report output is deterministic for the demo scenario
+forbidden_v5_inheritance:
+  - old metric aliases or P_eff defaults
+  - old reward formulas
+  - old phase scripts as report implementation
+  - full-mask optimality assumption
+  - actor critic COMA GNN LSTM or checkpoint loading
+expected_outputs:
+  - JSON report payload
+  - documentation summary
+  - tests and harness validation evidence
+  - residual risk list for scenario coverage

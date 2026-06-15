@@ -1,0 +1,1462 @@
+==== PAGE 1 ====
+High-Confidence Computing 4 (2024) 100202
+Contents lists available at ScienceDirect
+High-Confidence Computing
+journal homepage: www.sciencedirect.com/journal/high-confidence-computing
+Review article
+A survey of fault tolerant consensus in wireless networks
+Yifei Zou a, Li Yang a, Guanlin Jing a, Ruirui Zhang a, Zhenzhen Xie a, Huiqun Li b,
+Dongxiao Yu a,∗,1
+a School of Computer Science and Technology, Shandong University, Qingdao 266237, China
+b Research Center for Mathematics and Interdisciplinary Sciences, Shandong University, Qingdao 266237, China
+a r t i c l e
+i n f o
+Article history:
+Received 25 August 2023
+Revised 18 September 2023
+Accepted 11 December 2023
+Available online 9 January 2024
+Keywords:
+Consensus
+Fault-tolerance
+Byzantine-resilience
+Wireless networks
+a b s t r a c t
+Wireless networks have become integral to modern communication systems, enabling the seamless
+exchange of information across a myriad of applications. However, the inherent characteristics of
+wireless channels, such as fading, interference, and openness, pose significant challenges to achieving
+fault-tolerant consensus within these networks. Fault-tolerant consensus, a critical aspect of distributed
+systems, ensures that network nodes collectively agree on a consistent value even in the presence of
+faulty or compromised components. This survey paper provides a comprehensive overview of fault-
+tolerant consensus mechanisms specifically tailored for wireless networks. We explore the diverse
+range of consensus protocols and techniques that have been developed to address the unique chal-
+lenges of wireless environments. The paper systematically categorizes these consensus mechanisms
+based on their underlying principles, communication models, and fault models. It investigates how
+these mechanisms handle various types of faults, including communication errors, node failures,
+and malicious attacks. It highlights key use cases, such as sensor networks, Internet of Things (IoT)
+applications, wireless blockchain, and vehicular networks, where fault-tolerant consensus plays a
+pivotal role in ensuring reliable and accurate data dissemination.
+© 2024 The Author(s). Published by Elsevier B.V. on behalf of Shandong University. This is an open access
+article under the CC BY-NC-ND license (http://creativecommons.org/licenses/by-nc-nd/4.0/).
+1. Introduction
+The fault-tolerant consensus pertains to the ability of a dis-
+tributed computing system to reach an agreement or make a
+decision even the presence of faulty components or communi-
+cation failures. In a distributed system, where multiple nodes or
+components work together to achieve a common goal, failures
+can occur due to hardware malfunctions, network issues, or other
+reasons. Achieving consensus means ensuring that all nodes in
+the system agree on a particular value or decision, even in the
+face of these failures. This is crucial for maintaining the reliability
+and correctness of distributed systems. As wireless networks have
+become more prevalent and diverse, there is a growing need to
+ensure fault-tolerant consensus in these networks as well. Wire-
+less networks, such as the IoT networks, ad hoc networks, and
+vehicular networks (used in smart cars), have unique challenges
+compared to traditional wired networks. These challenges include
+limited bandwidth, variable signal strengths, and the potential
+∗Corresponding author.
+E-mail address:
+dxyu@sdu.edu.cn (D. Yu).
+1 Given his role as Editor of this journal, Dongxiao Yu had no involvement
+in the peer-review of this article and had no access to information regarding
+its peer-review. Full responsibility for the editorial process for this article was
+delegated to Dr. Zhipeng Cai.
+for frequent node mobility. Ensuring fault-tolerant consensus in
+such wireless environments, where nodes might join or leave the
+network dynamically and communication links can be unstable,
+presents its own set of technical difficulties. As a result, the fault-
+tolerant consensus in wireless networks (WFTC) has become an
+important research topic.
+1.1. Importance and significance of WFTC
+As the modern network complexity keeps increasing, wireless
+networks often need to accommodate a large number of devices
+and users spread across a wide geographical area. A distributed
+framework allows for easier scaling as new devices can be added
+without significant changes to the overall network architecture.
+In addition, wireless networks are susceptible to various types
+of interference, signal loss, and node failures. By distributing
+the network functionality, the impact of failures or disturbances
+can be localized, and the network can continue functioning in
+the presence of such issues. As a result, distributed computing
+has emerged as an efficient and predominant trend in wireless
+networks.
+In a distributed framework, devices need to achieve agreement
+through periodic information exchange for task allocation and
+decision-making. This process is also referred to as consensus [1].
+Consensus aims to achieve agreement among a set of devices
+https://doi.org/10.1016/j.hcc.2024.100202
+2667-2952/© 2024 The Author(s).
+Published by Elsevier B.V. on behalf of Shandong University. This is an open access article under the CC BY-NC-ND license
+(http://creativecommons.org/licenses/by-nc-nd/4.0/).
+
+==== PAGE 2 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+or processes (a.k.a. nodes) about a particular value or state. Be-
+sides, consensus is central to action coordination while ensuring
+a consistent state across nodes. However, various errors/faults
+would be occurred in participating nodes, especially in open-
+access wireless networks. For example, Liu et al. in [2] shows that
+accidental failures are able to cause widespread communication
+failures in wireless sensor networks. One could extend the scope
+to encompass more intricate forms of Byzantine failure [3–5],
+wherein faulty processes may exhibit extreme unpredictability,
+possibly executing actions according to malicious intentions. Con-
+sequently, an agreement protocol is sought that demonstrates
+the highest attainable reliability, even in the face of such fault
+scenarios, especially in wireless networks. Put differently, in the
+field of wireless networks, it is imperative for consensus protocols
+to possess a strong ability of fault tolerance in WFTC. This is
+significant to guarantee the robustness, security, and reliability
+of distributed networks.
+1.2. Development of WFTC
+The first significant work that introduced the concept of con-
+sensus in distributed systems is often attributed to Leslie Lam-
+port’s work [6]. This paper introduced the concept of the Paxos
+algorithm, which is a fundamental algorithm for achieving con-
+sensus in distributed systems. Paxos addresses the consensus
+problem by allowing a set of distributed nodes to make an agree-
+ment on a single value, even in the presence of faults or failures.
+The algorithm defines a protocol for reaching agreement and
+handles scenarios where nodes may fail, messages would be
+postponed, and other complications may arise. The name ‘‘Paxos’’
+was inspired by the Greek island of Paxos, which is known for its
+history of democracy and agreement. Leslie Lamport’s Paxos algo-
+rithm has had an important influence on the field of distributed
+systems and has inspired numerous variations and adaptations.
+It remains a foundational concept for achieving consensus in dis-
+tributed computing environments. Since then, other algorithms
+like Raft and Practical Byzantine Fault Tolerance (PBFT) have been
+developed to address the consensus problem as well. Raft [7]
+consensus protocol is a classical non-byzantine fault-tolerant al-
+gorithm, which is usually adopted in distributed databases and
+blockchains. Developed by Castro et al. [8], PBFT stands out as the
+pioneering Byzantine Fault Tolerance (BFT) consensus protocol
+reliant on state machine replication, renowned for its practical vi-
+ability. It has practically become synonymous with BFT consensus
+within the blockchain sphere due to its widespread recognition
+and adoption [9–11].
+Thereafter, existing works consider the consensus problem in
+the context of wireless networks. In [12], Zou et al. propose a
+novel Proof-of-Communication (PoC) consensus protocol, which
+is able to achieve k-times consensus among n devices in wireless
+networks within O(k + logn) time steps with high probabil-
+ity. Besides, Jing et al. [13] were the pioneers in addressing
+the challenge of majority consensus in the context of Byzantine
+fault-prone edge devices operating over an unreliable wireless
+channel. Their work encompassed tackling malicious faults orig-
+inating from Byzantine devices across the physical, protocol, and
+information layers simultaneously.
+1.3. Comparison with existing surveys
+Explored in the work by Gao et al. [14], is the consensus
+control challenge faced by multi-agent systems. This paper de-
+livers a comprehensive survey of present findings pertaining to
+fault-tolerant consensus control challenges, structured under a
+novel classification. This classification dissects physical security-
+preserving techniques into categories like actuator faults, sensor
+faults, and compound faults [15,16]. Additionally, logical security-
+preserving techniques are outlined encompassing aspects such as
+data availability, integrity, and confidentiality.
+Xiao et al. [17] conduct an extensive survey of distributed
+consensus protocols tailored to blockchain networks. This survey
+offers a comprehensive assessment and analysis of contemporary
+blockchain consensus protocols, taking into account their histor-
+ical evolution. The study places particular emphasis on scruti-
+nizing aspects such as performance, fault tolerance, and security
+ramifications. Their sources encompass a variety of materials,
+including academic papers, white papers on consensus proto-
+cols, official documentation, and statistics from cryptocurrency
+websites.
+In [18], Qin et al. research the latest strides achieved in
+the field of consensus among multi-agent systems. This survey
+takes a control-focused approach, intended to offer interested
+researchers an inclusive perspective on recent advancements
+in multi-agent system consensus. The authors aim to fill gaps
+that were previously unexplored or insufficiently detailed in
+earlier review papers, even though they have garnered significant
+attention and interest over the recent years.
+In [19], Ren et al. provide an overview of consensus challenges
+within the context of multi-agent coordination. The central ob-
+jective of this survey is to encapsulate the recent advancements
+in consensus issues within the cooperative control domain. The
+overarching aim is to streamline research efforts in this field and
+promote progress.
+In summary, these surveys consider the fault-tolerant con-
+sensus problem on multi-agent systems or blockchain networks.
+These studies exhibit various shortcomings in distinct areas of
+comparison, particularly concerning aspects such as the design
+of consensus protocols. In addition, to the best of our knowledge,
+there is still no survey on he fault-tolerant consensus in WFTC.
+Compared with the blockchain and multi-agent scenarios, the
+differences of wireless network scenarios on fault-tolerant con-
+sensus can be attributed to the communication medium, physical
+layer consideration, and mobility. Therefore, we consider it both
+opportune and beneficial to offer a structured overview of WFTC
+at this juncture.
+Organization. The rest of this survey is organized as follows.
+Section 2 gives some fundamental issues of WFTC. Sections 3
+and 4 introduce the non-byzantine fault tolerant consensus and
+byzantine fault tolerant consensus in wireless networks, respec-
+tively. The applications of WFTC are shown in Section 5. Finally,
+Section 6 draws the conclusion.
+2. Fundamental issues of WFTC
+In this section, we first present the definitions and properties
+in WFTC. Then, we consider the failures in WFTC, including the
+non-byzantine failures in WFTC, the byzantine failures in WFTC,
+and the summary based on a three-layer failure model.
+2.1. The definitions and properties in WFTC
+The goal of the conventional consensus problem in a dis-
+tributed system is to achieve unanimous agreement among all
+nodes within the system regarding certain shared data values.
+As analogous to the classical distributed consensus, the wireless
+consensus protocols endeavor to make all participating nodes in
+the wireless network agree on the common network decision.
+However, several published works achieve a consensus among
+all participating nodes based on the reliable wireless channel,
+such as [20] and [21]. Whereas, in realistic wireless networks, the
+shared wireless channel is unreliable and fault-prone. This survey
+paper examines a binary consensus challenge within wireless
+2
+
+==== PAGE 3 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+networks that face faults. To be specific, the situation involves
+n agents positioned in a three-dimensional Euclidean space. The
+initial arrangement of agents and their subsequent movements
+during each round can take on arbitrary configurations, with the
+sole restriction being that all agents remain within each other’s
+transmission range. For any given event, an agent v has the
+liberty to either support or oppose it. This preference is indicated
+by the parameter Xv, where Xv = 1 signifies agreement and
+Xv = 0 denotes disagreement. The realm of faulty agents harbors
+uncertainty and unpredictability, operating under the assumed
+maximum of f faulty agents within the wireless network. The
+misbehavior of a faulty agent might manifest as either a crash
+or a declaration of an inaccurate value.
+By engaging in a discourse regarding the event with their
+peers, the non-faulty agents within the wireless network ulti-
+mately converge upon a unanimous viewpoint, solidifying it as
+the ultimate agreement pertaining to that specific event. When
+striving for consensus, the following fundamental properties ought
+to guarantee for a wireless consensus when faults occur in dis-
+tributed systems.
+• Termination: Every non-faulty process decides an output.
+This means that the consensus algorithm must ensure that
+the process of reaching consensus eventually concludes,
+even if some nodes are faulty or the communication net-
+work is unreliable.
+• Agreement: All non-faulty nodes should ultimately agree on
+the same value or decision. This means that the consen-
+sus algorithm should prevent situations where some nodes
+decide on one value while others decide on a different value.
+• Validity: The agreed-upon value should be one of the values
+initially proposed by a correct node. In other words, the
+consensus algorithm should not allow nodes to agree on
+values that were not proposed by any correct node.
+• Liveness: The consensus algorithm is supposed to make
+progress in reaching consensus as long as the majority of
+nodes are correct and the network is sufficiently connected.
+Liveness ensures that the algorithm does not get stuck in a
+state where no progress can be made.
+• Fault Tolerance: The consensus algorithm should be resilient
+to the presence of a certain number of faulty nodes or
+Byzantine faults. Even when a subset of nodes behaves arbi-
+trarily, the algorithm should still ensure agreement among
+the correct nodes.
+2.2. The failures considered in WFTC
+2.2.1. The non-byzantine failures in WFTC
+The non-byzantine fault-tolerant consensus problem focuses
+mainly on the non-byzantine faults on participating nodes. The
+non-byzantine faults would be caused by software bugs, hard-
+ware malfunctions, or network issues [22], but not by malicious
+or arbitrary attacks/behavior. Specifically, the non-byzantine fail-
+ures in WFTC can be categorized into the physical layer, protocol
+layer, and data layer, as introduced in the work [23]. Jing and Zou
+et al. examined the adverse effects caused by Byzantine nodes
+across the physical, protocol, and data layers. They posited that
+these Byzantine nodes possessed knowledge about the history
+and current status of protocol execution in each round and had
+the liberty to act arbitrarily within the physical, protocol, and data
+layers. Furthermore, they assumed that these Byzantine nodes
+acted rationally, implying that if a particular behavior would
+directly expose them to detection by at least f + 1 loyal nodes,
+they would refrain from engaging in it. Consequently, when cat-
+egorizing Byzantine failures in WFTC concerning their negative
+behaviors, these failures can be sorted into the physical, protocol,
+and data layers.
+Physical layer. The non-byzantine failures at the physical
+layer predominantly present themselves as inadvertent failures,
+such as hardware malfunctions, power outages, or unintentional
+misconfigurations. These failures can lead to unexpected disrup-
+tions in the system’s operation, ultimately impacting performance
+and reliability adversely. For example, under crash failures or
+transient failures, Bhusalmith et al. [24] shown that the non-
+faulty nodes may be temporarily disrupted and cannot achieve
+agreement. Besides, with respect to accidental failures in wireless
+sensor networks, Liu et al. [2] told us that the unreliable wireless
+communication can cause message loss and node failures.
+Protocol layer. Non-byzantine fault-tolerant consensus mech-
+anisms are often used at the protocol layer in various distributed
+systems. In a layered architecture, the protocol layer handles
+the communication and coordination between different nodes or
+components within a distributed system. Protocols for achieving
+non-byzantine fault-tolerant consensus are crucial in this layer
+because they enable nodes to agree on decisions or values despite
+the presence of failures, delays, or malicious behavior. These
+consensus protocols provide a foundation for reliable communi-
+cation and cooperation in distributed systems. For instance, in
+blockchain technology, which is widely used in cryptocurrencies
+and decentralized applications, consensus protocols like PoW and
+PoS are employed to ensure that the network nodes agree on
+the order and validity of transactions. Additionally, the work
+Raft [25] considered the consensus problem for blockchains using
+non-byzantine fault-tolerant algorithms.
+Data layer. Different from the physical layer, the non-byzantine
+failures at the data layer or information layer emphasize that
+the participating nodes have the capability to send messages
+containing incorrect, erroneous, or empty opinions. This manip-
+ulation is intended to deceive honest nodes in the pursuit of
+achieving a majority consensus outcome. For instance, in dis-
+tributed database systems, consensus mechanisms can be used
+to ensure that updates, inserts, and deletions to the database are
+agreed upon by all relevant nodes. This helps prevent issues like
+data inconsistencies or conflicts that could arise due to network
+issues or node failures, e.g., fake messages. In [26], Koponen et al.
+managed non-Byzantine failures in distributed databases. When
+non-Byzantine node crashes or network partitioning happened, it
+is impossible to ensure the consensus in WFTC.
+Apart from the above three-layer failure model, the non-
+byzantine failures in WFTC can also occur across multiple layers.
+In this survey, the terminology of ‘‘multiple layers’’ means that
+NBFTC mechanisms are implemented across more than one layer
+of the network stack. For example, the integration of the pro-
+tocol layer and application layer poses a series of opportunities
+for implementing non-byzantine fault-tolerant consensus prob-
+lem. In [27], the abstract MAC layer is viewed as an attractive
+tool to simplify the non-byzantine fault-tolerant consensus issue.
+This tool implies that the physical failures do not destroy the
+application layer.
+2.2.2. The byzantine failures in WFTC
+The byzantine failures are a crucial aspect of the consensus
+problem in distributed systems. The term ‘‘Byzantine failures’’
+pertains to a scenario where some nodes in a distributed network
+can exhibit arbitrary and malicious behavior, including sending
+contradictory or incorrect information to other nodes. This term
+originates from the ‘‘Byzantine Generals’ Problem’’, a thought
+experiment introduced by Leslie Lamport [5]. Similar to the above
+non-byzantine failures, the byzantine failures in WFTC can also be
+classified into three layers: the physical layer, protocol layer, and
+data layer.
+Physical layer. Byzantine attacks at the physical layer in WFTC
+refer to a type of security threat in which malicious actors at-
+tempt to compromise the physical components of a communica-
+tion system in order to disrupt or manipulate the communication
+3
+
+==== PAGE 4 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+process. These attacks are named after the Byzantine Generals
+Problem, a theoretical problem in distributed computing that
+deals with the consensus issue among the participating nodes
+when existing some faulty or malicious nodes. In the context of
+the physical layer, Byzantine attacks can involve various forms
+of tampering with hardware, signals, or electromagnetic waves
+to achieve their goals, i.e., physical tampering, signal jamming,
+and Signal Spoofing. For example, Moniz et al. in [28] consider
+the integration of Byzantine nodes and dynamic omission trans-
+mission faults, which might affect the communications between
+non-byzantine nodes. As yet another example, Santoro et al. [29]
+consider the dynamic Byzantine faults in WFTC.
+Protocol layer. At the protocol layer, Byzantine attacks can
+exploit vulnerabilities in communication protocols to undermine
+the integrity, availability, or confidentiality of network communi-
+cations. Common Byzantine attacks at the protocol layer include
+but are not limited to sybil attacks, Data Injection, and fork-
+ing attacks. Byzantine attacks, such as Denial of Service (DoS)
+attacks, can overwhelm network resources, rendering the net-
+work unavailable to legitimate users. This disrupts the normal
+flow of communication and can have financial and operational
+implications in WFTC. To counter Byzantine attacks at the pro-
+tocol layer, various security measures are employed, including
+firewalls, secure protocol design, and intrusion detection and
+prevention systems (IDS/IPS). For instance, Buterin et al. [30]
+consider a combination of PoS principles and trustless Byzantine
+faults on blockchain networks.
+Data layer. In the context of fault-tolerant consensus prob-
+lems, Byzantine attacks at data layer of information layer involve
+malicious actors manipulating or corrupting data or information
+in a distributed system to undermine consensus, compromise
+security, or deceive other participants. Byzantine attacks at this
+layer are able to take various forms, including data tampering
+(attackers create multiple fake identities or nodes to gain in-
+fluence over the consensus process), false reporting (Malicious
+nodes intentionally report incorrect or misleading information to
+disrupt the consensus process or achieve personal gain), and data
+injection (attackers inject malicious data or false information into
+the system to deceive other nodes and influence the consensus
+outcome). Take the previous work [31] as an example, Chen
+et al. consider the data tampering attack in the data layer. The
+data tampering attack has huge damage to the signature and
+verification processes in a blockchain network. Overall, Byzantine
+attacks at the data or information layer pose a serious threat
+to the integrity and reliability of distributed systems. Preventive
+measures and well-designed consensus mechanisms are essen-
+tial to mitigate these attacks and ensure the accuracy of shared
+information.
+On top of the above three layers, the byzantine-failures are
+able to happen across multiple layers in WFTC. Byzantine attacks
+across multiple layers can have a cascading effect, where an at-
+tack at one layer can amplify the impact of attacks at other layers.
+For example, physical layer attacks can disrupt communication,
+making it easier for protocol layer attacks to succeed. Similarly,
+information layer attacks can undermine the accuracy of data
+used by protocol layer mechanisms. Mitigating Byzantine at-
+tacks across multiple layers requires a comprehensive approach,
+e.g., layer-specific defenses and cross-layer monitoring. In [32],
+Leng et al. address the prevalent concerns (namely, elevated com-
+munication overhead, diminished security, limited scalability, and
+tracking complexities) related to the practical implementation of
+Byzantine fault-tolerant consensus across various layers.
+2.2.3. The summary based on three-layer failure model
+The work [23] originally defines a three-layer Byzantine failure
+model that captures the malicious behaviors of the Byzantine
+nodes at the physical, protocol and data layers, such as jamming,
+contention, interference, protocol deviation and fake opinions.
+The paper also defines the (a, b)-majority consensus problem as
+a generalization of the binary majority consensus problem, in
+which there are distinct opinions initially and the final agreement
+is a b-majority.
+Physical layer. At the physical layer, the Byzantine nodes have
+the capability to engage in various actions. They can engage in
+contention with loyal nodes for access to the wireless channel,
+create interference that disrupts the communications of loyal
+nodes within the network, or even engage in jamming that di-
+rectly affects the physical channel. All these actions contribute
+to rendering communications between nodes unreliable, and in
+extreme cases, can lead to complete communication failures. It
+is important to highlight that each node is furnished with a ba-
+sic half-duplex transceiver, allowing them to decipher messages
+solely when the received signal strength surpasses a specified
+threshold.
+Malicious contention, interference, and jamming behaviors
+originating from Byzantine nodes are inherently challenging to
+detect. An assumption concerning the physical layer is that the
+energy possessed by the Byzantine nodes is not limitless. As a
+result, we posit that within any interval comprising T rounds
+belonging to Ω(n), the Byzantine nodes can potentially jam the
+channel for a maximum of ϵ · T rounds, where ϵ < 1/2 is a con-
+stant. This limitation is due to energy constraints. This perspective
+aligns with prior research, such as [33], which has established
+that a condition like ϵ
+=
+ω(1) is pivotal when developing
+effective communication protocols to combat jamming attacks.
+Interestingly, this necessity holds true even in the absence of
+other Byzantine behaviors. We define a round as ‘‘unjammed’’ if
+it transpires without any instances of jamming occurring during
+that specific round.
+Protocol layer. At the protocol layer, the Byzantine nodes
+possess the capability to deviate arbitrarily from the intended
+protocol execution, thereby inducing faults within the network.
+Data layer. At the data layer, the Byzantine nodes hold the
+ability to dispatch messages that include incorrect, false, or va-
+cant opinions. This manipulation is intended to deceive the loyal
+nodes regarding the ultimate outcome when striving for majority
+consensus. Another critical assumption is that each node, includ-
+ing those with Byzantine characteristics, possesses a distinctive
+and unmodifiable ID. Consequently, when a listener receives and
+decodes a message, they can readily identify the sender, even
+if the message holds no meaningful content. This safeguard en-
+sures that the Byzantine nodes cannot flood the channel with an
+abundance of meaningless messages without raising suspicion,
+thereby preventing the successful transmission of messages from
+the loyal nodes. The significance of unique IDs in facilitating the
+design of effective protocols in Byzantine environments has been
+substantiated by prior research [34].
+Based on the above presentation, one can conclude that most
+of the existing failures in WFTC can be sorted into physical
+layer failures, protocol layer failures, and data layer failures. The
+fault tolerant consensus problem considered in the works [2,24,
+28] focuses mainly on the physical layer failures. Besides, sev-
+eral previous works [25,30] study the fault tolerant consensus
+issue against layer failures. In addition, some existing works
+in [26,31] cope with the failures in WFTC in the context of the
+data/information layer.
+4
+
+==== PAGE 5 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+3. Non-Byzantine fault tolerant consensus
+Non-Byzantine Fault Tolerant Consensus (NBFTC) is a class of
+consensus algorithms designed to handle non-Byzantine faults,
+i.e., faults that do not involve malicious or arbitrary behaviors.
+Those non-byzantine faults typically include unintentional faults
+resulting from hardware malfunctions, software bugs, or network
+issues [22].
+Consensus refers to the agreement among a set of devices or
+processes (known as nodes) about a particular value or state.
+In the context of wireless networks, consensus is crucial for
+coordinating actions, ensuring consistent state across nodes, and
+tolerating faults [35]. In the case of NBFTC, the consensus is
+achieved despite the presence of non-Byzantine faults [22].
+The distinction between Byzantine and non-Byzantine faults is
+important. Byzantine faults are characterized by arbitrary, poten-
+tially malicious behavior, such as a node lying about its state or
+sending conflicting information to different nodes. Non-Byzantine
+faults, on the other hand, are characterized by nodes failing in
+predictable ways, such as crashing (stopping entirely) or omit-
+ting (failing to send or receive messages). NBFTC algorithms are
+designed to handle these non-Byzantine faults [36].
+Fault tolerance is a critical aspect of wireless networks due to
+their inherent unreliability and the potential for node or link fail-
+ures. NBFTC plays a crucial role in maintaining the performance
+and reliability of these networks in the face of such faults [37]. For
+example, in a wireless sensor network deployed for environmen-
+tal monitoring, nodes might fail due to hardware malfunctions
+or energy depletion. An NBFTC algorithm can ensure that the
+network continues to function despite these failures, by reach-
+ing a consensus on the state of the environment based on the
+readings of the functioning nodes [38]. Similarly, in a vehicular ad
+hoc network (VANET), nodes (vehicles) might fail to communicate
+due to temporary network disruptions or physical obstacles. An
+NBFTC algorithm can allow the network to maintain a consistent
+view of traffic conditions, thus improving road safety and traffic
+efficiency [39].
+Implementing NBFTC in wireless networks presents several
+unique challenges:
+• Node Mobility: In many wireless networks, nodes are mo-
+bile. This mobility can lead to rapidly changing network
+topologies, making it difficult to maintain a consistent state
+across nodes [40].
+• Unreliable Communication: Wireless communication is sub-
+ject to interference and signal attenuation, leading to un-
+predictable message loss. This can make it challenging to
+achieve consensus, as nodes may not receive all the neces-
+sary messages [22].
+• Energy Constraints: Wireless nodes are often battery-powe-
+red and need to conserve energy. Consensus algorithms can
+be communication-intensive, so designing energy-efficient
+NBFTC algorithms is a major challenge [41].
+• Scalability: Wireless networks can consist of a large number
+of nodes, so NBFTC algorithms need to be scalable. This
+means that they should not only perform well as the net-
+work size increases but also be robust to a larger number of
+potential faults [42].
+In spite of these challenges, significant progress has been made
+in developing effective NBFTC algorithms for wireless networks,
+as we will discuss in the following sections.
+3.1. Non-Byzantine WFTC in single layer
+In the context of this survey, a ‘‘single layer’’ refers to one
+specific layer of the network stack where NBFTC is implemented.
+The network stack, also known as the networking model, typically
+consists of several layers, including the physical, data link, net-
+work, transport, and application layers. Each layer has a specific
+function in the process of transmitting data over the network.
+In a single-layer NBFTC approach, the fault-tolerance mecha-
+nisms are implemented at one specific layer of this stack [22].
+In this section, we firstly present several unique challenges for
+implementing NBFTC in wireless networks. Then, we introduce
+the non-Byzantine WFTC in a single layer. Lastly, we show the
+non-Byzantine WFTC across multiple layers.
+There are numerous studies addressing various Non-Byzantine
+fault models in distributed computing domains, focusing on the
+fault-tolerant consensus problem in a single layer. These stud-
+ies encompass a wide range of subfields, methodologies, and
+solutions.
+Starting with the physical layer, Non-Byzantine faults pre-
+dominantly manifest as accidental failures, like hardware mal-
+functions, power loss, or unintentional misconfigurations. These
+failures can cause unexpected interruptions in the system’s func-
+tionality, leading to detrimental effects on performance and relia-
+bility. Bhusalmith et al. [24] were instrumental in understanding
+these issues. Their algorithm was designed to tolerate crash fail-
+ures, ensuring that the non-faulty nodes reach agreement even
+with unexpected failures. They also extended their research to
+look at transient failures, which may be temporary but can still
+cause significant disruptions. Similarly, the work of Liu et al. [2]
+in wireless sensor networks considered only accidental failures.
+They addressed the unreliable nature of wireless communica-
+tion, introducing an algorithm that efficiently handles message
+loss and node failures due to non-malicious reasons. This par-
+ticular study shed light on the often unpredictable nature of
+wireless networks, where even minor disturbances can lead to
+widespread communication failures. Moreover, in vehicular net-
+works, Lee et al. [43] examined the problem of achieving consen-
+sus in the presence of transient faults caused by environmental
+factors. They proposed a robust consensus algorithm that consid-
+ers dynamic network topology and vehicle mobility and delved
+into the specific challenges of real-time communication in con-
+stantly changing conditions. They also investigated the potential
+of employing multiple communication channels to reduce the
+likelihood of failure due to environmental interference.
+At the protocol layers, extending the discussion to distributed
+databases, the work of Koponen et al. [26] is foundational in
+managing non-Byzantine failures. They developed protocols to
+ensure that a system can reach a consensus and continue oper-
+ations even in the face of node crashes or network partitioning.
+Their work laid the groundwork for subsequent studies, focusing
+on enhancing robustness and scalability in various distributed
+computing environments. Zhang et al. [44] investigated fault-
+tolerant consensus algorithms that are resilient to non-malicious
+failures such as link failures and node crashes. They developed
+an adaptive consensus protocol that can dynamically adjust to
+varying network conditions, providing an effective solution that
+is tailored to the unique challenges of distributed computing,
+enhancing the system’s resilience.
+At the application layer, Leslie Lamport, in his working pa-
+per"The part-time parliament", published in The journal ACM
+Transactions on Computer Systems [45]. Paxos is a consistency
+algorithm based on message passing, which mainly solves the
+problem of how a distributed system agrees on a particular value.
+With the development of distributed consensus research, Paxos
+algorithm has been widely accepted in academic and industrial
+circles. Thompson et al. [46] addressed software bugs and un-
+intentional errors within a cloud computing environment. They
+utilized a replication technique to handle non-malicious faults,
+ensuring uninterrupted functionality even if some replicas en-
+countered unexpected errors. This was vital in the context of
+5
+
+==== PAGE 6 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+cloud environments, where redundancy and replication are key
+to maintaining availability and reliability. They further evalu-
+ated the trade-offs between performance and fault tolerance,
+emphasizing the need to strike a balance that suits the spe-
+cific requirements of different applications and services. Further-
+more, consensus algorithms for blockchains, the algorithms are
+generally non-byzantine fault-tolerant algorithms, such as Raft,
+which are widely used in distributed databases and are currently
+mainly used in alliance, chain, and private chains, like ETCD [47],
+BRAFT [48]; also need to consider non-malicious failures. Al-
+though the original Bitcoin consensus algorithm was mainly de-
+signed to withstand Byzantine failures, subsequent research has
+focused on optimizing consensus in the presence of accidental
+faults like network delays or node crashes. The adaptation and
+innovation in this field have led to a multitude of consensus algo-
+rithms that are specifically designed to function in the inherently
+decentralized and distributed nature of blockchain technologies.
+The problem of achieving non-Byzantine fault tolerance in a
+single layer spans a broad spectrum of research across various
+fields. It includes everything from the design of physical hardware
+to application levels, and from working with wireless sensors
+to the development of blockchain technologies. The goal is to
+create systems that can withstand accidental and non-malicious
+breakdowns. The research cited here encompasses a diverse ar-
+ray of strategies and resolutions, each designed for particular
+situations and presumptions about fault characteristics and the
+need for fault tolerance. The ongoing growth and diversifica-
+tion of this research underscore the ever-changing nature of
+technology and computing, necessitating continuous adaptation
+and innovation. The intricate complexity inherent in these sys-
+tems calls for a comprehensive and subtle approach, involving
+cross-disciplinary collaboration and the combination of differ-
+ent methods and viewpoints. The cumulative knowledge and
+achievements of this research form a solid base for ongoing ex-
+ploration and refinement of distributed computing systems that
+are fault-tolerant, highlighting the significance and applicability
+of this essential research area.
+3.2. Non-byzantine WFTC across multiple layers
+In the ever-expanding world of network systems and dis-
+tributed computing, NBFTC across multiple layers represents an
+essential and complex field of study. By extending beyond the
+constraints of a single layer, multiple-layer approaches provide a
+more comprehensive and versatile understanding of fault-tolerant
+consensus, encompassing every aspect of the network stack.
+From the intricacies of physical hardware to the sophisticated
+algorithms at the application layer, the exploration of NBFTC
+across multiple layers yields a rich and multifaceted examination
+of technology and computing. In the context of this survey,
+‘‘multiple layers’’ refers to an approach where NBFTC mechanisms
+are implemented across more than one layer of the network
+stack. This can allow for a more comprehensive fault-tolerance
+solution, as different types of faults can be handled at the most
+appropriate layer [49].
+At the base of the physical layer, where the physical layer
+interfaces with the protocol layer, NBFTC has been applied to ad-
+dress a host of hardware-related problems. Faults at these levels
+typically manifest as hardware malfunctions, signal loss, and link
+failures [50]. Research in this domain includes the development of
+redundant communication paths and mechanisms to detect and
+correct errors at the physical layer itself. This ensures that even
+when a device fails, the data layer can continue transmitting and
+receiving information through protocol paths.
+The combination of protocol and application layers presents
+a unique set of challenges and opportunities for implementing
+NBFTC. Within this domain, the concern shifts from pure hard-
+ware failures to routing, congestion, and packet handling [51,52].
+The protocol layer’s responsibility to provide reliable data de-
+livery across the network introduces the need for dynamic and
+adaptive algorithms that can tolerate transient failures. Tech-
+niques such as adaptive routing and congestion control mecha-
+nisms that can respond to non-malicious failures are pivotal in
+these layers. Research in this area is often aimed at ensuring that
+data can be successfully routed by application algorithms [53,54],
+even in the presence of network failures or unexpected changes
+in network topology.
+The application between physical layers offers a different per-
+spective on NBFTC. Here, the focus shifts towards ensuring con-
+sistent data across distributed systems, taking into account both
+software and hardware failures. Various consensus algorithms,
+like PAXOS [45] and Raft [25], have been developed to handle
+non-malicious failures within the abstract MAC layer. The ab-
+stract MAC layer [27] is a useful tool to simplify the consensus
+design. This tool means that the physical failure does not destroy
+the application layer these algorithms work by managing replicas
+of data across different nodes [55], ensuring that even if one
+part of the system fails, the overall functionality remains intact
+[56,57]. The challenges at this level often revolve around main-
+taining consistency and performance, given the higher complex-
+ity and increased chance of failure in a distributed environment.
+Perhaps the most intriguing aspect of implementing NBFTC
+across three layers is the potential for cross-layer interaction and
+optimization [58]. By recognizing the dependencies and relation-
+ships between different layers [59], it is possible to develop more
+robust and efficient fault-tolerant systems. For example, informa-
+tion about a failure at the physical layer could be communicated
+to higher layers, allowing the system to adapt and compensate
+before the failure affects overall performance. This cross-layer
+communication opens doors to new methodologies and solutions,
+allowing for a more nuanced and effective approach to fault
+tolerance.
+4. Byzantine fault tolerant consensus
+Consensus establishment in wireless networks is of paramount
+importance to ensure reliable and secure communication among
+nodes, especially in the presence of malicious or faulty actors.
+BFT mechanisms offer a promising solution to address these chal-
+lenges. This section of the survey delves into the realm of Byzan-
+tine fault-tolerant consensus in wireless networks, exploring its
+nuances and applications. We begin by focusing on Byzantine
+fault-tolerant consensus in single-layer wireless networks, where
+we investigate fundamental concepts, protocols, and performance
+evaluations.
+4.1. Byzantine WFTC in single layer
+There are several studies on various Byzantine fault mod-
+els in wireless or edge computing domains for the Byzantine
+fault-tolerant consensus problem in a single layer.
+Let us commence with those studies on the Byzantine fault-
+tolerant consensus problem at the physical layer. Byzantine at-
+tacks at the physical layer predominantly manifest as unstable
+network connections, such as signal tampering, signal blocking,
+and timing attacks.
+Considering Byzantine general problems in a distributed sys-
+tem with any desired degree of fault-tolerance, Lamport [60]
+described a general method. A simple clock-driven algorithm also
+was executed instead of relying upon explicit timeouts with the
+assumption of both reliable clock synchronization and a solution
+to the Byzantine General Problem.
+6
+
+==== PAGE 7 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+Assuming potential network failure in message delivery at
+the physical layer, Castro et al. [61] introduced a replication
+algorithm known as BFT in their work. This algorithm is de-
+signed to facilitate the construction of highly available systems
+capable of tolerating Byzantine faults. The recovery mechanism
+within the algorithm enables it to withstand any number of
+faults throughout the system’s lifespan, as long as fewer than
+one-third of the replicas become faulty within a limited window
+of vulnerability. To implement the first Byzantine-fault-tolerant
+NFS file system, the authors employed the BFT implementation
+as a generic program library. The BFT library and BFS perform
+well because the library incorporates several important opti-
+mizations, the most important of which is the use of symmetric
+cryptography to authenticate messages. The performance eval-
+uation results indicate that BFS exhibits a performance range
+from 2% faster to 24% slower when compared to non-replicated
+production implementations of the NFS protocol.
+In accordance with the communication failure model, Santoro
+et al. [29] conducted an investigation into the binary consen-
+sus problem, which involves only two input values, 0 and 1.
+Their study aimed to establish limitations on the number of
+dynamic faults that render any meaningful form of agreement,
+including strong majority, unattainable. Additionally, they pro-
+vided constraints on the number of dynamic faults under which
+meaningful agreement, including unanimity, remains achievable.
+Remarkably, these constraints are demonstrated to be precise
+for a wide-ranging category of network topologies, encompassing
+hypercubes, toruses, rings, and complete graphs. Moreover, the
+authors successfully bridged the prior gap between the potential
+and unfeasibility of non-trivial consensus within complete graphs
+amidst the backdrop of dynamic Byzantine faults.
+Considering significant challenges to the task of achieving
+tight coordination among nodes due to the inherent unrelia-
+bility of wireless ad hoc networks, Moniz et al. [28] directed
+their attention toward the challenge of achieving Byzantine fault-
+tolerant binary consensus within single-hop wireless ad hoc net-
+works. Their work introduced an asynchronous Byzantine con-
+sensus protocol named Turquois, engineered to withstand a dual
+challenge of Byzantine nodes and dynamic omission transmission
+faults that have the potential to disrupt communication among
+correctly functioning nodes. A distinguishing feature contributing
+to Turquois’s efficiency is its capability to withstand dynamic
+message omissions. This attribute plays a pivotal role in optimiz-
+ing the utilization of the wireless broadcasting medium. Notably,
+the protocol is engineered to circumvent the need for resource-
+intensive public-key cryptography during its typical operational
+phases.
+Kim et al. [62] aimed to solve the peers’ number tradeoff
+problem in the vehicle-to-everything (V2X) network which got
+especially challenging due to the mobility of nodes. In their
+research, they introduced a mechanism designed to facilitate the
+selection of an ideal subset of peers. This mechanism relies on
+reinforcement learning (RL) techniques to ensure the resilience
+of a Fabric-enabled V2X network against the dynamic effects of
+node mobility. They formulated the RL process as a contextual
+multi-armed bandit (MAB) problem.
+In addition to the physical layer, Byzantine attacks also occur
+at the network protocol layer. Numerous efforts are directed
+toward addressing Byzantine fault-tolerant consensus issues at
+the protocol layer.
+Buterin et al. [30] studied the problem of the Byzantine be-
+haviors at the protocol layer in a trustless system. In response to
+this challenge, they introduced the Casper protocol, a security-
+deposit-based Proof of Stake protocol specifically designed for
+Ethereum v2.0. Ethereum is a blockchain-based distributed com-
+puting platform and operating system. Casper represents a hybrid
+consensus mechanism that amalgamates research in the field of
+proof of stake algorithms with Byzantine fault-tolerant consensus
+theory.
+In the context of a UAV network operating in complex envi-
+ronments, essentially functioning as an asynchronous Byzantine
+distributed system, this network comprises light- weight nodes
+vulnerable not only to external physical interference and network
+attacks but also to the issue of dynamically generated error nodes
+within the network. Given the resource constraints inherent in
+UAV networks, Kong et al. [63] conducted a study focusing on
+the trustworthiness of the participating UAVs. This study encom-
+passes the timely identification and isolation of erroneous nodes.
+To address these challenges, the authors introduced a lightweight
+and asynchronous provable Byzantine fault-tolerant consensus
+algorithm, referred to as LAP-BFT. LAP-BFT achieves the assess-
+ment of a globally trusted network state by achieving consensus
+on the local status data of nodes within an asynchronous generic
+subset. Notably, the algorithm facilitates a lightweight and de-
+pendable dissemination of distributed data among designated
+agents. It efficiently concludes a multi-valued Byzantine consen-
+sus protocol via external proofing in the form of a smart contract,
+all while maintaining a computational complexity of O(1). Ul-
+timately, LAP-BFT constructs an asynchronous shared subset of
+locally trusted status data.
+Furthermore, a multitude of research endeavors are currently
+investigating Byzantine attacks occurring at the data layer.
+Chen et al. [31] tackled some of the prevailing issues in exist-
+ing consensus mechanisms employed in blockchain technology.
+These issues encompass excessive information exchanges among
+network nodes and the simplistic election strategy employed
+for selecting the master node. In response to these challenges,
+the authors introduced a consensus mechanism, named the Ring
+Signature-Practical Byzantine Fault Tolerance (ATRS-PBFT) con-
+sensus mechanism, which is based on the ATRS algorithm. ATRS-
+PBFT effectively mitigates these challenges by reducing the num-
+ber of required signatures and verifications, consequently en-
+hancing the overall efficiency of the consensus mechanism. Fur-
+thermore, ATRS-PBFT addresses Byzantine Faults occurring at
+the information layer, such as information interception and data
+tampering. To tackle these issues, the mechanism adopts a credit
+hierarchy in the master node election strategy. Before selecting
+the master node, it assesses the credit ratings of nodes within
+the network, favoring nodes with higher credit ratings for the
+role of master nodes. This approach significantly diminishes the
+likelihood of malicious nodes ascending to the position of master
+nodes, thus enhancing the overall security of the system.
+4.2. Byzantine WFTC across multiple layers
+Several sophisticated attacks, including Sybil attacks and ecl-
+ipsing attacks, deviate from a rigid three-layer classification.
+These attacks frequently necessitate the amalgamation of mul-
+tiple layers of assault to achieve their objectives. Numerous
+investigations have contemporaneously ventured into the domain
+of cross-layer Byzantine scenarios within wireless networks
+For instance, Gilad et al. [64] delved into the challenges posed
+by both Eclipse attacks and Sybil attacks within the context
+of blockchain technology. They present a novel cryptocurrency
+called Algorand, specifically engineered to expedite transaction
+confirmation, achieving confirmation times on the order of one
+minute, and designed to scale effectively to accommodate a large
+user base. To thwart the potential threat of Sybil attacks, Algorand
+employs a mechanism that assigns a weight to each user, thereby
+mitigating the risk of malicious actors flooding the network with
+fraudulent identities. The cornerstone of Algorand’s consensus
+mechanism is rooted in a Byzantine agreement protocol based
+7
+
+==== PAGE 8 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+on Verifiable Random Functions (VRF). This protocol empowers
+Algorand to efficiently and promptly reach consensus among
+network users regarding the next set of transactions and the
+creation of a new block. Importantly, this consensus is achieved
+with low latency and without the possibility of creating forks
+in the blockchain, enhancing the security and robustness of the
+system.
+In a prospective large-scale dense wireless network scenario,
+commonly encountered in future IoT deployments, Jiang et al. [65]
+focused on the challenge of achieving low-delay and high-
+throughput BFT consensus in permissionless systems, all while
+addressing the vulnerability to Sybil attacks. To address these
+challenges, they introduced a Sybil-resistant wireless network
+coordinate-based Byzantine consensus mechanism, termed SEN-
+ATE. This innovative approach has the capability to achieve real-
+time consensus, with consensus delays of less than one second,
+even within a network comprising hundreds of nodes. SENATE
+mitigates the threat of Sybil attacks by capitalizing on the fact
+that even a compromised or faulty node cannot convincingly
+manipulate its wireless channel interactions with other nodes.
+Consequently, the mechanism leverages unique wireless finger-
+prints to distinguish and identify nodes, enhancing the security
+and trustworthiness of the consensus process.
+In the context of mobile networks, where the presence of
+faults and agent mobility is commonplace and often unavoid-
+able, Zou et al. [66] conducted research focused on addressing
+the fault-tolerant consensus problem. In these networks, faulty
+agents may not only fail by crashing but also attempt to propagate
+incorrect information. To enhance the robustness of consensus in
+such challenging environments, the researchers adopted the Non-
+Orthogonal Multiple Access (NOMA) technique from 5G technol-
+ogy. NOMA facilitates efficient data transmissions between agents
+in mobile networks. Additionally, they proposed a distributed
+algorithm specially designed to achieve fault-tolerant consensus
+in mobile networks that are susceptible to Byzantine faults. This
+algorithm is engineered to operate effectively in scenarios where
+faulty agents can behave maliciously, ensuring the reliability and
+accuracy of the consensus process.
+Leng et al. [32] delved into the complexities surrounding
+practical Byzantine fault-tolerant consensus algorithms, which
+often grapple with issues such as elevated communication over-
+head, compromised security, limited scalability, and challenges
+in maintaining traceability. To address these multifaceted chal-
+lenges, the researchers introduced a novel Byzantine fault-tolerant
+consensus algorithm, namely the Generalized Practical Byzantine
+Fault-Tolerant consensus algorithm (GPBFT). This algorithm is un-
+derpinned by a framework that leverages dual administrators and
+short group signatures. It is deliberately designed for practical
+implementation across various domains, including e-commerce,
+e-banking, e-voting, and e-auction systems, thereby showcasing
+its versatility and applicability.
+For the blockchain Byzantine tolerant consensus, Wang et al.
+[67] studied the Byzantine failures at both the protocol layer and
+the information layer. They proposed an innovative consensus
+protocol called the Adaptive Byzantine Fault-Tolerant (AdBFT)
+consensus protocol. AdBFT incorporates the notion of an opti-
+mistic response assumption and introduces an adaptive approach
+to consensus formation. As a result, the protocol is capable of
+achieving consensus with a latency of 2∆in a stable state. No-
+tably, AdBFT offers the advantage of being able to tolerate up to
+half of the Byzantine failures within the network. This robust-
+ness ensures security even in situations where the synchroniza-
+tion among network participants is less stringent, enhancing the
+reliability and resilience of the system.
+Considering the 51% attack, Sybil attack, double-spending at-
+tack, and jamming attack, Zhang et al. [68] conducted research
+to design a Byzantine fault-tolerant consensus protocol which
+is specifically tailored for use in single-hop wireless networks
+where there are constraints related to signal-to-noise ratios.
+They proposed a low-latency and reliable Byzantine fault-tolerant
+consensus protocol LRBP. LRBP simultaneously fulfills two critical
+properties: persistence and liveness. Persistence ensures that
+once a transaction is confirmed in the blockchain, it cannot be
+undone or invalidated. Liveness guarantees that the network will
+eventually reach consensus on transactions, even in the presence
+of Byzantine failures and network disruptions.
+Jing et al. [13] made significant strides in addressing a chal-
+lenging problem: achieving majority consensus in the presence
+of Byzantine fault-prone edge devices, all while dealing with
+the uncertainty of an unreliable wireless channel. Their work is
+pioneering, as it takes into account the potential malicious faults
+emanating from Byzantine devices across multiple layers of the
+system, including the physical layer, protocol layer, and informa-
+tion layer. They defined a novel (a, b)-majority consensus prob-
+lem and developed a distributed protocol to realize a b-majority
+agreement within Θ(n) time steps with high probability.
+5. The applications of WFTC
+With the continuous development of WFTC algorithms, their
+scope of application has significantly expanded. Many studies
+have proposed improved wireless fault-tolerant consensus algo-
+rithms based on the characteristics of specific scenarios such as
+the IoT, blockchain, and vehicular networks. Existing efforts often
+explore how to achieve fault-tolerant consensus functionality
+for specific application scenarios with low overhead, considering
+both the characteristics of the scenarios and algorithmic costs.
+This section takes various application scenarios as entry points
+to introduce the significant applications and specific research
+endeavors in the realm of WFTC.
+Internet of Things. With the continuous advancement of
+terminal device capabilities, the IoT technology has experienced
+rapid development. However, the IoT itself is also confronted with
+critical challenges in terms of low latency and data security. The
+vast majority of IoT applications have stringent real-time require-
+ments, necessitating the timely and accurate transmission and
+processing of information among devices. In order to address the
+aforementioned issues, fault-tolerant consensus algorithms for
+wireless networks have emerged as pivotal technologies in estab-
+lishing a low-latency and highly efficient consensus mechanism
+for the IoT.
+PBFT, a commonly employed consensus algorithm based on
+state machine replication, finds application in various scenarios.
+However, in the context of the IoT, the larger scale of nodes
+and heightened sensitivity to overhead costs have led to the
+predominant utilization of enhanced PBFT as a primary consen-
+sus algorithm for IoT. Notably,
+[69] introduce a position-based
+scalable consensus protocol, denoted as G-PBFT. In G-PBFT, given
+that a majority of IoT systems rely on stationary devices for data
+collection and processing, devices with fixed positions typically
+exhibit greater computational capabilities compared to mobile
+counterparts. Capitalizing on this distinction, G-PBFT leverages
+geographic information from stationary devices to attain con-
+sensus. Nodes with relatively stable positions are chosen as en-
+dorsers in the PBFT consensus process, thereby mitigating the
+overhead incurred in transaction validation and recording. [70]
+puts forth a scalable multi-layer PBFT consensus mechanism to
+reduce the communication volume of single-layer PBFT consen-
+sus, with an analysis of the node count at each layer when com-
+munication volume is minimized. Furthermore, [71] introduces
+an enhanced PBFT consensus mechanism based on K-medoids
+clustering (K-medoids) called FIBFT, where nodes participating
+8
+
+==== PAGE 9 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+in consensus are clustered according to features, and the FIBFT
+algorithm can be applied to the clustered hierarchical model. This
+adaptation reduces the frequency of consensus-required commu-
+nications and enhances consensus efficiency.
+In addition to the PBFT algorithm, there has been research ex-
+ploring the incorporation of the RAFT algorithm into the context
+of the IoT. Particularly noteworthy is the increasing prominence
+of edge computing as a fundamental pillar of IoT technology. As
+a result, numerous studies have delved into the development
+of fusion algorithms that integrate edge computing with the
+RAFT consensus algorithm. This integration aims to enable the
+deployment of blockchain technology on trusted base stations
+and gateways in a more cost-effective and efficient manner. The
+ultimate objective is to provide IoT applications with stream-
+lined and tamper-resistant edge data services, thereby enhancing
+both efficiency and security. For instance, the weighted RAFT
+consensus algorithm, as proposed in Ref. [72], is tailored for
+IoT applications. This algorithm considers the resource condi-
+tions of nodes within the RAFT consensus process, potentially
+reducing system forwarding latency by up to 24%, according
+to simulation results. Besides, [73] propose a complete end-to-
+end long-range wide area network (LoRaWAN) system for secure
+IoT applications. This system employs the RAFT consensus al-
+gorithm to implement blockchain-based secure distributed data
+management in the context of Long-Range Wide Area Network
+(LoRaWAN) technology.
+Blockchain. Blockchain serves as an immutable shared ledger,
+utilized for recording transactions, tracking assets, and estab-
+lishing trust. Currently, wireless networks are continuously ac-
+commodating a vast array of heterogeneous devices and infras-
+tructure, necessitating a comprehensive enhancement of their
+spectrum, computational, and storage resource utilization, along-
+side bolstered security measures. Simultaneously, the ongoing
+scale, densification, and heterogeneity of wireless networks have
+given rise to a series of trust crises and security challenges. In
+this context, blockchain emerges as an intrinsic mechanism for
+distributed trust, fostering multiparty collaboration. It embod-
+ies characteristics such as transparency, immutability, end-to-
+end traceability, and smart execution. Consequently, the appli-
+cation of consensus algorithms within wireless network scenar-
+ios supported by blockchain technology is progressively gaining
+prominence.
+[8] designed an analytical modeling framework for Practi-
+cal Byzantine Fault Tolerance (PBFT)-a consensus method for
+wireless PBFT networks, and the solution can guarantee the min-
+imum number of replica nodes required while still achieving the
+protocol’s safety and liveliness. Despite presenting a particular
+consensus mechanism, there are also several studies analysis and
+compare the system efficiency and costs on wireless blockchain
+networks implementations. Note that, the fault tolerant consen-
+sus mechanism are the vital factor to decide the cost of the
+network construction and maintenance cost. For example, [74]
+present a comprehensive analysis on wireless blockchain net-
+works (WBN) under various commonly used consensus mecha-
+nisms. They give an answer to the question that how much com-
+munication resource is needed for a specific wireless blockchain
+networks.
+[75] gives an in-depth performance analysis of the
+wireless PBFT network using IEEE802.11 under different situa-
+tions and compare the success probability, average transaction
+confirmation delay and throughput.
+Vehicular Networks. In the ever-evolving landscape of vehic-
+ular technology, the concept of V2X communication has emerged
+as a critical enabler for enhancing road safety, traffic efficiency,
+and overall driving experience [76]. V2X refers to the seamless
+exchange of information between vehicles and various entities
+in their environment, including other vehicles, infrastructure,
+pedestrians, cyclists, and even the cloud. In the realm of ad-
+vanced vehicular technology, the convergence of Fault-Tolerant
+Consensus mechanisms and V2X communication has emerged
+as a pivotal research area with far-reaching implications. Fault-
+Tolerant Consensus enhances the establishment of trust among
+vehicular network participants, enabling effective cooperation
+and data sharing while safeguarding against malicious behaviors.
+[77] introduce an endorser selection mechanism based on
+reinforcement learning techniques and propose BFT consensus
+protocols with reinforcement learning techniques to ensure that
+the consensus mechanisms can adapt to varying network condi-
+tions, vehicle behaviors, and potentially malicious activities. [78]
+using distributed fault-tolerant consensus algorithms to achieve
+coordination among nearby vehicles and present a practical solu-
+tion that tolerates both Byzantine fault and lossy communication.
+Different from existing works, [79] aims applied consensus-based
+fault-tolerant platooning for connected and autonomous vehicles.
+The results show that the proposed solution can detect the faulty
+position and speed information from vehicles and reinstate the
+normal behavior of the platooning.
+UAV network. Unmanned Aerial Vehicles (UAVs), commonly
+referred to as drones, have evolved from niche technologies to
+essential components of various industries. UAV networks in-
+volve the deployment of multiple drones for diverse applications,
+ranging from surveillance and monitoring to aerial photogra-
+phy, disaster management, and even delivery services. As UAV
+networks become more complex and integrated into critical op-
+erations, consensus can be regard as a fundamental problem.
+Most of the works regard the consensus on the latest status of
+nodes in a UAV network as the classical asynchronous Byzantine
+consensus problem and many efforts have been made to maintain
+consensus and consistency among distributed nodes, even in the
+presence of faults, failures, or malicious behavior. [80] proposes a
+lightweight asynchronous provable Byzantine fault-tolerant con-
+sensus method to reduce the communication overhead by split-
+ting the set of local trusted state transactions and then dispers-
+ing the reliable broadcast control transmission (DRBC). Further-
+more, it introduces vector commitments to achieve multivalue
+Byzantine consensus (PMVBA) for identity and data in a provable
+manner.
+6. Conclusions
+This paper provided a comprehensive survey of fault-tolerant
+consensus mechanisms in wireless networks, covering both non-
+Byzantine and Byzantine faults. This survey systematically cate-
+gorized these mechanisms based on their underlying principles,
+communication models, and fault models. It investigated how
+these mechanisms handle various types of faults, including com-
+munication errors, node failures, and malicious attacks. It further
+emphasized crucial application scenarios like sensor networks,
+IoT implementations, and vehicular networks, in which fault-
+tolerant consensus significantly contributes to guaranteeing reli-
+able and accurate data dissemination. We hope that our proposed
+fault tolerant consensus survey in wireless networks can shed
+some light for researchers to develop more practical consensus
+protocols.
+Declaration of competing interest
+The authors declare that they have no known competing finan-
+cial interests or personal relationships that could have appeared
+to influence the work reported in this paper.
+9
+
+==== PAGE 10 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+Acknowledgments
+This work was supported in part by the National Natural
+Science Foundation of China (NSFC) under Grant (62102232, 6212
+2042), Shandong Science Fund for Excellent Young Scholars, China
+(2023HWYQ-007), Natural Science Foundation of Shandong Provi-
+nce, China (ZR2021QF064), and Key R&D Program of Shandong
+Province, China (2022CXGC020107).
+References
+[1] M.H. DeGroot, Reaching a consensus, Taylor Francis J. Am. Stat. Assoc. 69
+(345) (1974) 118–121.
+[2] Ke Liu, Nael Abu-Ghazaleh, Kyoung-Don Kang, Location verification and
+trust management for resilient geographic routing, J. Parallel Distrib.
+Comput. 67 (2) (2007) 215–228.
+[3] D. Dolev, M.J. Fischer, R.J. Fowler, N.A. Lynch, H.R. Strong, An efficient
+algorithm for Byzantine agreement without authentication, Inf. Control.
+52 (3) (1982) 257–274.
+[4] M.J. Fischer, N.A. Lynch, A lower bound for the time to assure interactive
+consistency, Inf. Process. Lett. 14 (4) (1982) 183–186.
+[5] L. Lamport, R.E. Shostak, M.C. Pease, The Byzantine generals problem, ACM
+Trans. Program. Lang. Syst. 4 (3) (1982) 382–401.
+[6] L. Lamport, The part-time parliament, ACM Trans. Comput. Syst. 16 (2)
+(1998) 133–169.
+[7] H. Howard, M. Schwarzkopf, A. Madhavapeddy, J. Crowcroft, Raft refloated:
+Do we have consensus? ACM SIGOPS Oper. Syst. Rev. 49 (1) (2015) 12–21.
+[8] Oluwakayode Onireti, Lei Zhang, Muhammad Ali Imran, On the viable area
+of wireless Practical Byzantine Fault Tolerance (PBFT) blockchain networks,
+in: 2019 IEEE Global Communications Conference, GLOBECOM, 2019, pp.
+1–6.
+[9] M. Yin, D. Malkhi, M.K. Reiter, G.G. Gueta, I. Abraham, HotStuff: BFT
+consensus in the lens of blockchain, 2018, arXiv preprint arXiv:1803.05069.
+[10] M. Xu, C. Liu, Y. Zou, F. Zhao, J. Yu, X. Cheng, Wchain: A fast fault-tolerant
+blockchain protocol for multihop wireless networks, IEEE Trans. Wirel.
+Commun. 20 (10) (2021) 6915–6926.
+[11] M. Xu, F. Zhao, Y. Zou, C. Liu, X. Cheng, F. Dressler, BLOWN: A blockchain
+protocol for single-hop wireless networks under adversarial SINR, IEEE
+Trans. Mob. Comput. 22 (8) (2023) 4530–4547.
+[12] Y. Zou, M. Xu, J. Yu, F. Zhao, X. Cheng, A fast consensus for permissioned
+wireless blockchains, IEEE Internet Things J. 10 (14) (2023) 12102–12111.
+[13] Guanlin Jing, Yifei Zou, Dongxiao Yu, Chuanwen Luo, Xiuzhen Cheng, Effi-
+cient fault-tolerant consensus for collaborative services in edge computing,
+IEEE Trans. Comput. 72 (8) (2023) 2139–2150.
+[14] C. Gao, X. He, H. Dong, H. Liu, G. Lyu, A survey on fault-tolerant consensus
+control of multi-agent systems: trends, methodologies and prospects,
+Internat. J. Systems Sci. 53 (13) (2022) 2800–2813.
+[15] X. Pang, Z. Wang, D. Liu, J.C.S. Lui, Q. Wang, J. Ren, Towards personal-
+ized privacy-preserving truth discovery over crowdsourced data streams,
+IEEE/ACM Trans. Netw. 30 (1) (2022) 327–340.
+[16] Z. Wang, K. Liu, J. Hu, J. Ren, H. Guo, W. Yuan, Attrleaks on the edge:
+Exploiting information leakage from privacy-preserving co-inference, Chin.
+J. Electron. 32 (1) (2023) 1–12.
+[17] Y. Xiao, N. Zhang, W. Lou, Y.T. Hou, A survey of distributed consensus
+protocols for blockchain networks, IEEE Commun. Surv. Tutorials 22 (2)
+(2020) 1432–1465.
+[18] J. Qin, Q. Ma, Y. Shi, L. Wang, Recent advances in consensus of multi-agent
+systems: A brief survey, IEEE Trans. Ind. Electron. 64 (6) (2017) 4972–4983.
+[19] W. Ren, R.W. Beard, E.M. Atkins, A survey of consensus problems in
+multi-agent coordination, in: IEEE ACC, 2005, pp. 1859–1864.
+[20] L. Yang, Y. Zou, M. Xu, Y. Xu, D. Yu, X. Cheng, Distributed consensus for
+blockchains in Internet-Of-Things networks, TUP Tsinghua Sci. Technol. 27
+(5) (2022) 817–831.
+[21] Q. Xu, Y. Zou, D. Yu, M. Xu, S. Shen, F. Li, Consensus in wireless blockchain
+system, in: Springer WASA, Vol. 12384, 2020, pp. 568–579.
+[22] Michael Barborak, Anton Dahbura, Miroslaw Malek, The consensus problem
+in fault-tolerant computing, ACM Comput. Surv. 25 (2) (1993) 171–220.
+[23] G. Jing, Y. Zou, D. Yu, C. Luo, X. Cheng, Efficient fault-tolerant consensus
+for collaborative services in edge computing, IEEE Trans. Comput. 72 (8)
+(2023) 2139–2150.
+[24] Narayan Bhusal, Michael Abdelmalak, Md Kamruzzaman, Mohammed
+Benidris, Power system resilience: Current practices, challenges, and future
+directions, IEEE Access 8 (2020) 18064–18086.
+[25] Diego Ongaro, John Ousterhout, In search of an understandable consensus
+algorithm, in: 2014 USENIX Annual Technical Conference, USENIX ATC 14,
+USENIX Association, Philadelphia, PA, 2014, pp. 305–319.
+[26] Teemu Koponen, Martin Casado, Natasha Gude, Jeremy Stribling, Leon
+Poutievski, Min Zhu, Rajiv Ramanathan, Yuichiro Iwata, Hiroaki Inoue,
+Takayuki Hama, Scott Shenker, Onix: A distributed control platform for
+large-scale production networks, in: 9th USENIX Symposium on Operat-
+ing Systems Design and Implementation, OSDI 10, USENIX Association,
+Vancouver, BC, 2010.
+[27] Fabian Kuhn, Nancy Lynch, Calvin Newport, The Abstract MAC Layer, in:
+Idit Keidar (Ed.), Distributed Computing, 2009, pp. 48–62.
+[28] Henrique Moniz, Nuno F. Neves, Miguel Correia, Byzantine fault-tolerant
+consensus in wireless ad hoc networks, IEEE Trans. Mob. Comput. 12 (12)
+(2013) 2441–2454.
+[29] Nicola Santoro, Peter Widmayer, Agreement in synchronous networks with
+ubiquitous faults, Theoret. Comput. Sci. 384 (2) (2007) 232–249, Structural
+Information and Communication Complexity (SIROCCO 2005).
+[30] Vitalik Buterin, Virgil Griffith, Casper the friendly finality gadget, 2017,
+CoRR bs/1710.09437.
+[31] Liquan Chen, Chengjing Wang, Wenxuan Jiang, An efficient Byzantine
+fault-tolerant consensus mechanism based on aggregate threshold ring
+signature,
+in:
+2023
+8th
+International
+Conference
+on
+Computer
+and
+Communication Systems, ICCCS, 2023, pp. 430–439.
+[32] Xiaosheng Yu, Jie Qin, Peng Chen, Jiewu Leng, GPBFT: A practical Byzantine
+fault-tolerant consensus algorithm based on dual administrator short
+group signatures, Sec. Commun. Netw. 2022 (2022).
+[33] A. Ogierman, A. Richa, C. Scheideler, S. Schmid, J. Zhang, Competitive MAC
+under adversarial SINR, in: IEEE INFOCOM, 2014, pp. 2751–2759.
+[34] M. Castro, B. Liskov, Practical Byzantine fault tolerance, in: USENIX OSDI,
+1999, pp. 173–186.
+[35] George Coulouris, Jean Dollimore, Tim Kindberg, Distributed Systems -
+Concepts and Designs, third ed., 2002, p. 452.
+[36] Henrique Moniz, Nuno Ferreira Neves, Miguel Correia, Paulo Veríssimo,
+Randomization can be a healer: Consensus with dynamic omission failures,
+in: Idit Keidar (Ed.), Distributed Computing, 2009, pp. 63–77.
+[37] Nicola Santoro, Peter Widmayer, Agreement in synchronous networks with
+ubiquitous faults, Theoret. Comput. Sci. 384 (2) (2007) 232–249.
+[38] Jinho Choi, Shancang Li, Xinheng Wang, Jeongseok Ha, A general dis-
+tributed consensus algorithm for wireless sensor networks, in: 2012
+Wireless Advanced, WiAd, 2012, pp. 16–21.
+[39] Shu-Ching Wang, Kuo-Qin Yan, Wei-Shu Xiong, New anatomy of consensus
+in a multiple damage communication VANET, in: Jeng-Shyang Pan, Akinori
+Ito, Pei-Wei Tsai, Lakhmi C. Jain (Eds.), Recent Advances in Intelligent In-
+formation Hiding and Multimedia Signal Processing, Springer International
+Publishing, Cham, 2019, pp. 289–296.
+[40] J. Wu, F. Dai, Mobility-sensitive topology control in mobile ad hoc
+networks,
+in:
+18th
+International
+Parallel
+and
+Distributed
+Processing
+Symposium, 2004. Proceedings, 2004, p. 28.
+[41] Tao Li, Minyue Fu, Lihua Xie, Ji-Feng Zhang, Distributed consensus with
+limited communication data rate, IEEE Trans. Automat. Control 56 (2)
+(2011) 279–292.
+[42] Shrut
+Kirti,
+Anna
+Scaglione,
+Robert
+J.
+Thomas,
+A
+scalable
+wireless
+communication architecture for average consensus, 2007, pp. 32–37.
+[43] Stefania
+Santini,
+Alessandro
+Salvi,
+Antonio
+Saverio
+Valente,
+Antonio
+Pescapè, Michele Segata, Renato Lo Cigno, Platooning maneuvers in vehic-
+ular networks: A distributed and consensus-based approach, IEEE Trans.
+Intell. Veh. 4 (1) (2019) 59–72.
+[44] P. Thambidurai, You keun Park, Interactive consistency with multiple
+failure modes, in: Proceedings Seventh Symposium on Reliable Distributed
+Systems, IEEE Computer Society, Los Alamitos, CA, USA, 1988, 93, 94, 95,
+96, 97, 98, 99, 100.
+[45] Leslie Lamport, The part-time parliament, ACM Trans. Comput. Syst. 16 (2)
+(1998) 133–169.
+[46] Ao Zhou, Shangguang Wang, Bo Cheng, Zibin Zheng, Fangchun Yang,
+Rong N. Chang, Michael R. Lyu, Rajkumar Buyya, Cloud service reliability
+enhancement via virtual machine placement optimization, IEEE Trans. Serv.
+Comput. 10 (6) (2017) 902–913.
+[47] Fanmin Shi, Anthony Romano, Brandon Philips, Joe Betz, Gyuho Lee, Jingyi
+Hu, Xiang Li, Ben Darnell, Sam Batschelet, ETCD, https://github.com/etcd-
+io/etcd.
+[48] Tanghui Lin, BRAFT, https://github.com/baidu/braft.
+[49] Teng Xu, Miodrag Potkonjak, Energy-efficient fault tolerance approach
+for Internet of Things applications, in: 2016 IEEE/ACM International
+Conference on Computer-Aided Design, ICCAD, 2016, pp. 1–8.
+[50] D.D. Geeta, N. Nalini, Rajashekhar C. Biradar, Fault tolerance in wireless
+sensor network using hand-off and dynamic power adjustment approach,
+J. Netw. Comput. Appl. 36 (4) (2013) 1174–1185.
+[51] J.H. Kim, Ziqiang Liu, A.A. Chien, Compressionless routing: A framework
+for adaptive and fault-tolerant routing, IEEE Trans. Parallel Distrib. Syst. 8
+(3) (1997) 229–244.
+[52] Michael Dimopoulos, Yi Gang, Mounir Benabdenbi, Lorena Anghel, Nacer-
+Eddine Zergainoh, Michael Nicolaidis, Fault-tolerant adaptive routing under
+permanent and temporary failures for many-core systems-on-chip, in:
+2013 IEEE 19th International on-Line Testing Symposium, IOLTS, 2013, pp.
+7–12.
+10
+
+==== PAGE 11 ====
+Y. Zou, L. Yang, G. Jing et al.
+High-Confidence Computing 4 (2024) 100202
+[53] Tian He, J.A. Stankovic, Chenyang Lu, T. Abdelzaher, SPEED: A stateless
+protocol for real-time communication in sensor networks, in: 23rd Inter-
+national Conference on Distributed Computing Systems, 2003. Proceedings,
+2003, pp. 46–55.
+[54] T. He, J.A. Stankovic, T.F. Abdelzaher, C. Lu, A spatiotemporal communi-
+cation protocol for wireless sensor networks, IEEE Trans. Parallel Distrib.
+Syst. 16 (10) (2005) 995–1006.
+[55] Calvin Newport, Peter Robinson, Fault-Tolerant Consensus with an Abstract
+MAC Layer, in: Ulrich Schmid, Josef Widder (Eds.), DISC, Vol. 121, 2018,
+pp. 38:1–38:20.
+[56] Calvin Newport, Consensus with an abstract MAC layer, in: PODC, 2014,
+pp. 66–75.
+[57] Dongxiao Yu, Yifei Zou, Jiguo Yu, Yong Zhang, Feng Li, Xiuzhen Cheng,
+Falko Dressler, Francis C.M. Lau, Implementing the abstract MAC layer in
+dynamic networks, IEEE Trans. Mob. Comput. 20 (5) (2021) 1832–1845.
+[58] Qilian Liang, Lingming Wang, Qingchun Ren, Fault-tolerant and energy
+efficient cross-layer design for wireless sensor networks, Int. J. Sen. Netw.
+2 (3/4) (2007) 248–257.
+[59] Bo Fu, Yang Xiao, Hongmei Deng, Hui Zeng, A survey of cross-layer designs
+in wireless networks, IEEE Commun. Surv. Tutor. 16 (1) (2014) 110–126.
+[60] Leslie Lamport, Using time instead of timeout for fault-tolerant distributed
+systems, ACM Trans. Program. Lang. Syst. 6 (2) (1984) 254–280.
+[61] Miguel Castro, Barbara Liskov, Practical Byzantine fault tolerance and
+proactive recovery, ACM Trans. Comput. Syst. 20 (4) (2002) 398–461.
+[62] Seungmo
+Kim,
+Ahmed
+S.
+Ibrahim,
+Byzantine-fault-tolerant
+consensus
+via reinforcement learning for permissioned blockchain-empowered V2X
+network, IEEE Trans. Intell. Veh. 8 (1) (2023) 172–183.
+[63] Lingjun Kong, Bing Chen, Feng Hu, LAP-BFT: Lightweight asynchronous
+provable Byzantine fault-tolerant consensus mechanism for UAV network
+trusted systems, in: Bohan Li, Lin Yue, Chuanqi Tao, Xuming Han, Diego
+Calvanese, Toshiyuki Amagasa (Eds.), Web and Big Data, Springer Nature
+Switzerland, Cham, 2023, pp. 232–246.
+[64] Yossi Gilad, Rotem Hemo, Silvio Micali, Georgios Vlachos, Nickolai Zel-
+dovich, Algorand: Scaling Byzantine agreements for cryptocurrencies, in:
+Proceedings of the 26th Symposium on Operating Systems Principles, SOSP
+’17, Association for Computing Machinery, New York, NY, USA, 2017, pp.
+51–68.
+[65] Zhiyuan Jiang, Zixu Cao, Bhaskar Krishnamachari, Sheng Zhou, Zhisheng
+Niu, SENATE: A permissionless Byzantine consensus protocol in wireless
+networks for real-time internet-of-things applications, IEEE Internet Things
+J. 7 (7) (2020) 6576–6588.
+[66] Yifei Zou, Minghui Xu, Jiguo Yu, Feng Zhao, Xiuzhen Cheng, Fault-tolerant
+consensus with NOMA in mobile networks, IEEE Wirel. Commun. 29 (3)
+(2022) 80–86.
+[67] Rong Wang, Wei-Tek Tsai, Feng Zhang, Le Yu, Hongyang Zhang, Yaowei
+Zhang, Adaptive Byzantine fault-tolerant ConsensusProtocol, in: Meikang
+Qiu, Zhihui Lu, Cheng Zhang (Eds.), Smart Computing and Communication
+- 7th International Conference, SmartCom 2022, New York City, NY,
+USA, November 18-20, 2022, Proceedings, in: Lecture Notes in Computer
+Science, vol. 13828, Springer, 2022, pp. 66–75.
+[68] Li Zhang, Baoxian Zhang, Cheng Li, An efficient and reliable Byzantine fault
+tolerant blockchain consensus protocol for single-hop wireless networks,
+IEEE Trans. Wireless Commun. (2023) 1.
+[69] Laphou Lao, Xiaohai Dai, Bin Xiao, Songtao Guo, G-pbft: A location-based
+and scalable consensus protocol for IoT-blockchain applications, in: 2020
+IEEE International Parallel and Distributed Processing Symposium, IPDPS,
+IEEE, 2020, pp. 664–673.
+[70] Wenyu Li, Chenglin Feng, Lei Zhang, Hao Xu, Bin Cao, Muhammad Ali
+Imran, A scalable multi-layer PBFT consensus for blockchain, IEEE Trans.
+Parallel Distrib. Syst. 32 (5) (2020) 1146–1160.
+[71] Ningjie Gao, Ru Huo, Shuo Wang, Tao Huang, FIBFT: An improved Byzan-
+tine consensus mechanism for edge computing, in: 2023 IEEE Wireless
+Communications and Networking Conference, WCNC, IEEE, 2023, pp. 1–6.
+[72] Xiaojun Xu, Lu Hou, Yankai Li, Yunxin Geng, Weighted RAFT: An improved
+blockchain consensus mechanism for internet of things application, in:
+2021 7th International Conference on Computer and Communications,
+ICCC, 2021, pp. 1520–1525.
+[73] Md Shahjalal, Md Mainul Islam, Md Morshed Alam, Yeong Min Jang,
+Implementation of a secure LoRaWAN system for industrial Internet of
+Things integrated with IPFS and blockchain, IEEE Syst. J. 16 (4) (2022)
+5455–5464.
+[74] Lei Zhang, Hao Xu, Oluwakayode Onireti, Muhammad Ali Imran, Bin Cao,
+How much communication resource is needed to run a wireless blockchain
+network? IEEE Netw. 36 (1) (2021) 128–135.
+[75] Ziyi Zhou, Oluwakayode Onireti, Lei Zhang, Muhammad Ali Imran, Per-
+formance analysis of wireless practical Byzantine fault tolerance networks
+using IEEE 802.11, in: 2021 IEEE Globecom Workshops, GC Wkshps, IEEE,
+2021, pp. 1–6.
+[76] L. Yang, Y. Zou, D. Yu, J. Yu, Distributed age-of-information optimization in
+edge computing for internet of vehicles, J. Syst. Archit. 144 (2023) 103000.
+[77] Seungmo
+Kim,
+Ahmed
+S.
+Ibrahim,
+Byzantine-fault-tolerant
+consensus
+via reinforcement learning for permissioned blockchain-empowered V2X
+network, IEEE Trans. Intell. Veh. 8 (1) (2022) 172–183.
+[78] Thomas Li, Lewis Tseng, Takamasa Higuchi, Seyhan Ucar, Onur Altintas,
+Poster: Fault-tolerant consensus for connected vehicles: A case study, in:
+Frank Kargl, Onur Altintas, Christoph Sommer, Takamasa Higuchi, Florian
+Klingler (Eds.), 13th IEEE Vehicular Networking Conference, VNC 2021,
+Ulm, Germany, November 10-12, 2021, IEEE, 2021, pp. 133–134.
+[79] Tzu-Yen Tseng, Ding-Jiun Huang, Jia-You Lin, Po-Jui Chang, Chung-Wei Lin,
+Changliu Liu, Consensus-based fault-tolerant platooning for connected and
+autonomous vehicles, in: IEEE Intelligent Vehicles Symposium, IV 2023,
+Anchorage, AK, USA, June 4-7, 2023, IEEE, 2023, pp. 1–8.
+[80] Lingjun Kong, Bing Chen, Feng Hu, LAP-BFT:Lightweight asynchronous
+provable Byzantine fault-tolerant consensus mechanism for UAV network
+trusted systems, in: Bohan Li, Lin Yue, Chuanqi Tao, Xuming Han, Diego
+Calvanese, Toshiyuki Amagasa (Eds.), Web and Big Data - 6th International
+Joint Conference, APWeb-WAIM 2022, Nanjing, China, November 25-27,
+2022, Proceedings, Part III, in: Lecture Notes in Computer Science, vol.
+13423, Springer, 2022, pp. 232–246.
+11

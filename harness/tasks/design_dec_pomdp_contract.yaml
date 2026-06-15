@@ -1,0 +1,61 @@
+id: design_dec_pomdp_contract
+name: Design Dec-POMDP Contract
+task_type: harness_design
+prompt: >
+  Design or review actor-local observation boundaries, critic centralized-training allowances,
+  deployment feature schemas, and leakage tests.
+required_artifacts:
+  - actor allowed field list
+  - actor forbidden field list
+  - critic-only field list
+  - leakage test plan
+expected_evidence:
+  - feature schema
+  - dataset or replay column audit plan
+  - checkpoint boundary plan
+  - negative leakage test
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - controllability_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+pass_threshold: 82
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - deployment actor sees global topology
+  - oracle labels enter actor action selection
+  - checkpoint loader requires critic-only tensors for actor inference
+  - CTDE is treated as permission for centralized deployment actor inputs
+  - COMA or GNN actor is selected before leakage tests
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-013
+  - EC-RULE-034
+relevant_lessons:
+  - L009_dec_pomdp_boundary_before_actor
+required_tests:
+  - actor schema accepts allowed local fields
+  - actor schema rejects global topology and oracle labels
+  - centralized training view is rejected as actor payload
+  - local action assembly rejects non-candidate edges
+forbidden_v5_inheritance:
+  - full graph tensors as deployment actor input
+  - oracle labels in actor action selection
+  - actor critic COMA GNN or LSTM implementation before schema gates
+expected_outputs:
+  - allowed actor field list
+  - forbidden actor field list
+  - critic or centralized training-only field list
+  - leakage-negative tests

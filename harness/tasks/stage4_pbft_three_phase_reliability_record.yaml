@@ -1,0 +1,88 @@
+id: stage4_pbft_three_phase_reliability_record
+name: Stage 4.2 PBFT Three-Phase Reliability Record
+task_type: code_review
+prompt: >
+  Review the Stage 4.2 PBFT three-phase reliability record. Confirm it consumes
+  declared pre-prepare, prepare, and commit matrices only, validates n >= 3f + 1,
+  uses the Stage 4.1 heterogeneous quorum-tail utility, keeps mean-field and
+  fault-filter assumptions explicit, and avoids Stage 3 adapter logic, reward,
+  timeout-gated aliases, training, actor critic code, Monte Carlo, subset
+  enumeration, and v5 migration.
+required_artifacts:
+  - Stage 4.2 PBFT reliability module
+  - Stage 4.2 reliability documentation
+  - unit tests for quorum boundaries phases monotonicity filtering and matrix validation
+  - protocol contract update
+  - metric contract update
+  - project state update
+  - post-task self-review report
+expected_evidence:
+  - invalid n less than 3f plus 1 is rejected
+  - all three phases are represented and required
+  - all-one matrices produce reliability one for n equals 4 f equals 1
+  - zero prepare or commit phase prevents consensus
+  - improving a declared message probability does not reduce reliability
+  - conservative fault filtering is no larger than no filtering
+  - source scan rejects sampling subset enumeration v5 imports reward and training routes
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+  - reliability_or_error_control_checked
+negative_checks:
+  - Stage 3 network delivery is directly renamed as consensus success probability
+  - phase deadline latency or energy adapter logic is introduced
+  - reward timeout quorum penalty or effective-success alias is introduced
+  - Monte Carlo random sampling learned prediction or subset enumeration is used
+  - v5 consensus code phase scripts or metric aliases are copied
+  - actor critic COMA GNN LSTM or training logic is added
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-029
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L008_phase_script_entropy
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - PBFT config validation for n f and primary
+  - all-one matrix reliability sanity
+  - zero phase matrix prevents consensus
+  - monotonicity under improved message probability
+  - conservative fault filtering versus no filtering
+  - matrix validation for self messages unknown endpoints and invalid probabilities
+  - source scan for no sampling no subset enumeration no v5 imports no reward no training
+forbidden_v5_inheritance:
+  - v5 consensus implementation
+  - old P_succ or P_eff aliases
+  - hard soft legacy effective-success modes
+  - old reward shaping or protocol penalties
+  - phase scripts
+  - torch autograd or training-oriented protocol code
+expected_outputs:
+  - standalone PBFT three-phase reliability record
+  - tests and documentation
+  - residual risks and Stage 4.3 recommendation

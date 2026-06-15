@@ -1,0 +1,58 @@
+rubric_id: marl_topology_contract_rubric
+version: draft-0.1
+description: Scores whether MARL-Topology work preserves metric, physics, protocol, reward, and Dec-POMDP contracts.
+items:
+  - id: metric_names_unambiguous
+    weight: 12
+    description: consensus_success, consensus_success_probability, latency, energy, topology diagnostics, timeout, quorum, and reward are not conflated.
+    pass_condition: Work uses registered metric names with definitions, range/unit, level, used_for, formula source, dependencies, and tests.
+    fail_condition: Uses an unregistered metric or mixes reward and metric names.
+  - id: evaluation_metric_present
+    weight: 10
+    description: Evaluation uses registered consensus, latency, and energy metrics.
+    pass_condition: Evaluation fields map to the metric registry.
+    fail_condition: A diagnostic or training surrogate is treated as final success without registration.
+  - id: physics_units_declared
+    weight: 10
+    description: Physical quantities declare units and assumptions.
+    pass_condition: Distance, SINR, latency, and energy units are explicit.
+    fail_condition: Link values lack units or model version.
+  - id: protocol_quorum_declared
+    weight: 10
+    description: PBFT quorum and deadline conditions are explicit.
+    pass_condition: n, f, quorum, and deadline are declared.
+    fail_condition: Timeout or quorum is used as reward alias.
+  - id: reward_constraint_preserved
+    weight: 12
+    description: Reliability is a constraint and latency/energy are objectives.
+    pass_condition: Registered consensus reliability gates optimization and plateaus after satisfaction.
+    fail_condition: Old reward or standalone timeout/quorum reward is used.
+  - id: actor_locality_preserved
+    weight: 14
+    description: Deployment actor uses only local observations and history.
+    pass_condition: Actor schema excludes centralized information.
+    fail_condition: Global topology or oracle label enters actor input.
+  - id: critic_training_boundary_declared
+    weight: 8
+    description: Centralized critic features are training-only.
+    pass_condition: Deployment serialization and tests exclude critic-only fields.
+    fail_condition: Actor checkpoint requires critic-only tensors.
+  - id: v5_learning_controlled
+    weight: 12
+    description: v5 is used as an experience library, not a code template.
+    pass_condition: v5 lessons map to clean skeleton layers, contracts, and tests before adoption.
+    fail_condition: Legacy code, reward, metrics, phase scripts, or architectures are copied by default.
+  - id: oracle_leakage_prevented
+    weight: 8
+    description: Topology oracle labels are not deployment actor inputs.
+    pass_condition: Oracle use is training-only, evaluation-only, or explicitly gated.
+    fail_condition: Oracle feasibility labels leak into deployment action selection.
+  - id: regression_evidence_present
+    weight: 4
+    description: Work includes baseline, post-change, and regression evidence.
+    pass_condition: Commands or manual checks are reported.
+    fail_condition: Success is asserted without sensor evidence.
+scoring_guidance:
+  total_weight: 100
+  suggested_pass_threshold: 80
+  evidence_policy: Score only from visible docs, tests, task reports, metrics, logs, or code references.

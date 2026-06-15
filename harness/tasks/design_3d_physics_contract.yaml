@@ -1,0 +1,47 @@
+id: design_3d_physics_contract
+name: Design 3D Physics Contract
+task_type: harness_design
+prompt: >
+  Design or review the 3D physical-layer contract for building geometry, LoS/NLoS,
+  path loss, shadowing, SINR, interference, link success, latency, and energy.
+required_artifacts:
+  - physics interface definition
+  - unit list
+  - sanity scenes
+  - contract test plan
+expected_evidence:
+  - field schema
+  - deterministic seed plan
+  - blocked and unblocked link cases
+  - coupling to metric and protocol contracts
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - disturbance_checked
+  - noise_or_flakiness_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+pass_threshold: 78
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - hides 2D shortcut in a 3D interface
+  - omits units for distance latency or energy
+  - uses random shadowing without seed control
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-002
+  - EC-RULE-004
+  - EC-RULE-010
+  - EC-RULE-011
+  - EC-RULE-029
+

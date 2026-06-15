@@ -1,0 +1,75 @@
+id: stage3_communication_simulation_plan
+name: Stage 3 Communication Simulation Plan
+task_type: harness_design
+prompt: >
+  Review Stage 3.0 communication simulation planning. Confirm physical,
+  link-layer, and network-layer contracts are frozen before implementation and
+  that PBFT consensus metrics, reward, actor/critic code, training, and v5 code
+  migration remain out of scope.
+required_artifacts:
+  - Stage 3 communication simulation plan
+  - geometry3d contract
+  - channel model contract
+  - link transmission contract
+  - network layer contract
+  - project state update
+expected_evidence:
+  - layers are separated from 3D scenario through network communication
+  - micro-fixtures are listed
+  - selected edge semantics are communication-layer only
+  - Stage 4 defers PBFT consensus reliability and reward
+  - no implementation code training or v5 migration is added
+rubric_items:
+  - controlled_object_identified
+  - desired_state_defined
+  - state_variables_defined
+  - sensors_defined
+  - actuators_defined
+  - feedback_loop_present
+  - verification_plan_present
+  - stability_risk_checked
+  - observability_gap_checked
+  - controllability_checked
+  - disturbance_checked
+  - decoupling_checked
+  - reliability_or_error_control_checked
+  - persistent_learning_update_suggested
+pass_threshold: 85
+minimum_required_items:
+  - desired_state_defined
+  - sensors_defined
+  - verification_plan_present
+negative_checks:
+  - PBFT consensus success reliability or reward is defined in Stage 3
+  - actor critic COMA GNN LSTM training or checkpoints are introduced
+  - v5 channel reward metric or phase-script code is copied
+  - channel link or network records are renamed as consensus success
+  - full graph is called oracle upper bound or resource optimum
+source_awareness_required: true
+rule_basis:
+  - EC-RULE-001
+  - EC-RULE-004
+  - EC-RULE-008
+  - EC-RULE-010
+  - EC-RULE-028
+  - EC-RULE-034
+relevant_lessons:
+  - L001_metric_governance_first
+  - L002_effective_success_alias_risk
+  - L003_full_mask_not_oracle
+  - L010_training_after_oracle_baseline_contracts
+  - L012_physics_can_mask_learning_claims
+required_tests:
+  - Stage 3 contracts exist and contain required sections
+  - Stage 3 plan lists required micro-fixtures
+  - Stage 3 contracts defer PBFT consensus reliability to Stage 4
+  - project state marks Stage 3.0 complete and owner decision required
+forbidden_v5_inheritance:
+  - v5 channel fading interference BLER or resource-mask code
+  - old P_eff or P_succ naming defaults
+  - old reward formulas or weights
+  - old phase scripts as simulator implementation
+expected_outputs:
+  - Stage 3.0 plan and contracts
+  - harness validation evidence
+  - residual risk list and recommended Stage 3.1 task
