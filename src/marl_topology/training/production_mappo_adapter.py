@@ -45,15 +45,11 @@ from marl_topology.models import (
     LOCAL_GNN_V3_RESIDUAL_NORM_MODEL_ID,
     LOCAL_MLP_EDGE_SCORER_MODEL_ID,
     LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID,
-    LOCAL_ATTENTION_GNN_EDGE_SCORER_MODEL_ID,
-    LOCAL_TEMPORAL_GNN_EDGE_SCORER_MODEL_ID,
-    LocalAttentionGNNEdgeScorer,
     LocalGNNEdgeScorer,
     LocalGNNV3ResidualNormConfig,
     LocalMLPEdgeScorer,
     LocalMessagePassingGNNV3ResidualNorm,
     LocalRoleResourceAwareGNNV3,
-    LocalTemporalGNNEdgeScorer,
     active_stage33_production_gnn_entries,
 )
 from marl_topology.models.centralized_message_passing_graph_critic import (
@@ -1042,10 +1038,6 @@ def build_stage33_actor(model_id: str):
         return LocalRoleResourceAwareGNNV3()
     if model_id == LOCAL_MLP_EDGE_SCORER_MODEL_ID:
         return LocalMLPEdgeScorer()
-    if model_id == LOCAL_TEMPORAL_GNN_EDGE_SCORER_MODEL_ID:
-        return LocalTemporalGNNEdgeScorer()
-    if model_id == LOCAL_ATTENTION_GNN_EDGE_SCORER_MODEL_ID:
-        return LocalAttentionGNNEdgeScorer()
     raise Stage33ProductionMappoViolation(f"unknown Stage33 actor model_id: {model_id}")
 
 

@@ -18,8 +18,6 @@ from .local_gnn_edge_scorer import (
     LOCAL_GNN_V3_RESIDUAL_NORM_MODEL_ID,
     LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID,
 )
-from .local_attention_gnn_edge_scorer import LOCAL_ATTENTION_GNN_EDGE_SCORER_MODEL_ID
-from .local_temporal_gnn_edge_scorer import LOCAL_TEMPORAL_GNN_EDGE_SCORER_MODEL_ID
 from .tensorizers import ACTOR_EDGE_FEATURE_FIELDS, CRITIC_GLOBAL_FEATURE_FIELDS
 
 
@@ -164,45 +162,6 @@ def build_model_registry() -> dict[str, ModelRegistryEntry]:
                 ACTIVE_STAGE33_GNN_MODEL_ID == LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID
             ),
             diagnostic_baseline_only=True,
-        ),
-        LOCAL_ATTENTION_GNN_EDGE_SCORER_MODEL_ID: ModelRegistryEntry(
-            model_id=LOCAL_ATTENTION_GNN_EDGE_SCORER_MODEL_ID,
-            family="local_attention_message_passing_gnn",
-            role="deployment_actor_edge_scorer",
-            input_schema_id="actor_local_edge_tensor_v1_with_group_ids",
-            output_schema_id="actor_policy_local_edge_score_output_v1",
-            training_only=False,
-            allowed_stage="stage_33_gnn_stability_and_mappo_loop_unification",
-            forbidden_exports=(
-                "activate",
-                "selected_topology",
-                "global_topology",
-                "oracle_label",
-                "critic_output",
-            ),
-            # GAT-style attention aggregation variant for the architecture study. Not the
-            # production GNN (both gate flags stay default False) -- activates only when an
-            # experiment selects it by model_id.
-        ),
-        LOCAL_TEMPORAL_GNN_EDGE_SCORER_MODEL_ID: ModelRegistryEntry(
-            model_id=LOCAL_TEMPORAL_GNN_EDGE_SCORER_MODEL_ID,
-            family="local_temporal_message_passing_gnn",
-            role="deployment_actor_edge_scorer",
-            input_schema_id="actor_local_edge_tensor_v1_with_group_ids",
-            output_schema_id="actor_policy_local_edge_score_output_v1",
-            training_only=False,
-            allowed_stage="stage_33_gnn_stability_and_mappo_loop_unification",
-            forbidden_exports=(
-                "activate",
-                "selected_topology",
-                "global_topology",
-                "oracle_label",
-                "critic_output",
-            ),
-            # Workstream-3 Part B actor: the v3 message-passing GNN with a recurrent
-            # temporal pre-encoder over the leakage-safe edge-history window. Not yet the
-            # production GNN (both gate flags stay default False) -- it activates only when
-            # a trajectory run with history_window>1 selects it.
         ),
     }
 

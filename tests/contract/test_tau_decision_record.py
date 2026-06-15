@@ -47,8 +47,10 @@ def test_every_source_tau_constant_matches_the_record() -> None:
         for value in _SRC_DEF.findall(path.read_text(encoding="utf-8")):
             definitions[f"{path.relative_to(ROOT)}"] = float(value)
 
-    # The drift hazard is real: the constant is defined in many modules. Keep the
-    # test meaningful by requiring we actually found the cluster.
-    assert len(definitions) >= 8, f"expected the tau constant in >=8 modules, found {definitions}"
+    # The drift hazard is real: the constant is defined in several modules. Keep the
+    # test meaningful by requiring we actually found the cluster. (The cluster shrank
+    # after the production-main-body consolidation retired the pre-MARL/diagnostic
+    # modules that also pinned tau.)
+    assert len(definitions) >= 6, f"expected the tau constant in >=6 modules, found {definitions}"
     drift = {loc: val for loc, val in definitions.items() if val != canonical}
     assert not drift, f"tau constant drifted from the decision record ({canonical}): {drift}"
