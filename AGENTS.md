@@ -11,6 +11,34 @@ The stable default rules are adapted from `D:\PhD_works\Engineering Cybernetics\
 - `v5` is read-only legacy reference. Do not modify, format, move, delete, or run migration-producing writes inside `v5`.
 - The current scaffold is for controlled learning from legacy experience only. `v5` is an experience library, not a code template.
 
+## Repository Consolidation (Production Main Body)
+
+As of the 2026-06-15 consolidation, the repository is no longer an open scaffold of parallel
+experiments. It has been slimmed to a single production main body. Treat the following as the
+canonical surface; do not reintroduce retired alternatives into `src/` without an owner decision.
+
+- One production deployment actor: the v3 residual-norm local message-passing GNN edge scorer
+  (`local_message_passing_gnn_edge_scorer_v3_residual_norm`). It is the only registry entry gated
+  active for production. The local MLP edge scorer and the v2 / role-resource GNN remain only as
+  registered diagnostic baselines the production actor is measured against.
+- One production MARL training flow: the Stage 33 CTDE adapter in
+  `training/production_mappo_adapter.py` (behaviour-cloning warm start, Stage 27 graph value-critic
+  pretraining, then a clipped on-policy actor-critic fine-tune). The `mappo/` and `policy_gradient/`
+  helper modules it imports are part of this one flow, not separate pipelines.
+- One production objective stack evaluator: `data/stage21_objective_stack_evidence.py` over the full
+  urban 3D V2X physics. The distance-only `MinimalDecPOMDPEnv` / `topology/evaluator.py` tier is a
+  declared Stage-2 skeleton kept for baselines and leakage tests only.
+- Retired (recoverable from git tag `v0-full-import`): the recurrent (GRU/LSTM) edge scorers and the
+  temporal and attention GNN variants; the pre-MARL supervised warm-start lineage and the Stage 21->23
+  supervised fair-evaluation gate; the archived custom training loop and the readiness probe; and the
+  superseded Stage 26/29/30 stage diagnostics — each removed together with its tests and driver scripts.
+- The recurrent-scorer removal also clears the previously-present forbidden `nn` recurrent-cell token
+  from `src/`.
+
+Contract-coverage invariant (still in force, see Migration Rule 11): a module and the tests that pin
+it are retired as a set. A kept production module must keep its contract/boundary test coverage. See
+`docs/CLEAN_PROJECT_MAP.md` for the current env / configuration / architecture map.
+
 ## Mandatory Task Loop
 
 For every task that changes files or design:
