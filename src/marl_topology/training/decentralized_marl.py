@@ -223,6 +223,7 @@ class DecentralizedCTDEFlow:
         self.config = config
         self.device = torch.device(config.device)
         self.sampler = DecentralizedPerNodeMutualSampler()
+        self._pool = None  # persistent spawn worker pool, set for the duration of run()
 
     # ------------------------------------------------------------------ episodes
     def _episode_frames(self, spec, seed: int):
@@ -540,17 +541,32 @@ class DecentralizedCTDEFlow:
             transitions.extend(scene_transitions)
         return transitions, per_scene_counts
 
-    def _parallel_rollout(self, actor, critic, specs, seed_base, deterministic):
+    def _acquire_pool(self):
+        """Return (pool, owned). Prefer the persistent run() pool; else create a temporary
+        SPAWN pool. Spawn (not fork) is mandatory: forked workers inherit a half-initialized
+        OpenMP runtime (libgomp) and deadlock -- the classic CPU-pegged / GPU-idle hang."""
+
+        if self._pool is not None:
+            return self._pool, False
         import multiprocessing as mp
 
+        pool = mp.get_context("spawn").Pool(self.config.num_workers, initializer=_worker_init)
+        return pool, True
+
+    def _parallel_rollout(self, actor, critic, specs, seed_base, deterministic):
         actor_state = {key: value.detach().cpu() for key, value in actor.state_dict().items()}
         critic_state = {key: value.detach().cpu() for key, value in critic.state_dict().items()}
         payloads = [
             (self.config, actor_state, critic_state, spec, index, seed_base + index, deterministic)
             for index, spec in enumerate(specs)
         ]
-        with mp.Pool(self.config.num_workers) as pool:
+        pool, owned = self._acquire_pool()
+        try:
             return pool.map(_rollout_worker, payloads)
+        finally:
+            if owned:
+                pool.close()
+                pool.join()
 
     def _advantages(self, transitions: list[_Transition], per_scene_counts: list[int]):
         # Only keep scenes that produced the full rollout length, so the GAE reshape is exact.
@@ -691,24 +707,33 @@ class DecentralizedCTDEFlow:
         )
 
     def _parallel_bc_samples(self, train_specs):
-        import multiprocessing as mp
-
         payloads = [(self.config, spec, index) for index, spec in enumerate(train_specs)]
-        with mp.Pool(self.config.num_workers) as pool:
-            raw = pool.map(_bc_worker, payloads)
+        pool, owned = self._acquire_pool()
         samples = []
-        for sample in raw:
-            if sample is None:
-                continue
-            node_features, edge_index, edge_features, targets = sample
-            samples.append(
-                (
-                    node_features.to(self.device),
-                    edge_index.to(self.device),
-                    edge_features.to(self.device),
-                    targets.to(self.device),
+        total = len(payloads)
+        try:
+            done = 0
+            # imap_unordered streams results so we can show progress on the slow SA teacher
+            # precompute (order is irrelevant for BC samples).
+            for sample in pool.imap_unordered(_bc_worker, payloads):
+                done += 1
+                if done % 50 == 0 or done == total:
+                    print(f"[flow] BC teacher precompute {done}/{total}", flush=True)
+                if sample is None:
+                    continue
+                node_features, edge_index, edge_features, targets = sample
+                samples.append(
+                    (
+                        node_features.to(self.device),
+                        edge_index.to(self.device),
+                        edge_features.to(self.device),
+                        targets.to(self.device),
+                    )
                 )
-            )
+        finally:
+            if owned:
+                pool.close()
+                pool.join()
         return samples
 
     # ------------------------------------------------------------------ run
@@ -719,14 +744,31 @@ class DecentralizedCTDEFlow:
         large_n_specs: Sequence = (),
     ) -> dict[str, object]:
         torch.manual_seed(self.config.seed)
+        train_specs = list(train_specs)
         actor = build_production_actor(self.config).to(self.device)
         critic = build_ctde_critic(self.config).to(self.device)
         actor_opt = torch.optim.AdamW(actor.parameters(), lr=self.config.actor_lr)
         critic_opt = torch.optim.AdamW(critic.parameters(), lr=self.config.critic_lr)
 
+        # One persistent SPAWN worker pool for the whole run (rollout + BC precompute), reused
+        # across updates. Spawn (not fork) avoids the OpenMP+fork deadlock; reuse avoids paying
+        # per-update process-spawn + torch-import cost.
+        if self.config.num_workers and self.config.num_workers > 0:
+            import multiprocessing as mp
+
+            self._pool = mp.get_context("spawn").Pool(
+                self.config.num_workers, initializer=_worker_init
+            )
+
         # BC warm start (SA-teacher distillation) BEFORE policy gradient, so the reported
         # initial eval is the post-BC baseline and "improvement" measures the RL phase.
+        print(
+            f"[flow] BC warm start over {len(train_specs)} train scenes "
+            f"(num_workers={self.config.num_workers}); the SA teacher precompute is the slow part...",
+            flush=True,
+        )
         bc_report = self._warm_start(actor, train_specs)
+        print(f"[flow] BC done: {bc_report}", flush=True)
 
         update_records: list[dict[str, object]] = []
         eval_records: list[dict[str, object]] = []
@@ -757,11 +799,22 @@ class DecentralizedCTDEFlow:
                 "transition_count": len(kept),
                 **payload,
             })
+            print(
+                f"[flow] update {update_index}/{self.config.max_updates} "
+                f"train_feasible={train_feasible:.3f} loss={payload.get('total_loss', float('nan')):.4f} "
+                f"kl={payload.get('approx_kl', 0.0):.4f}",
+                flush=True,
+            )
             if update_index % self.config.eval_every == 0 or update_index == self.config.max_updates:
                 actor.eval()
                 critic.eval()
                 eval_metrics = self.evaluate(actor, critic, eval_specs, seed_base=900_000)
                 eval_records.append({"update_index": update_index, "phase": "eval", **eval_metrics})
+                print(
+                    f"[flow] eval @ {update_index}: tau_feasible={eval_metrics['tau_feasible_rate']:.3f} "
+                    f"consensus={eval_metrics['mean_consensus']:.3f}",
+                    flush=True,
+                )
 
         final_eval = eval_records[-1]
         # Held-out scale-generalization test: evaluate on strictly larger N never trained on.
@@ -770,6 +823,15 @@ class DecentralizedCTDEFlow:
             if large_n_specs
             else None
         )
+        if large_n_eval is not None:
+            print(
+                f"[flow] held-out large-N eval: tau_feasible={large_n_eval['tau_feasible_rate']:.3f}",
+                flush=True,
+            )
+        if self._pool is not None:
+            self._pool.close()
+            self._pool.join()
+            self._pool = None
         return {
             "flow_id": self.flow_id,
             "sampler_id": DECENTRALIZED_PER_NODE_MUTUAL_SAMPLER_ID,
@@ -836,6 +898,20 @@ def run_decentralized_marl_training(
 
 
 # ----------------------------------------------------------------------- parallel workers
+def _worker_init():
+    """Pool worker initializer: pin OpenMP + torch to a single thread so N worker PROCESSES do
+    not each spawn M OpenMP threads (oversubscription -> CPU thrash), and fix any invalid
+    inherited OMP_NUM_THREADS that would make libgomp abort."""
+
+    import os
+
+    os.environ["OMP_NUM_THREADS"] = "1"
+    try:
+        torch.set_num_threads(1)
+    except Exception:
+        pass
+
+
 def _rollout_worker(payload):
     """Roll one scene in a worker process (CPU). Rebuilds the actor/critic from the passed
     state so each update's current policy is used; returns the scene's transitions (picklable

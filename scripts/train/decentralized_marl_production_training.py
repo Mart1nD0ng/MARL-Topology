@@ -39,6 +39,13 @@ from pathlib import Path
 # Windows torch+matplotlib both link an OpenMP runtime; allow the duplicate so figure
 # generation does not abort with "OMP Error #15". Safe for this offline plotting driver.
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+# Some containers (e.g. autodl) ship an INVALID OMP_NUM_THREADS, which makes libgomp abort
+# ("Invalid value for environment variable OMP_NUM_THREADS") and can wedge OpenMP+fork
+# workers. Force a sane value before torch/numpy initialise OpenMP. 1 thread per process is
+# also correct here: parallelism is across rollout worker PROCESSES, not OpenMP threads.
+_omp = os.environ.get("OMP_NUM_THREADS", "")
+if not _omp.isdigit() or int(_omp) < 1:
+    os.environ["OMP_NUM_THREADS"] = "1"
 
 import torch
 
