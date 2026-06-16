@@ -93,7 +93,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bc-sa-iters", type=int, default=120,
                         help="SA iterations for the BC teacher search (per restart)")
     parser.add_argument("--bc-restarts", type=int, default=4, help="SA restarts for the BC teacher")
-    parser.add_argument("--energy-budget", type=float, default=30.0)
+    parser.add_argument("--energy-budget", type=float, default=30.0,
+                        help="per-node battery CAPACITY (J), full at start")
+    parser.add_argument("--energy-recharge", type=float, default=-1.0,
+                        help="per-step energy recharge (J); -1 = auto-size to the max hub-star degree "
+                             "so the feasible RSU star is sustainable across the whole episode")
+    parser.add_argument("--entropy-coef", type=float, default=0.0,
+                        help="PPO entropy bonus (default 0: a bonus erodes the peaked BC warm start)")
     parser.add_argument("--churn-weight", type=float, default=0.05)
     parser.add_argument("--num-workers", type=int, default=0,
                         help="parallel rollout workers (0 = serial; use >0 on a Linux box)")
@@ -149,6 +155,20 @@ def main() -> None:
     print(f"[data] {len(train_specs)} train / {len(eval_specs)} eval / {len(large_n_specs)} held-out "
           f"large-N scenes; N in {sorted(args.node_choices)}; large-N {sorted(args.large_n)}; device={args.device}")
 
+    # Recharging power-budget sizing: the unique feasible PBFT structure is a degree-(N-1) RSU
+    # star, so the hub must afford degree (N-1) EVERY step. Recharge >= max-hub-degree * unit makes
+    # that sustainable across the whole episode (the one-shot battery drained the hub in ~2 steps).
+    # Capacity = 2 * recharge gives a one-step burst buffer whose drain still couples to the next
+    # step (keeps it genuinely non-bandit). Auto-sized from the trained + held-out node counts.
+    energy_unit_j = 1.0
+    all_n = list(args.node_choices) + list(args.large_n or [])
+    max_hub_degree = (max(all_n) - 1) if all_n else 1
+    recharge_j = args.energy_recharge if args.energy_recharge >= 0.0 else float(max_hub_degree) * energy_unit_j
+    capacity_j = max(args.energy_budget, recharge_j * 2.0)
+    print(f"[energy] recharging power budget: recharge={recharge_j:.1f} J/step "
+          f"(sustains hub degree up to {max_hub_degree}), capacity={capacity_j:.1f} J, "
+          f"unit={energy_unit_j:.1f} J/link/step; entropy_coef={args.entropy_coef}")
+
     reports: dict[int, dict] = {}
     for k in args.rounds:
         config = DecentralizedMARLConfig(
@@ -164,7 +184,10 @@ def main() -> None:
             bc_teacher_sa_iters=args.bc_sa_iters,
             bc_teacher_restarts=args.bc_restarts,
             eval_every=args.eval_every,
-            energy_budget_j=args.energy_budget,
+            energy_unit_j=energy_unit_j,
+            energy_budget_j=capacity_j,
+            energy_recharge_j=recharge_j,
+            entropy_coef=args.entropy_coef,
             churn_weight=args.churn_weight,
             num_workers=args.num_workers,
             use_vectorized_evaluator=not args.no_vectorized_evaluator,

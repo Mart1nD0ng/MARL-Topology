@@ -57,6 +57,46 @@ def test_energy_battery_makes_it_sequential_not_bandit() -> None:
     assert budgets_after["v0"] < budgets_before["v0"], "action did not change the next-step state"
 
 
+def test_recharging_battery_sustains_but_still_couples_next_step() -> None:
+    # Root-cause fix: a per-step recharge keeps a sustainable degree affordable across the whole
+    # episode (so the feasible star no longer drains away after ~2 steps), yet bursting ABOVE the
+    # recharge line drains the capacity buffer so the NEXT step's feasible set still shrinks --
+    # the action-controlled state transition that keeps it non-bandit.
+    config = DecentralizedMARLConfig(energy_unit_j=1.0, energy_budget_j=6.0, energy_recharge_j=2.0)
+    flow = DecentralizedCTDEFlow(config)
+
+    # Sustainable case: spend exactly the recharge (degree 2 at rsu0) -> fully recovered next step.
+    energy = {"rsu0": 6.0}
+    flow._spend_energy(energy, ("rsu0--v0", "rsu0--v1"))
+    assert energy["rsu0"] == 4.0
+    energy["rsu0"] = min(config.energy_budget_j, energy["rsu0"] + config.energy_recharge_j)
+    assert energy["rsu0"] == 6.0  # degree-2 is sustainable across steps
+
+    # Burst case: spend 6 (degree 6) in one step -> drained; only the recharge is back next step,
+    # so the future feasible set is strictly smaller (non-bandit coupling preserved).
+    energy2 = {"rsu0": 6.0}
+    flow._spend_energy(energy2, tuple(f"rsu0--v{i}" for i in range(6)))
+    assert energy2["rsu0"] == 0.0
+    energy2["rsu0"] = min(config.energy_budget_j, energy2["rsu0"] + config.energy_recharge_j)
+    assert energy2["rsu0"] == 2.0 < 6.0
+
+
+def test_return_normalization_round_trips_and_conditions_targets() -> None:
+    # Root-cause fix: the critic predicts in normalized return space; de-normalizing recovers the
+    # raw GAE baseline scale, and the normalized MSE target is O(1) instead of the raw ~[-80, 0].
+    from marl_topology.training.return_normalization import ReturnNormalizer
+
+    flow = DecentralizedCTDEFlow(DecentralizedMARLConfig())
+    assert flow._denormalize_value(3.0) == 3.0  # identity before any fit
+    assert flow._normalize_returns(torch.tensor([-42.0]))[0].item() == -42.0
+
+    flow._return_normalizer = ReturnNormalizer.fit([-60.0, -45.0, -30.0])
+    raw = -45.0
+    norm = flow._normalize_returns(torch.tensor([raw]))[0].item()
+    assert abs(norm) < 5.0  # well-conditioned, not the raw -45 scale
+    assert abs(flow._denormalize_value(norm) - raw) < 1e-4  # round-trips
+
+
 def test_flow_id_and_config_freeze() -> None:
     assert DecentralizedCTDEFlow(DecentralizedMARLConfig()).flow_id == DECENTRALIZED_CTDE_FLOW_ID
     with pytest.raises(ValueError):
@@ -134,7 +174,7 @@ def test_parallel_worker_functions_run_directly() -> None:
     actor_state = {key: value.detach().cpu() for key, value in actor.state_dict().items()}
     critic_state = {key: value.detach().cpu() for key, value in critic.state_dict().items()}
 
-    transitions = _rollout_worker((config, actor_state, critic_state, specs[0], 0, 123, False))
+    transitions = _rollout_worker((config, actor_state, critic_state, None, specs[0], 0, 123, False))
     assert isinstance(transitions, list)
     if transitions:
         assert transitions[0].node_features.device.type == "cpu"

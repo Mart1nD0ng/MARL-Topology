@@ -20,10 +20,13 @@ PER AGENT from the factorized ``per_owner_logprobs`` (each node's own ratio is c
 with a SHARED CTDE advantage from the centralized critic -- the standard multi-agent PPO
 recipe with parameter sharing.
 
-Genuine sequential MDP (not a bandit): each node carries a depletable ENERGY BATTERY.
-Activating links spends it; once drained, the node's feasible action set shrinks at the
+Genuine sequential MDP (not a bandit): each node carries a RECHARGING ENERGY BATTERY.
+Activating links spends it; it refills by a fixed per-step recharge (capped at capacity).
+The recharge is sized so the feasible topology is SUSTAINABLE, but bursting above the
+recharge line drains the capacity buffer, shrinking the node's feasible action set at the
 NEXT step. So an action changes the reward-relevant state the agent inherits later -- a true
-multi-step transition the policy controls. Vehicles also move along a pre-computed
+multi-step transition the policy controls (NOT a one-shot battery, whose drain made the
+feasible RSU-star structurally unreachable after ~2 steps). Vehicles also move along a pre-computed
 trajectory (observable state evolution). Crucially, neither touches the FROZEN objective
 evaluator: the per-step reward is the unchanged feasibility-barrier surrogate plus a
 link-churn (handover) shaping cost; the battery is a dynamics constraint, not a reward
@@ -63,6 +66,7 @@ from marl_topology.objectives.surrogate_signal import (
 from marl_topology.policies.actor_interface import ActorPolicyInput
 from marl_topology.policies.decentralized_baselines import build_local_observations
 from marl_topology.training.mappo.advantages import AdvantageConfig, compute_gae_returns
+from marl_topology.training.return_normalization import ReturnNormalizer
 from marl_topology.training.policy_gradient.decentralized_sampler import (
     DECENTRALIZED_PER_NODE_MUTUAL_SAMPLER_ID,
     DecentralizedMutualSamplerConfig,
@@ -102,11 +106,20 @@ class DecentralizedMARLConfig:
     traj_dt_s: float = 1.0
     traj_speed_min_mps: float = 5.0
     traj_speed_max_mps: float = 15.0
-    # Sequential MDP energy battery (the non-bandit coupling). energy_unit_j is the abstract
-    # per-active-link battery cost; energy_budget_j the per-node starting battery (sized to
-    # span the episode so the depletion constraint is meaningful but not crippling).
+    # Sequential MDP RECHARGING energy battery (the non-bandit coupling). energy_unit_j is the
+    # per-active-link cost charged to BOTH endpoints each step; energy_budget_j is the per-node
+    # battery CAPACITY (full at start); energy_recharge_j is added each step before the node acts
+    # (capped at capacity). Steady state: sustaining degree d is feasible iff
+    # energy_recharge_j >= d*energy_unit_j, so sizing recharge to the feasible RSU-star hub degree
+    # (N-1) makes the feasible topology SUSTAINABLE across the whole episode. (The old one-shot
+    # depleting battery drained the hub in ~2 steps -> feasibility was structurally unreachable
+    # past step ~2, capping the per-step-averaged grade at ~0.2 regardless of policy quality.)
+    # It stays genuinely NON-bandit: bursting above the recharge line drains the capacity buffer,
+    # shrinking the node's feasible action set at the NEXT step. The driver sizes recharge to the
+    # scenario's max hub degree; capacity adds burst headroom.
     energy_unit_j: float = 1.0
-    energy_budget_j: float = 20.0
+    energy_budget_j: float = 24.0
+    energy_recharge_j: float = 12.0
     churn_weight: float = 0.05
     # PPO / multi-agent policy gradient.
     gamma: float = 0.99
@@ -114,8 +127,20 @@ class DecentralizedMARLConfig:
     clip_eps: float = 0.2
     actor_lr: float = 3e-4
     critic_lr: float = 1e-3
-    entropy_coef: float = 0.01
+    # Entropy bonus DISABLED by default (2026-06-16): the policy is BC-warm-started to a sharply
+    # peaked star, and an entropy bonus flattens those logits back toward uniform (making the
+    # fixed STOP token competitive -> star spokes drop out), eroding the warm start. Re-enable a
+    # small value only if exploration is genuinely needed.
+    entropy_coef: float = 0.0
     value_coef: float = 0.5
+    # Normalize the critic's value TARGETS (returns) to zero-mean/unit-std before the MSE, and
+    # de-normalize the critic's prediction when it is used as the GAE baseline. Raw returns are
+    # deeply negative and large (~[-80, 0]) because the reward is a feasibility barrier; a small
+    # value head fits a well-conditioned O(1) target far faster, so the baseline (hence the
+    # advantages) becomes accurate within a few updates instead of drifting while the critic
+    # learns the scale. (Actor and critic are SEPARATE modules, so this is about advantage
+    # quality, not value loss leaking into the actor.) Uses the in-repo ReturnNormalizer.
+    normalize_returns: bool = True
     max_grad_norm: float = 0.5
     update_epochs: int = 4
     minibatch_size: int = 32
@@ -149,7 +174,7 @@ class DecentralizedMARLConfig:
             raise ValueError("rollout_steps must be >= 1")
         if self.tau_requirement_min != STAGE21_TAU:
             raise ValueError("tau_requirement_min stays frozen at 0.9")
-        if self.energy_unit_j < 0.0 or self.energy_budget_j < 0.0:
+        if self.energy_unit_j < 0.0 or self.energy_budget_j < 0.0 or self.energy_recharge_j < 0.0:
             raise ValueError("energy parameters must be nonnegative")
 
 
@@ -224,6 +249,9 @@ class DecentralizedCTDEFlow:
         self.device = torch.device(config.device)
         self.sampler = DecentralizedPerNodeMutualSampler()
         self._pool = None  # persistent spawn worker pool, set for the duration of run()
+        # Value-target scaler for the CTDE critic (re-fit each update on that update's raw
+        # returns). None = identity (pre-first-update / disabled).
+        self._return_normalizer: ReturnNormalizer | None = None
 
     # ------------------------------------------------------------------ episodes
     def _episode_frames(self, spec, seed: int):
@@ -293,7 +321,16 @@ class DecentralizedCTDEFlow:
             kind_by_node = {p.agent_id: p.agent_kind for p in policy_inputs}
             radio_budget = {node: _radio_budget(kind) for node, kind in kind_by_node.items()}
             for node in kind_by_node:
-                remaining_energy.setdefault(node, self.config.energy_budget_j)
+                if node not in remaining_energy:
+                    remaining_energy[node] = self.config.energy_budget_j  # battery starts full
+                else:
+                    # Recharge BEFORE the node acts (capped at capacity). Recharge >= degree*unit
+                    # makes that degree sustainable; bursting above it drains the buffer and
+                    # shrinks the next-step feasible set (the non-bandit coupling).
+                    remaining_energy[node] = min(
+                        self.config.energy_budget_j,
+                        remaining_energy[node] + self.config.energy_recharge_j,
+                    )
 
             graph_batch = tensorize_actor_graph([policy_inputs])
             if graph_batch.edge_count == 0:
@@ -411,7 +448,22 @@ class DecentralizedCTDEFlow:
 
     def _critic_value(self, critic, node_features, edge_index, edge_features) -> float:
         output = critic(_critic_batch(node_features, edge_index, edge_features))
-        return float(output.normalized_value[0].detach().cpu().item())
+        normalized = float(output.normalized_value[0].detach().cpu().item())
+        # The critic predicts in NORMALIZED return space; GAE needs the raw reward scale.
+        return self._denormalize_value(normalized)
+
+    def _denormalize_value(self, normalized_value: float) -> float:
+        if self._return_normalizer is None:
+            return normalized_value
+        return float(self._return_normalizer.inverse_transform([normalized_value])[0])
+
+    def _normalize_returns(self, returns: torch.Tensor) -> torch.Tensor:
+        """Map raw returns -> the critic's normalized target space (identity if no normalizer)."""
+
+        if self._return_normalizer is None:
+            return returns
+        std = self._return_normalizer.std + self._return_normalizer.eps
+        return (returns - self._return_normalizer.mean) / std
 
     # ------------------------------------------------------------------ update
     def update(
@@ -427,19 +479,21 @@ class DecentralizedCTDEFlow:
         config = self.config
         generator = torch.Generator().manual_seed(config.seed + len(transitions))
         payloads: list[dict[str, float]] = []
+        # The critic predicts in normalized space, so its MSE target is the normalized return.
+        value_targets = self._normalize_returns(returns)
         for _epoch in range(config.update_epochs):
             order = torch.randperm(len(transitions), generator=generator).tolist()
             for start in range(0, len(transitions), config.minibatch_size):
                 batch_indices = order[start : start + config.minibatch_size]
                 payload = self._minibatch_step(
-                    actor, critic, actor_opt, critic_opt, transitions, advantages, returns, batch_indices
+                    actor, critic, actor_opt, critic_opt, transitions, advantages, value_targets, batch_indices
                 )
                 if payload is not None:
                     payloads.append(payload)
         return _mean_payload(payloads)
 
     def _minibatch_step(
-        self, actor, critic, actor_opt, critic_opt, transitions, advantages, returns, batch_indices
+        self, actor, critic, actor_opt, critic_opt, transitions, advantages, value_target_tensor, batch_indices
     ) -> dict[str, float] | None:
         config = self.config
         policy_terms: list[torch.Tensor] = []
@@ -477,7 +531,7 @@ class DecentralizedCTDEFlow:
                 clip_terms.append((torch.abs(ratio - 1.0) > config.clip_eps).to(dtype=ratio.dtype))
             value = critic(_critic_batch(node_features, edge_index, edge_features)).normalized_value[0]
             value_preds.append(value)
-            value_targets.append(returns[index])
+            value_targets.append(value_target_tensor[index])
         if not policy_terms:
             return None
         policy_loss = torch.stack(policy_terms).mean()
@@ -556,8 +610,9 @@ class DecentralizedCTDEFlow:
     def _parallel_rollout(self, actor, critic, specs, seed_base, deterministic):
         actor_state = {key: value.detach().cpu() for key, value in actor.state_dict().items()}
         critic_state = {key: value.detach().cpu() for key, value in critic.state_dict().items()}
+        normalizer_state = self._return_normalizer.state_dict() if self._return_normalizer else None
         payloads = [
-            (self.config, actor_state, critic_state, spec, index, seed_base + index, deterministic)
+            (self.config, actor_state, critic_state, normalizer_state, spec, index, seed_base + index, deterministic)
             for index, spec in enumerate(specs)
         ]
         pool, owned = self._acquire_pool()
@@ -787,6 +842,12 @@ class DecentralizedCTDEFlow:
             if advantage_result is None:
                 update_records.append({"update_index": update_index, "skipped": "no_full_rollout"})
                 continue
+            # Re-fit the value-target scaler on THIS update's raw returns (the baselines used in
+            # the GAE above were de-normalized with the previous fit, so the returns are raw).
+            if self.config.normalize_returns:
+                self._return_normalizer = ReturnNormalizer.fit(
+                    advantage_result.returns.detach().cpu().tolist()
+                )
             payload = self.update(
                 actor, critic, actor_opt, critic_opt, kept,
                 advantage_result.advantages, advantage_result.returns,
@@ -918,9 +979,11 @@ def _rollout_worker(payload):
     CPU tensors). Single-threaded per worker so process-level parallelism is not oversubscribed."""
 
     torch.set_num_threads(1)
-    config, actor_state, critic_state, spec, scene_index, seed, deterministic = payload
+    config, actor_state, critic_state, normalizer_state, spec, scene_index, seed, deterministic = payload
     cpu_config = replace(config, device="cpu")
     flow = DecentralizedCTDEFlow(cpu_config)
+    if normalizer_state is not None:
+        flow._return_normalizer = ReturnNormalizer.from_state_dict(normalizer_state)
     actor = build_production_actor(cpu_config)
     actor.load_state_dict(actor_state)
     actor.eval()
@@ -997,11 +1060,15 @@ def _config_payload(config: DecentralizedMARLConfig) -> dict[str, object]:
         "jumping_knowledge": config.jumping_knowledge,
         "rollout_steps": config.rollout_steps,
         "energy_budget_j": config.energy_budget_j,
+        "energy_recharge_j": config.energy_recharge_j,
         "energy_unit_j": config.energy_unit_j,
         "churn_weight": config.churn_weight,
         "clip_eps": config.clip_eps,
         "actor_lr": config.actor_lr,
         "critic_lr": config.critic_lr,
+        "entropy_coef": config.entropy_coef,
+        "value_coef": config.value_coef,
+        "normalize_returns": config.normalize_returns,
         "max_updates": config.max_updates,
         "tau_requirement_min": config.tau_requirement_min,
     }
