@@ -18,6 +18,7 @@ from .local_gnn_edge_scorer import (
     LOCAL_GNN_V3_RESIDUAL_NORM_MODEL_ID,
     LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID,
 )
+from .local_khop_gnn_edge_scorer import LOCAL_KHOP_GNN_EDGE_SCORER_V1_MODEL_ID
 from .tensorizers import ACTOR_EDGE_FEATURE_FIELDS, CRITIC_GLOBAL_FEATURE_FIELDS
 
 
@@ -142,6 +143,28 @@ def build_model_registry() -> dict[str, ModelRegistryEntry]:
             active_for_stage33_production=(
                 ACTIVE_STAGE33_GNN_MODEL_ID == LOCAL_GNN_V3_RESIDUAL_NORM_MODEL_ID
             ),
+        ),
+        LOCAL_KHOP_GNN_EDGE_SCORER_V1_MODEL_ID: ModelRegistryEntry(
+            model_id=LOCAL_KHOP_GNN_EDGE_SCORER_V1_MODEL_ID,
+            family="local_khop_message_passing_gnn",
+            # The decentralized-MARL production deployment actor. It is gated as production
+            # by the decentralized CTDE flow (see training/production_trunk.py), not by the
+            # legacy Stage-33 ego-graph gate, so active_for_stage33_production stays False
+            # (that flag now names the retained ego-graph diagnostic baseline lineage).
+            role="decentralized_production_actor_edge_scorer",
+            input_schema_id="actor_local_graph_tensor_v1",
+            output_schema_id="actor_policy_local_edge_score_output_v1",
+            training_only=False,
+            allowed_stage="decentralized_ctde_marl_production",
+            forbidden_exports=(
+                "activate",
+                "selected_topology",
+                "global_topology",
+                "oracle_label",
+                "critic_output",
+            ),
+            active_for_stage33_production=False,
+            diagnostic_baseline_only=False,
         ),
         LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID: ModelRegistryEntry(
             model_id=LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID,

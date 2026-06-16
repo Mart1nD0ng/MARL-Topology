@@ -27,3 +27,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -p no:cacheprovider --assert=plain"
+markers = [
+    "slow: end-to-end training/integration tests that build scenes and run the physics stack",
+]

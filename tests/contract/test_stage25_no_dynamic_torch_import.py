@@ -25,10 +25,14 @@ def test_stage25_direct_torch_imports_are_limited_to_model_and_training_modules(
             if not _has_direct_torch_import(tree):
                 continue
             relative = path.relative_to(ROOT)
+            # Direct torch imports are allowed in the model/training packages and in the
+            # runnable training drivers under scripts/train/. The latter is post-2026-06-16:
+            # real large-scale training + checkpointing is now authorized, so its drivers
+            # legitimately import torch (the prior scaffold-era assumption is retired).
             allowed = relative.parts[:3] in {
                 ("src", "marl_topology", "models"),
                 ("src", "marl_topology", "training"),
-            }
+            } or relative.parts[:2] == ("scripts", "train")
             if not allowed:
                 hits.append(relative.as_posix())
 

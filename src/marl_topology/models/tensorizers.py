@@ -46,6 +46,21 @@ ACTOR_EDGE_CONSTRAINT_FIELDS = (
 )
 ACTOR_EDGE_FEATURE_FIELDS_V2 = ACTOR_EDGE_FEATURE_FIELDS + ACTOR_EDGE_CONSTRAINT_FIELDS
 
+# Node-level actor-safe features for the K-hop full-graph message-passing actor. Every
+# field is derived from a node's OWN ego observation (its position, kind, and local
+# incident-edge degree); no global, budget-table, or oracle field is introduced. These
+# are the node states the K-hop actor encodes and propagates over the candidate graph.
+ACTOR_NODE_FEATURE_SCHEMA_ID = "actor_local_node_tensor_v1"
+ACTOR_NODE_FEATURE_FIELDS = (
+    "position_x_m",
+    "position_y_m",
+    "position_z_m",
+    "kind_is_vehicle",
+    "kind_is_rsu",
+    "local_incident_edge_count",
+    "endpoint_contention",
+)
+
 CRITIC_GLOBAL_FEATURE_SCHEMA_ID = "centralized_critic_global_tensor_v1"
 CRITIC_GLOBAL_FEATURE_FIELDS = (
     "node_count",
@@ -225,6 +240,246 @@ def tensorize_actor_policy_inputs(
             dtype=torch.long,
         ),
         records=ordered_refs,
+    )
+
+
+LOCAL_GRAPH_TENSOR_SCHEMA_ID = "actor_local_graph_tensor_v1"
+
+
+@dataclass(frozen=True, slots=True)
+class LocalGraphTensorBatch:
+    """Batched candidate-graph tensors for the K-hop full-graph message-passing actor.
+
+    One or more scenes are concatenated with disjoint node-index ranges. ``edge_index``
+    holds ``(src, dst)`` GLOBAL node indices for **directed** edges (both directions of
+    every physical link are present, so destination aggregation is bidirectional).
+    ``records`` are the directed edge refs aligned row-for-row with ``edge_features`` and
+    with the actor's output logits, so logits map back to directed edges exactly like the
+    flat ``ActorEdgeTensorBatch`` path. ``node_batch`` / ``edge_batch`` label the scene of
+    each node / edge so normalisation stays scene-local.
+    """
+
+    node_features: torch.Tensor
+    edge_features: torch.Tensor
+    edge_index: torch.Tensor
+    node_batch: torch.Tensor
+    edge_batch: torch.Tensor
+    node_mask: torch.Tensor
+    edge_mask: torch.Tensor
+    records: tuple[ActorEdgeRecordRef, ...]
+    node_ids: tuple[str, ...]
+    node_feature_schema_id: str = ACTOR_NODE_FEATURE_SCHEMA_ID
+    edge_feature_schema_id: str = ACTOR_EDGE_FEATURE_SCHEMA_ID
+    schema_id: str = LOCAL_GRAPH_TENSOR_SCHEMA_ID
+
+    def __post_init__(self) -> None:
+        if self.node_feature_schema_id != ACTOR_NODE_FEATURE_SCHEMA_ID:
+            raise TensorizerViolation("unexpected actor node feature schema")
+        if self.edge_feature_schema_id != ACTOR_EDGE_FEATURE_SCHEMA_ID:
+            raise TensorizerViolation("unexpected actor edge feature schema")
+        if self.node_features.ndim != 2 or self.node_features.shape[1] != len(ACTOR_NODE_FEATURE_FIELDS):
+            raise TensorizerViolation("node_features must be [node_count, node_feature_dim]")
+        if self.edge_features.ndim != 2 or self.edge_features.shape[1] != len(ACTOR_EDGE_FEATURE_FIELDS):
+            raise TensorizerViolation("edge_features must be [edge_count, edge_feature_dim]")
+        if self.edge_index.shape != (self.edge_features.shape[0], 2):
+            raise TensorizerViolation("edge_index must be [edge_count, 2]")
+        if self.node_batch.shape != (self.node_features.shape[0],):
+            raise TensorizerViolation("node_batch shape must match node count")
+        if self.edge_batch.shape != (self.edge_features.shape[0],):
+            raise TensorizerViolation("edge_batch shape must match edge count")
+        if self.node_mask.shape != (self.node_features.shape[0],):
+            raise TensorizerViolation("node_mask shape must match node count")
+        if self.edge_mask.shape != (self.edge_features.shape[0],):
+            raise TensorizerViolation("edge_mask shape must match edge count")
+        if len(self.records) != self.edge_features.shape[0]:
+            raise TensorizerViolation("record count must match edge feature count")
+        if len(self.node_ids) != self.node_features.shape[0]:
+            raise TensorizerViolation("node id count must match node feature count")
+
+    @property
+    def node_count(self) -> int:
+        return int(self.node_features.shape[0])
+
+    @property
+    def edge_count(self) -> int:
+        return int(self.edge_features.shape[0])
+
+    def to_edge_score_batch(
+        self,
+        logits: torch.Tensor,
+        *,
+        batch_id: str,
+        source: str,
+        include_probability: bool = True,
+    ) -> EdgeScoreBatch:
+        """Directed ``EdgeScoreRecord`` batch aligned to ``records`` (for the assembler)."""
+
+        flat_logits = logits.reshape(-1).detach().cpu()
+        if flat_logits.shape[0] != self.edge_count:
+            raise TensorizerViolation("logit count must match graph edge count")
+        probabilities = torch.sigmoid(flat_logits) if include_probability else None
+        records = []
+        for index, ref in enumerate(self.records):
+            probability = float(probabilities[index].item()) if probabilities is not None else None
+            records.append(
+                EdgeScoreRecord(
+                    agent_id=ref.agent_id,
+                    neighbor_id=ref.neighbor_id,
+                    edge_id=ref.edge_id,
+                    directed_edge_id=ref.directed_edge_id,
+                    score=float(flat_logits[index].item()),
+                    probability=probability,
+                    score_source=source,
+                    time_step=ref.time_step,
+                )
+            )
+        return EdgeScoreBatch.from_records(records, batch_id=batch_id, source=source)
+
+    @property
+    def directed_edge_ids(self) -> tuple[str, ...]:
+        return tuple(ref.directed_edge_id for ref in self.records)
+
+
+def tensorize_actor_graph(
+    scenes: Iterable[Iterable[ActorPolicyInput]],
+) -> LocalGraphTensorBatch:
+    """Build a batched candidate-graph tensor from per-scene actor observations.
+
+    Each scene is the full set of per-node ego observations (one ``ActorPolicyInput`` per
+    node). Node identities and the directed ``edge_index`` are reconstructed purely from
+    actor-safe fields already present in the rows (``agent_id``, ``neighbor_id``,
+    ``edge_id``, ``local_position_m``, ``agent_kind``, the local neighbour observations);
+    no global, oracle, or metric field is read. Each scene must observe every node it
+    references as a neighbour (the full-scene contract), else a violation is raised.
+    """
+
+    node_feature_rows: list[tuple[float, ...]] = []
+    node_ids: list[str] = []
+    node_batch: list[int] = []
+    edge_feature_rows: list[tuple[float, ...]] = []
+    edge_index_rows: list[tuple[int, int]] = []
+    edge_batch: list[int] = []
+    refs: list[ActorEdgeRecordRef] = []
+    node_offset = 0
+    for scene_index, scene in enumerate(scenes):
+        inputs = list(scene)
+        local_index: dict[str, int] = {}
+        kind_by_id: dict[str, str] = {}
+        position_by_id: dict[str, tuple[float, float, float]] = {}
+        degree_by_id: dict[str, int] = {}
+        time_step_by_id: dict[str, int] = {}
+        for policy_input in inputs:
+            validate_actor_policy_input_row(policy_input.to_actor_safe_row())
+            agent_id = str(policy_input.agent_id)
+            if agent_id in local_index:
+                raise TensorizerViolation(f"duplicate ego observation for node: {agent_id}")
+            local_index[agent_id] = len(local_index)
+            kind_by_id[agent_id] = str(policy_input.agent_kind)
+            position_by_id[agent_id] = (
+                _finite("position_x_m", policy_input.local_position_m[0]),
+                _finite("position_y_m", policy_input.local_position_m[1]),
+                _finite("position_z_m", policy_input.local_position_m[2]),
+            )
+            degree_by_id[agent_id] = len(tuple(policy_input.local_neighbor_observations))
+            time_step_by_id[agent_id] = int(policy_input.time_step)
+        # Node feature table (sorted by the stable ego enumeration order above).
+        for agent_id, index in sorted(local_index.items(), key=lambda item: item[1]):
+            degree = float(degree_by_id[agent_id])
+            contention = 0.0 if degree <= 1.0 else 1.0 - 1.0 / degree
+            px, py, pz = position_by_id[agent_id]
+            node_feature_rows.append(
+                (
+                    px,
+                    py,
+                    pz,
+                    _kind_flag(kind_by_id[agent_id], "vehicle"),
+                    _kind_flag(kind_by_id[agent_id], "rsu"),
+                    degree,
+                    contention,
+                )
+            )
+            node_ids.append(agent_id)
+            node_batch.append(scene_index)
+        # Directed edge rows.
+        scene_edges: list[tuple[str, ActorEdgeRecordRef, tuple[float, ...]]] = []
+        for policy_input in inputs:
+            agent_id = str(policy_input.agent_id)
+            for neighbor in policy_input.local_neighbor_observations:
+                neighbor_id = str(_neighbor_value(neighbor, "neighbor_id"))
+                if neighbor_id not in local_index:
+                    raise TensorizerViolation(
+                        f"neighbour {neighbor_id} of {agent_id} has no ego observation in scene"
+                    )
+                edge_id = str(_neighbor_value(neighbor, "edge_id"))
+                directed_edge_id = make_directed_edge_id(agent_id, neighbor_id)
+                feature_row = (
+                    _kind_flag(kind_by_id[agent_id], "vehicle"),
+                    _kind_flag(kind_by_id[agent_id], "rsu"),
+                    _kind_flag(str(_neighbor_value(neighbor, "neighbor_kind")), "vehicle"),
+                    _kind_flag(str(_neighbor_value(neighbor, "neighbor_kind")), "rsu"),
+                    _finite("local_position_x_m", policy_input.local_position_m[0]),
+                    _finite("local_position_y_m", policy_input.local_position_m[1]),
+                    _finite("local_position_z_m", policy_input.local_position_m[2]),
+                    _finite("distance_3d_m", _neighbor_value(neighbor, "distance_3d_m")),
+                    _finite(
+                        "link_success_probability",
+                        _neighbor_value(neighbor, "link_success_probability"),
+                    ),
+                    _finite(
+                        "estimated_link_latency_s",
+                        _neighbor_value(neighbor, "estimated_link_latency_s"),
+                    ),
+                    _finite(
+                        "estimated_link_energy_j",
+                        _neighbor_value(neighbor, "estimated_link_energy_j"),
+                    ),
+                )
+                ref = ActorEdgeRecordRef(
+                    sample_index=scene_index,
+                    agent_id=agent_id,
+                    neighbor_id=neighbor_id,
+                    edge_id=edge_id,
+                    directed_edge_id=directed_edge_id,
+                    time_step=int(policy_input.time_step),
+                )
+                scene_edges.append((directed_edge_id, ref, feature_row))
+        scene_edges.sort(key=lambda item: item[0])
+        for _directed_edge_id, ref, feature_row in scene_edges:
+            edge_feature_rows.append(feature_row)
+            edge_index_rows.append(
+                (node_offset + local_index[ref.agent_id], node_offset + local_index[ref.neighbor_id])
+            )
+            edge_batch.append(scene_index)
+            refs.append(ref)
+        node_offset += len(local_index)
+
+    node_count = len(node_feature_rows)
+    edge_count = len(edge_feature_rows)
+    node_tensor = (
+        torch.tensor(node_feature_rows, dtype=torch.float32)
+        if node_count
+        else torch.empty((0, len(ACTOR_NODE_FEATURE_FIELDS)), dtype=torch.float32)
+    )
+    edge_tensor = (
+        torch.tensor(edge_feature_rows, dtype=torch.float32)
+        if edge_count
+        else torch.empty((0, len(ACTOR_EDGE_FEATURE_FIELDS)), dtype=torch.float32)
+    )
+    edge_index = (
+        torch.tensor(edge_index_rows, dtype=torch.long)
+        if edge_count
+        else torch.empty((0, 2), dtype=torch.long)
+    )
+    return LocalGraphTensorBatch(
+        node_features=node_tensor,
+        edge_features=edge_tensor,
+        edge_index=edge_index,
+        node_batch=torch.tensor(node_batch, dtype=torch.long),
+        edge_batch=torch.tensor(edge_batch, dtype=torch.long),
+        node_mask=torch.ones((node_count,), dtype=torch.bool),
+        edge_mask=torch.ones((edge_count,), dtype=torch.bool),
+        records=tuple(refs),
+        node_ids=tuple(node_ids),
     )
 
 

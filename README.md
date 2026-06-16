@@ -48,18 +48,39 @@ logs/, result_save/     gitignored experiment scripts, datasets, and run artifac
 See `docs/CLEAN_PROJECT_MAP.md` for the full env / configuration / architecture map and what was
 retired in the production-main-body consolidation.
 
+## Production trunk (2026-06-16): decentralized CTDE MARL
+
+The production model is now the **decentralized CTDE multi-agent flow** (authoritative
+designation in `src/marl_topology/training/production_trunk.py`):
+
+- **Actor** `LocalKHopGNNEdgeScorer` — a genuinely multi-hop yet Dec-POMDP-local message-passing
+  edge scorer (receptive field = K hops via local neighbour signalling; no global-state shortcut).
+  It removes the v3 1-hop ego-graph ceiling (v3 is now a registered diagnostic baseline).
+- **Decoder** `DecentralizedPerNodeMutualSampler` — each node ranks only its own incident edges
+  within its radio budget; an edge activates iff **both endpoints accept** (mutual acceptance). The
+  joint log-prob factorizes per agent (no double counting). This **closes the prior decentralization
+  gap**: the scene-global top-k decode is kept only as the centralized-decode ablation.
+- **Flow** `DecentralizedCTDEFlow` — per-agent clipped PPO from the factorized per-owner log-probs +
+  a training-only centralized graph critic (CTDE); genuinely **sequential** (a per-node energy
+  battery makes an action shrink the next-step feasible set), so it is **not** a static-frame bandit.
+- **Driver** `scripts/train/decentralized_marl_production_training.py` runs it at configurable scale
+  (K-ablation, variable N) on CPU or GPU and emits checkpoints, figures, tables, and a report.
+
 ## Open status (honest)
 
-- The Stage 33 production GNN training gate has **not** yet produced a stable, passing checkpoint;
-  the strongest reported feasibility results come from a research-artifact actor in `logs/`, not the
-  registry production model. Headline grades are *fractions of scenes* clearing the per-scene τ = 0.9
-  bar, not the reliability itself, and are operating-point / propagation-model specific.
+- The decentralized trunk is **verified by tests** (multi-hop receptive field, strict locality,
+  mutual-acceptance + log-prob factorization, non-bandit energy dynamics, end-to-end training on real
+  scenes) but the **large-scale training campaign on a GPU is still pending** — run the driver above to
+  produce the headline feasibility-vs-N / K-ablation results. Reported grades are *fractions of scenes*
+  clearing the per-scene τ = 0.9 bar, not reliability itself, and are operating-point / propagation
+  specific.
 - At fixed small N (≤ 16) a decentralized actor matches its search-teacher feasibility ceiling
-  (≈ 0.69–0.82). At N ≥ 24 the frozen small-N actor's cross-scene grade collapses; this is consistent
-  with a **learnability/search gap**, not a proven physics wall.
-- The learned actor's *scoring* is genuinely local and leak-free, but its *action decode* currently
-  uses a scene-global top-k selection rather than a local mutual-acceptance assembly — an open
-  decentralization gap tracked for repair.
+  (≈ 0.69–0.82). At N ≥ 24 a frozen small-N actor's cross-scene grade collapses; this is consistent
+  with a **learnability/search gap**, not a proven physics wall — the multi-hop actor + scale-up
+  training target exactly this regime.
+- The legacy Stage-33 ego-graph + global-Plackett-Luce path is retained as the diagnostic baseline;
+  its `ACTIVE_STAGE33_*` constants are intentionally not flipped (a pure rename that would break the
+  diagnostic flow). `production_trunk.py` is the authoritative production designation.
 
 ## Verification
 
