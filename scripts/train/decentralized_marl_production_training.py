@@ -90,6 +90,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--churn-weight", type=float, default=0.05)
     parser.add_argument("--num-workers", type=int, default=0,
                         help="parallel rollout workers (0 = serial; use >0 on a Linux box)")
+    parser.add_argument("--no-vectorized-evaluator", action="store_true",
+                        help="use the canonical (slower) Stage-21 evaluator instead of the vectorized one")
     parser.add_argument("--eval-every", type=int, default=10)
     parser.add_argument("--out-dir", default="result_save/decentralized_marl")
     parser.add_argument("--smoke", action="store_true",
@@ -158,6 +160,7 @@ def main() -> None:
             energy_budget_j=args.energy_budget,
             churn_weight=args.churn_weight,
             num_workers=args.num_workers,
+            use_vectorized_evaluator=not args.no_vectorized_evaluator,
             seed=args.seed,
             device=args.device,
         )

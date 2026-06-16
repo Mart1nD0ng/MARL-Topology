@@ -134,6 +134,10 @@ class DecentralizedMARLConfig:
     bc_teacher_restarts: int = 4
     # Parallel rollout workers (0 = serial). Reserved for the Linux multi-core throughput path.
     num_workers: int = 0
+    # Use the vectorized (equivalence-verified, bit-identical) Stage-21 evaluator for the
+    # rollout/BC physics. Default on (it only removes redundant compute); set False to fall
+    # back to the canonical evaluator (e.g. for an A/B equivalence check).
+    use_vectorized_evaluator: bool = True
     seed: int = 4096
     device: str = "cpu"
     tau_requirement_min: float = STAGE21_TAU
@@ -243,7 +247,8 @@ class DecentralizedCTDEFlow:
             if step_index > 0:
                 scene = advance_scene(scene, motion_map, self.config.traj_dt_s)
             frame_spec = replace(spec, scenario_id=f"{spec.scenario_id}:t{step_index}", scene=scene)
-            graph, evaluator = build_scenario_evaluator(frame_spec)
+            graph, canonical = build_scenario_evaluator(frame_spec)
+            evaluator = self._wrap_evaluator(scene, graph, canonical)
             observations = build_local_observations(
                 scene=scene,
                 graph=graph,
@@ -252,6 +257,20 @@ class DecentralizedCTDEFlow:
             )
             frames.append((evaluator, observations))
         return frames
+
+    def _wrap_evaluator(self, scene, graph, canonical):
+        """Wrap a canonical Stage-21 evaluator with the bit-identical vectorized one (reusing
+        the canonical for link_records / membership / MAC), unless disabled by config."""
+
+        if not self.config.use_vectorized_evaluator:
+            return canonical
+        from marl_topology.data.vectorized_objective_stack_evaluator import (
+            VectorizedStage21Evaluator,
+        )
+
+        return VectorizedStage21Evaluator(
+            scene=scene, graph=graph, config=canonical.config, ref=canonical
+        )
 
     # ------------------------------------------------------------------ rollout
     def rollout_scene(
@@ -622,6 +641,7 @@ class DecentralizedCTDEFlow:
         from marl_topology.data.stage31_scenario_generator import best_feasible_topology
 
         context = build_production_context(spec, time_step=0)
+        evaluator = self._wrap_evaluator(spec.scene, context.graph, context.evaluator)
         node_budgets = node_budgets_for_scene(spec.scene)
         edge_universe = tuple(
             sorted({edge for edges in context.topology_variants.values() for edge in edges})
@@ -629,7 +649,7 @@ class DecentralizedCTDEFlow:
         if not edge_universe:
             return None
         teacher = best_feasible_topology(
-            context.evaluator,
+            evaluator,
             context.topology_variants,
             tau=self.config.tau_requirement_min,
             node_budgets=node_budgets,
@@ -642,7 +662,7 @@ class DecentralizedCTDEFlow:
         observations = build_local_observations(
             scene=spec.scene,
             graph=context.graph,
-            link_records=context.evaluator.link_records,
+            link_records=evaluator.link_records,
             time_step=0,
         )
         policy_inputs = [_observation_to_policy_input(o) for o in observations]

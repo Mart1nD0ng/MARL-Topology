@@ -73,9 +73,11 @@ message_matrix_adapter,pbft_reliability,quorum_tail,pbft_accounting}.py`,
 ### Actor / critic / decode
 - **Production actor (active, registry-gated):** `models/local_gnn_edge_scorer.py`
   (`LocalMessagePassingGNNV3ResidualNorm`). ⚠️ *direction*, not a passed artifact — the Stage-33
-  GNN training gate failed (all 5 seeds collapsed, no checkpoint). The campaign's feasibility
-  numbers come from the SCRATCH artifact `logs/_artifacts_step3.pt` (`GlobalMessagePassingActor`),
-  not this registry model. Do not claim a successfully MAPPO-trained production GNN.
+  GNN training gate failed (all 5 seeds collapsed, no checkpoint). NOTE: this whole "Actor/
+  critic/decode" subsection describes the SUPERSEDED Stage-33 ego-graph + global-Plackett-Luce
+  path — see the 2026-06-16 update at the top of this file for the decentralized CTDE production
+  trunk that replaced it. The old density-report numbers came from `_artifacts_step3.pt`
+  (`GlobalMessagePassingActor`), which was removed with `logs/` (2026-06-16).
 - **Critics (training-only, CTDE):** `models/centralized_message_passing_graph_critic.py`
   (+ `models/quorum_tail_pool.py`), candidate `models/enriched_centralized_mlp_critic.py`.
 - **Decode/assembly:** `policies/{physical_link_assembler,topology_assembler}.py`,
@@ -94,9 +96,12 @@ message_matrix_adapter,pbft_reliability,quorum_tail,pbft_accounting}.py`,
 `topology/{evaluator,oracle}.py`, `protocol/consensus.py`, `objectives/latency_energy.py`.
 
 ## 4. SCRATCH — NOT imported by trunk (ignore for trunk analysis)
-- `logs/` — 91 research `.py` (phase*, step*, the density-axis campaign `campaign_common.py`,
-  `fast_stage21.py`, `recovery_scaling.py`, viz scripts) + 53 `.pt`/`.pkl`/`.json` artifacts
-  (~9.8 MB), incl. `_artifacts_step3.pt`. **Confirmed: 0 imports from `src/` or `tests/`.**
+- `logs/` — **REMOVED 2026-06-16.** It held ~97 research scripts + gitignored data artifacts
+  (incl. `_artifacts_step3.pt`, the `GlobalMessagePassingActor` behind the old density-report
+  numbers). The one load-bearing piece, the vectorized evaluator `fast_stage21.py`, was
+  productionized into `data/vectorized_objective_stack_evaluator.py` (equivalence-verified) and
+  its checker into `tests/unit/test_vectorized_objective_stack_evaluator.py`; everything else
+  was one-off research superseded by the decentralized trunk and deleted (owner-approved).
 - `result_save/` (~11 MB) — per-stage run dumps (manifests/metrics/CSVs/PNGs).
 - `scripts/replay/` — 23 contract/report runner drivers (verification, not production entry).
 

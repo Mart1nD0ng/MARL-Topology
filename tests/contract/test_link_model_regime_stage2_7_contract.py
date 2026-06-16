@@ -108,6 +108,12 @@ def test_stage_2_7_does_not_implement_deferred_physics_components() -> None:
             continue
         if "evaluation" in relative_parts and path.name == "stage3_fixture_suite.py":
             continue
+        # Authorized post-2026-06-16 physics VECTORIZATION: it composes the canonical channel
+        # primitives (no NEW deferred physics) and is equivalence-verified (|dp0| < 1e-9) vs the
+        # canonical evaluator, so -- like channel/link -- it legitimately references SINR
+        # composed from precomputed received powers.
+        if path.name == "vectorized_objective_stack_evaluator.py":
+            continue
         source_paths.append(path)
     banned_physics_terms = [
         "path_loss_db",

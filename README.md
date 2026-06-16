@@ -39,10 +39,12 @@ src/marl_topology/      production package (env, channel, link, network, protoco
                         models, data, training, evaluation)
 tests/                  unit + contract/boundary tests (decentralization, metric/reward
                         governance, the production-actor gate)
-scripts/                runnable train/ and replay/ drivers for the production stages
+scripts/                runnable train/ (incl. the decentralized-MARL production driver) and
+                        replay/ drivers for the production stages
 harness/                cybernetic task specs, rubrics, templates, governance tooling
 docs/                   contracts + staged research record (provenance)
-logs/, result_save/     gitignored experiment scripts, datasets, and run artifacts
+result_save/            gitignored datasets and run artifacts (the logs/ research scratch was
+                        removed 2026-06-16; its vectorized evaluator was productionized into src/)
 ```
 
 See `docs/CLEAN_PROJECT_MAP.md` for the full env / configuration / architecture map and what was
