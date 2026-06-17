@@ -194,7 +194,7 @@ def _validate_artifact_root(
 
     candidate = _normalize_path(raw_root, project_root)
     allowed_root = _normalize_path(DEFAULT_ARTIFACT_ROOT, project_root)
-    if _looks_like_legacy_reference(candidate):
+    if _looks_like_legacy_reference(candidate, allowed_root):
         issues.append(
             RunManifestValidationIssue(
                 code="legacy_reference_artifact_root",
@@ -228,7 +228,7 @@ def _validate_optional_artifact_paths(
     for index, path_value in enumerate(paths):
         candidate = _normalize_path(path_value, project_root)
         field = f"{OPTIONAL_ARTIFACT_PATHS_FIELD}[{index}]"
-        if _looks_like_legacy_reference(candidate):
+        if _looks_like_legacy_reference(candidate, allowed_root):
             issues.append(
                 RunManifestValidationIssue(
                     code="legacy_reference_artifact_path",
@@ -287,6 +287,17 @@ def _is_relative_to(candidate: Path, root: Path) -> bool:
     return True
 
 
-def _looks_like_legacy_reference(path: Path) -> bool:
+def _looks_like_legacy_reference(path: Path, allowed_root: Path) -> bool:
+    """A path is the legacy v5 reference tree when it carries a ``v5`` component and
+    lives OUTSIDE the project's result_save root.
+
+    The canonical legacy reference is ``D:\\PhD_works\\v5`` (read-only), but the rule
+    keys on the ``v5`` version marker rather than the exact parent spelling so any
+    external ``...\\v5\\...`` tree is flagged. Containment under result_save is the
+    guard against false positives: an internal ``result_save/.../v5`` dir is never a
+    legacy reference. External paths also trip ``artifact_path_escape``; this code is
+    the more specific "you pointed at the old v5 project" diagnostic.
+    """
+
     parts = tuple(part.lower() for part in path.parts)
-    return "phd_works" in parts and "v5" in parts
+    return "v5" in parts and not _is_relative_to(path, allowed_root)

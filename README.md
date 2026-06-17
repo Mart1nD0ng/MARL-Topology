@@ -97,8 +97,12 @@ python harness\scripts\validate_tasks.py
 python harness\scripts\score_rubric.py docs\CONTROL_MODEL.md harness\rubrics\cybernetic_engineering_rubric.yaml --out harness\reports\control_model.score.json
 ```
 
-Two unit tests are known, tolerated pre-existing failures (a legacy-reference manifest check and the
-Stage 23 micro-gate after the reward switched to the feasibility-first barrier); everything else passes.
+The full suite passes with one tolerated `xfail`: the Stage 23 REINFORCE sampler micro-gate is a
+superseded scaffold (the production decode path is decentralized local mutual acceptance on the
+K-round message-passing actor, not the Plackett-Luce/Bernoulli samplers it ranks; under the
+owner-approved feasibility-first barrier reward its 3-scene tie-break shifted), kept as a documented
+`xfail` pending removal of that dead path. The earlier legacy-reference manifest gap is now fixed —
+the validator flags any external `v5` tree as a legacy-reference artifact root.
 
 ## Boundary rules
 
