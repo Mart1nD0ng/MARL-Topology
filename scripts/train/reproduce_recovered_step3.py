@@ -41,7 +41,7 @@ from marl_topology.training.production_mappo_adapter import (  # noqa: E402
     Stage33ProductionMappoAdapter,
 )
 
-DEFAULT_DIR = ROOT / "recovered_artifacts" / "recovered_step3"
+DEFAULT_DIR = ROOT / "result_save" / "recovered_step3"
 
 
 def load_shard_pool(shard_paths):

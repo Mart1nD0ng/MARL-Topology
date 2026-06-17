@@ -15,7 +15,7 @@ from random import Random
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-RECOVERED = ROOT / "recovered_artifacts" / "recovered_step3"
+RECOVERED = ROOT / "result_save" / "recovered_step3"
 ARTIFACTS = RECOVERED / "_artifacts_step3.pt"
 SHARDS = [RECOVERED / f"_step3_shard_{s}.pkl" for s in (3001, 3002, 3003, 3004)]
 
