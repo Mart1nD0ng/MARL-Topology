@@ -27,3 +27,6 @@ result_save/*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Recovered model artifacts (large; reproduction data, not committed)
+recovered_artifacts/

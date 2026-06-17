@@ -10,34 +10,46 @@ evaluator/model/Stage-33-flow contracts pass. The 2 failures are non-structural 
 `v5` validator test; a Stage-23 policy-gradient micro-gate that returns owner_decision_required
 by design). **The consolidation did not damage the trunk.**
 
-## 2026-06-16 UPDATE — decentralized MARL production trunk (supersedes the Stage-33 ego/global path)
+## 2026-06-17 UPDATE — RECOVERED production trunk (the validated 0.82 result, restored into src)
 
-The production trunk is now the **decentralized CTDE multi-agent flow**, authoritatively
-declared in `src/marl_topology/training/production_trunk.py`. It replaces the Stage-33
-ego-graph + global-Plackett-Luce path as the production model; that path is **retained only
-as the diagnostic baseline / ablation**.
+The production trunk is the **recovered, validated** decentralized pipeline that produced the
+project's best result (held-out decentralized feasibility **0.82**, N=8 **0.957**, under the full
+TR 37.885 stochastic stack at the 4-RSU / 20 dBm operating point — `docs/URBAN_V2X_RESEARCH_LOG.md`
+Step-3). It was recovered from the deleted `logs/` research path into src and is reproducible
+from a frozen artifact.
 
-- **Production actor:** `models/local_khop_gnn_edge_scorer.py`
-  (`LocalKHopGNNEdgeScorer`, `local_khop_message_passing_gnn_edge_scorer_v1`) — a genuinely
-  multi-hop yet Dec-POMDP-local message-passing edge scorer (receptive field = K hops via
-  local neighbour signalling; verified by a receptive-field test). Fixes the v3 1-hop
-  ego-graph ceiling. v3 is now a registered diagnostic baseline.
+- **Production actor:** `models/message_passing_graph_edge_scorer.py`
+  (`MessagePassingGraphEdgeScorer`, `kround_message_passing_graph_edge_scorer_v1`) — a K-round
+  bidirectional message-passing GNN edge scorer (decentralized-with-communication: K hops of
+  local neighbour signalling, no global-state shortcut). This is the actor that produced the
+  validated result.
 - **Production decoder (true end-to-end decentralization):**
-  `training/policy_gradient/decentralized_sampler.py`
-  (`DecentralizedPerNodeMutualSampler`) — each node ranks only its own incident edges within
-  its radio budget; an edge activates iff both endpoints accept (mutual acceptance). The joint
-  log-prob factorizes per agent (no double counting). The global Plackett-Luce + assembler is
-  kept only as the centralized-decode ablation.
-- **Production flow (genuine MARL, not a bandit):** `training/decentralized_marl.py`
-  (`DecentralizedCTDEFlow`, `decentralized_ctde_mappo_v1`) — per-agent clipped PPO objective
-  from the factorized per-owner log-probs + a training-only centralized graph critic (CTDE);
-  genuinely sequential via a per-node energy battery (an action depletes it, shrinking the
-  next-step feasible action set). Runnable driver + figures/tables/report:
-  `scripts/train/decentralized_marl_production_training.py`.
-- **Legacy designation:** `ACTIVE_STAGE33_GNN_MODEL_ID` (v3) and
-  `ACTIVE_POLICY_GRADIENT_SAMPLER_ID` (global PL) are intentionally **left in place** as the
-  diagnostic-baseline lineage; flipping them would break the legacy diagnostic flow for a pure
-  rename. `production_trunk.py` is the authoritative production designation.
+  `policies/decentralized_mutual_acceptance.py` (`local_mutual_assemble`) — each node ranks only
+  its own incident edges within its radio budget (logit >= 0); an edge activates iff both
+  endpoints accept. Per-node computable, zero global state. `global_argsort_assemble` is kept
+  only as the centralized-decode ABLATION (its cost is ~0 at the multi-RSU operating point).
+- **Recipe / eval (BC distillation + CTDE critic-planner):** `training/decentralized_distillation.py`
+  — BC-distil the (budget-aware SA or critic-planner) teacher into the actor with weight decay +
+  early stopping + keep-best; the centralized graph critic (`models/
+  centralized_message_passing_graph_critic.py`) is training-only (CTDE) and never reaches the
+  deployed actor. Dataset-shard I/O lives in the drivers/tests (src stays I/O-free).
+- **Reproduction:** `scripts/train/reproduce_recovered_step3.py` loads the frozen
+  `_artifacts_step3.pt` (3 actors + critic + norm; under the gitignored `recovered_artifacts/`)
+  and reproduces 0.82; pinned by `tests/unit/test_recovered_step3_reproduction.py` (skips if the
+  artifacts are absent).
+- **Load-bearing Stage-33 infrastructure (RETAINED, not a baseline):** `training/
+  production_mappo_adapter.py` (`build_row_contexts`), `data/stage33_graph_structure_dataset.py`,
+  `training/mappo/stage28_repaired_critic_pilot.py` (`_graph_payload`, the 8/8-dim actor-safe
+  feature schema). The recovered trunk depends on these.
+
+### DELETED 2026-06-17 — the unvalidated 2026-06-16 "new trunk"
+The 2026-06-16 rebuild (`training/decentralized_marl.py` `DecentralizedCTDEFlow`,
+`models/local_khop_gnn_edge_scorer.py`, `training/policy_gradient/decentralized_sampler.py`,
+`training/production_trunk.py`, `scripts/train/decentralized_marl_production_training.py`) was a
+fresh re-implementation that **never reproduced the validated result** (it ran at ~0 under
+default config). It was deleted so the repo has ONE trunk (the recovered, validated one). Lesson
+recorded: the working pipeline + its trained artifact had been left in `logs/` scratch and never
+wired into src — the production default must equal the validated best, not a re-derivation.
 
 ## Legend
 - **TRUNK** — load-bearing production code (imported by the evaluator / actor / Stage-33 flow).

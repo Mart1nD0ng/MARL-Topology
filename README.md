@@ -50,39 +50,44 @@ result_save/            gitignored datasets and run artifacts (the logs/ researc
 See `docs/CLEAN_PROJECT_MAP.md` for the full env / configuration / architecture map and what was
 retired in the production-main-body consolidation.
 
-## Production trunk (2026-06-16): decentralized CTDE MARL
+## Production trunk (2026-06-17): recovered, validated decentralized pipeline
 
-The production model is now the **decentralized CTDE multi-agent flow** (authoritative
-designation in `src/marl_topology/training/production_trunk.py`):
+The production model is the **recovered, validated** decentralized pipeline that produced the
+project's best result — held-out **decentralized feasibility 0.82 (N=8: 0.957)** under the full
+TR 37.885 stochastic stack (v2x_37885 + shadowing + NLOSv + scheduled MAC + relay-3 + wired RSU
+backhaul + coverage-gated membership) at the **4-RSU / 20 dBm** operating point. See
+`docs/URBAN_V2X_RESEARCH_LOG.md` (Step-3) and `docs/DENSITY_AXIS_CAMPAIGN_REPORT.md`.
 
-- **Actor** `LocalKHopGNNEdgeScorer` — a genuinely multi-hop yet Dec-POMDP-local message-passing
-  edge scorer (receptive field = K hops via local neighbour signalling; no global-state shortcut).
-  It removes the v3 1-hop ego-graph ceiling (v3 is now a registered diagnostic baseline).
-- **Decoder** `DecentralizedPerNodeMutualSampler` — each node ranks only its own incident edges
-  within its radio budget; an edge activates iff **both endpoints accept** (mutual acceptance). The
-  joint log-prob factorizes per agent (no double counting). This **closes the prior decentralization
-  gap**: the scene-global top-k decode is kept only as the centralized-decode ablation.
-- **Flow** `DecentralizedCTDEFlow` — per-agent clipped PPO from the factorized per-owner log-probs +
-  a training-only centralized graph critic (CTDE); genuinely **sequential** (a per-node energy
-  battery makes an action shrink the next-step feasible set), so it is **not** a static-frame bandit.
-- **Driver** `scripts/train/decentralized_marl_production_training.py` runs it at configurable scale
-  (K-ablation, variable N) on CPU or GPU and emits checkpoints, figures, tables, and a report.
+- **Actor** `MessagePassingGraphEdgeScorer` (`models/message_passing_graph_edge_scorer.py`) — a
+  K-round bidirectional message-passing GNN edge scorer (decentralized-with-communication: K hops
+  of local neighbour signalling, no global-state shortcut).
+- **Decoder** `local_mutual_assemble` (`policies/decentralized_mutual_acceptance.py`) — each node
+  ranks only its own incident edges within its radio budget; an edge activates iff **both endpoints
+  accept**. Per-node computable, zero global state. The global-argsort decode is kept only as the
+  centralized-decode ablation (cost ≈ 0 at the multi-RSU operating point).
+- **Recipe** `training/decentralized_distillation.py` — BC-distil the (budget-aware SA or
+  critic-planner) teacher into the actor (weight decay + early stopping + keep-best); the
+  centralized graph critic is training-only (CTDE). Dataset-shard I/O lives in the drivers/tests.
+- **Reproduce** `python scripts/train/reproduce_recovered_step3.py` loads the frozen
+  `_artifacts_step3.pt` and reproduces 0.82 (pinned by `tests/unit/test_recovered_step3_reproduction.py`).
+
+> The 2026-06-16 "new trunk" (`decentralized_marl.py` / `LocalKHopGNNEdgeScorer` /
+> `DecentralizedPerNodeMutualSampler` / `production_trunk.py` / its driver) was an unvalidated
+> re-implementation that never reproduced the result (~0 under default config); it was **deleted
+> 2026-06-17** so the repo has one trunk. The Stage-33 dataset/adapter/critic infrastructure it now
+> reuses is load-bearing (not a baseline).
 
 ## Open status (honest)
 
-- The decentralized trunk is **verified by tests** (multi-hop receptive field, strict locality,
-  mutual-acceptance + log-prob factorization, non-bandit energy dynamics, end-to-end training on real
-  scenes) but the **large-scale training campaign on a GPU is still pending** — run the driver above to
-  produce the headline feasibility-vs-N / K-ablation results. Reported grades are *fractions of scenes*
-  clearing the per-scene τ = 0.9 bar, not reliability itself, and are operating-point / propagation
-  specific.
-- At fixed small N (≤ 16) a decentralized actor matches its search-teacher feasibility ceiling
-  (≈ 0.69–0.82). At N ≥ 24 a frozen small-N actor's cross-scene grade collapses; this is consistent
-  with a **learnability/search gap**, not a proven physics wall — the multi-hop actor + scale-up
-  training target exactly this regime.
-- The legacy Stage-33 ego-graph + global-Plackett-Luce path is retained as the diagnostic baseline;
-  its `ACTIVE_STAGE33_*` constants are intentionally not flipped (a pure rename that would break the
-  diagnostic flow). `production_trunk.py` is the authoritative production designation.
+- The recovered trunk **reproduces 0.82 held-out from a frozen artifact** (decentralization cost 0).
+  Reported grades are *fractions of scenes* clearing the per-scene τ = 0.9 bar, not reliability
+  itself; the < 1.0 rate is a dataset-composition statement (deliberately mixed hard/infeasible
+  families + all-nodes-validator structure), not a method/physics wall — per-scene consensus
+  routinely reaches 1.0 and the operating-point envelope is 1.00 τ-achievable with realistic placement.
+- **Retraining to 0.82 (vs reproducing the frozen actor)** needs the critic-planner arm of the recipe
+  ported into a driver (the BC-on-SA-teacher arm in `decentralized_distillation.train_actor` reaches
+  the ~0.5 SA-teacher ceiling). The operating-point dataset build (4 RSU / 20 dBm / N {8,12,16} /
+  TR 37.885 stochastic) is in `docs/URBAN_V2X_RESEARCH_LOG.md` Step-3.
 
 ## Verification
 

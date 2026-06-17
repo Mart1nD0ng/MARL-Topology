@@ -142,12 +142,12 @@ def test_stage5_1_does_not_add_reward_or_training_implementation() -> None:
     offenders = [path for path in forbidden_paths if path.exists()]
     assert not offenders, f"Stage 5.1 added implementation files: {offenders}"
 
-    # Modernized 2026-06-16: real large-scale training is now authorized, and the
-    # decentralized CTDE production stack legitimately implements the reward surrogate /
-    # policy gradient. Stage 5.1 was a *planning* stage; this scaffold-era guard now scopes
-    # to everything EXCEPT that authorized production-training module (semantic exemption,
-    # not a spelling dodge). All other modules still must keep reward implementation out.
-    authorized_production_training = {"decentralized_marl.py"}
+    # 2026-06-17: the recovered production trunk is BEHAVIOUR-CLONING distillation
+    # (training/decentralized_distillation.py) -- it does not implement a reward surrogate or a
+    # policy-gradient optimizer, so no module needs the former exemption (the decentralized_marl.py
+    # PPO exemption was retired together with that module). The scaffold-era guard scopes to all
+    # of src again.
+    authorized_production_training: set[str] = set()
     source_paths = [
         path
         for path in (ROOT / "src" / "marl_topology").rglob("*.py")

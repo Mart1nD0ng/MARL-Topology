@@ -38,11 +38,10 @@ from .local_gnn_edge_scorer import (
     LocalRoleResourceAwareGNNV3,
     LocalRoleResourceAwareGNNV3Config,
 )
-from .local_khop_gnn_edge_scorer import (
-    LOCAL_KHOP_GNN_EDGE_SCORER_V1_MODEL_ID,
-    KHOP_GNN_FORBIDDEN_INPUT_FIELDS,
-    LocalKHopGNNEdgeScorer,
-    LocalKHopGNNEdgeScorerConfig,
+from .message_passing_graph_edge_scorer import (
+    MESSAGE_PASSING_GRAPH_EDGE_SCORER_MODEL_ID,
+    MessagePassingGraphEdgeScorer,
+    MessagePassingGraphEdgeScorerConfig,
 )
 from .model_registry import (
     ModelRegistryEntry,
@@ -51,13 +50,10 @@ from .model_registry import (
 )
 from .tensorizers import (
     ACTOR_EDGE_FEATURE_FIELDS,
-    ACTOR_NODE_FEATURE_FIELDS,
     CRITIC_GLOBAL_FEATURE_FIELDS,
     ActorEdgeTensorBatch,
     CriticTensorBatch,
-    LocalGraphTensorBatch,
     TensorizerViolation,
-    tensorize_actor_graph,
     tensorize_actor_history_sequence,
     tensorize_actor_policy_inputs,
     tensorize_actor_policy_rows,
@@ -66,14 +62,10 @@ from .tensorizers import (
 
 __all__ = [
     "ACTOR_EDGE_FEATURE_FIELDS",
-    "ACTOR_NODE_FEATURE_FIELDS",
     "ACTIVE_STAGE33_GNN_MODEL_ID",
-    "LOCAL_KHOP_GNN_EDGE_SCORER_V1_MODEL_ID",
-    "KHOP_GNN_FORBIDDEN_INPUT_FIELDS",
-    "LocalGraphTensorBatch",
-    "LocalKHopGNNEdgeScorer",
-    "LocalKHopGNNEdgeScorerConfig",
-    "tensorize_actor_graph",
+    "MESSAGE_PASSING_GRAPH_EDGE_SCORER_MODEL_ID",
+    "MessagePassingGraphEdgeScorer",
+    "MessagePassingGraphEdgeScorerConfig",
     "CENTRALIZED_MLP_CRITIC_BASELINE_ID",
     "CENTRALIZED_MESSAGE_PASSING_GRAPH_CRITIC_ID",
     "CRITIC_GLOBAL_FEATURE_FIELDS",
