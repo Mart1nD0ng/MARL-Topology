@@ -107,6 +107,48 @@ def feasible_rate_by_n(actor, samples, mean, std, assemble_fn=local_mutual_assem
     return overall, {n: a / b for n, (a, b) in sorted(agg.items())}
 
 
+def feasible_breakdown(actor, samples, mean, std, assemble_fn=local_mutual_assemble):
+    """Raw and solvable-conditional feasibility, overall and per-N.
+
+    ``raw`` = solved / all held scenes (bounded by scene-generation: the dataset is
+    deliberately part-infeasible). ``conditional`` = solved-on-solvable / solvable, where
+    a scene is solvable when the teacher label reports ``feasible_exists`` (some budget-
+    feasible topology clears tau). The conditional rate is the honest controller-quality
+    number -- it isolates "of the scenes that CAN be solved, how many does the
+    decentralized planner solve" from the fraction the scene distribution makes
+    unsolvable. Returns a dict with both, plus per-N splits and the solvable counts.
+    """
+
+    actor.eval()
+    # per N: [solved, total, solved_on_solvable, solvable]
+    agg = defaultdict(lambda: [0, 0, 0, 0])
+    for sample in samples:
+        with torch.no_grad():
+            logits = forward_logits(actor, sample, mean, std)
+        topo = assemble_fn(logits, sample["edge_ids"], sample["context"])
+        p = float(sample["context"].evaluator.evaluate(set(topo)).metrics["consensus_success_probability"])
+        ok = p >= TAU and is_budget_feasible(tuple(topo), node_budgets_for_scene(sample["context"].evaluator.scene))
+        solvable = bool(sample["label"]["feasible_exists"])
+        n = len(sample["context"].graph.node_ids)
+        agg[n][0] += int(ok)
+        agg[n][1] += 1
+        if solvable:
+            agg[n][2] += int(ok)
+            agg[n][3] += 1
+    solved = sum(a[0] for a in agg.values())
+    total = sum(a[1] for a in agg.values())
+    solved_solv = sum(a[2] for a in agg.values())
+    solvable = sum(a[3] for a in agg.values())
+    return {
+        "raw": solved / max(1, total),
+        "conditional": (solved_solv / solvable) if solvable else None,
+        "solved": solved, "total": total, "solvable": solvable,
+        "raw_by_n": {n: a[0] / a[1] for n, a in sorted(agg.items())},
+        "conditional_by_n": {n: (a[2] / a[3] if a[3] else None) for n, a in sorted(agg.items())},
+        "solvable_by_n": {n: a[3] for n, a in sorted(agg.items())},
+    }
+
+
 def feature_standardization(train_samples):
     allnf = torch.cat([s["nf"] for s in train_samples])
     allef = torch.cat([s["ef"] for s in train_samples])
@@ -181,6 +223,6 @@ def ci95(values):
 
 __all__ = [
     "TAU", "scene_tensors", "build_samples", "forward_logits",
-    "feasible_rate", "feasible_rate_by_n", "feature_standardization", "train_actor",
+    "feasible_rate", "feasible_rate_by_n", "feasible_breakdown", "feature_standardization", "train_actor",
     "load_actor_from_state", "ci95", "local_mutual_assemble", "global_argsort_assemble",
 ]

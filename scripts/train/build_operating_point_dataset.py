@@ -54,6 +54,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--rsu-count", type=int, default=4)
     p.add_argument("--tx-power", type=float, default=20.0)
     p.add_argument("--blocks-per-side", type=int, default=3)
+    # Scene-family split. Defaults reproduce the validated operating-point dataset (0.6/0.1/0.3).
+    # A denser/higher-power deployment naturally supplies more feasible scenes, so a richer
+    # regime can raise --feasible-frac (e.g. 0.8/0.1/0.1) instead of thrashing to fill a 30%
+    # infeasible bin the distribution no longer produces. Must sum to 1.0.
+    p.add_argument("--feasible-frac", type=float, default=0.6)
+    p.add_argument("--near-frac", type=float, default=0.1)
+    p.add_argument("--infeasible-frac", type=float, default=0.3)
     p.add_argument("--out-dir", default=str(ROOT / "result_save" / "operating_point"))
     return p.parse_args()
 
@@ -63,8 +70,9 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     regime = operating_point_regime(args.tx_power)
-    print(f"[op] regime: 4-RSU operating point — tx={args.tx_power}dBm rsu={args.rsu_count} "
-          f"relay=3 v2x_37885 backhaul shadowing nlosv coverage-gated; N={args.node_choices}", flush=True)
+    print(f"[op] regime: tx={args.tx_power}dBm rsu={args.rsu_count} blocks={args.blocks_per_side} "
+          f"relay=3 v2x_37885 backhaul shadowing nlosv coverage-gated; N={args.node_choices}; "
+          f"split feas/near/infeas={args.feasible_frac}/{args.near_frac}/{args.infeasible_frac}", flush=True)
     for seed in args.seeds:
         t0 = time.time()
         out = out_dir / f"_op_shard_{seed}.pkl"
@@ -72,7 +80,9 @@ def main() -> None:
             seed=seed, scenario_count=args.count, node_count_choices=tuple(args.node_choices),
             urban_mode=True, urban_blocks_per_side=args.blocks_per_side, urban_rsu_count=args.rsu_count,
             regime=regime,
-            target_feasible_fraction=0.6, target_near_threshold_fraction=0.1, target_infeasible_fraction=0.3,
+            target_feasible_fraction=args.feasible_frac,
+            target_near_threshold_fraction=args.near_frac,
+            target_infeasible_fraction=args.infeasible_frac,
         ))
         with open(out, "wb") as handle:
             pickle.dump(ds, handle)
