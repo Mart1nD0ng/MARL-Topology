@@ -430,6 +430,11 @@ class Stage21ObjectiveStackEvaluator:
             diagnostics=diagnostics,
         )
         if topology_id is None:
+            # Bound the memo: an RL/SA caller evaluates thousands of DISTINCT topologies, each holding
+            # O(N^2) link records -> an unbounded cache OOMs at large N. The cache is a pure performance
+            # memo (no semantic effect), so a clear-all at the bound is behaviorally transparent.
+            if len(self._cache) > 256:
+                self._cache.clear()
             self._cache[selected] = evaluation
         return evaluation
 

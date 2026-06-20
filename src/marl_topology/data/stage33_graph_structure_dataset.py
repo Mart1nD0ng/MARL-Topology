@@ -62,6 +62,13 @@ class Stage33GraphStructureConfig:
     target_feasible_fraction: float = 0.5
     target_near_threshold_fraction: float = 0.2
     target_infeasible_fraction: float = 0.3
+    # Opt-in N>=24 build enablers (defaults keep small-N builds byte-identical):
+    #  - vectorized_evaluator: route the SA/measure path through the bounded-cache 6x-faster
+    #    VectorizedStage21Evaluator (float-identical) so large-N builds don't OOM/thrash.
+    #  - max_total_attempts: hard cap on the rejection-sampling loop (0 = auto) so a low-yield
+    #    N>=24 build returns a smaller dataset instead of running for hours.
+    vectorized_evaluator: bool = False
+    max_total_attempts: int = 0
 
     def __post_init__(self) -> None:
         if self.scenario_count < len(STAGE33_GRAPH_STRUCTURE_FAMILIES):
@@ -72,9 +79,9 @@ class Stage33GraphStructureConfig:
             raise Stage33GraphStructureDatasetViolation(
                 "Stage 33 does not lower tau_requirement_min below 0.9"
             )
-        if any(count < 6 or count > 20 for count in self.node_count_choices):
+        if any(count < 6 or count > 48 for count in self.node_count_choices):
             raise Stage33GraphStructureDatasetViolation(
-                "Stage 33 graph-structure dataset uses node counts in 6..20"
+                "Stage 33 graph-structure dataset uses node counts in 6..48"
             )
 
     def production_config(self) -> ProductionScenarioConfig:
@@ -89,6 +96,7 @@ class Stage33GraphStructureConfig:
             target_feasible_fraction=self.target_feasible_fraction,
             target_near_threshold_fraction=self.target_near_threshold_fraction,
             target_infeasible_fraction=self.target_infeasible_fraction,
+            max_total_attempts=self.max_total_attempts,
         )
         if self.regime is not None:
             kwargs["regime"] = self.regime
@@ -143,12 +151,12 @@ def build_stage33_graph_structure_dataset(
     config: Stage33GraphStructureConfig | None = None,
 ) -> Stage33GraphStructureDataset:
     cfg = config or Stage33GraphStructureConfig()
-    source = build_production_dataset(cfg.production_config())
+    source = build_production_dataset(cfg.production_config(), vectorized=cfg.vectorized_evaluator)
     split_by_id = _split_lookup(source)
     records: list[Stage33GraphScenarioRecord] = []
     for index, spec in enumerate(source.specs):
         family = STAGE33_GRAPH_STRUCTURE_FAMILIES[index % len(STAGE33_GRAPH_STRUCTURE_FAMILIES)]
-        context = build_production_context(spec)
+        context = build_production_context(spec, vectorized=cfg.vectorized_evaluator)
         label = source.teacher_labels[spec.scenario_id]
         diagnostics = graph_necessity_diagnostics(
             context=context,

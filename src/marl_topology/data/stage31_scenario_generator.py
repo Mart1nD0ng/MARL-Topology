@@ -175,6 +175,11 @@ class ProductionScenarioConfig:
     target_near_threshold_fraction: float = 0.2
     target_infeasible_fraction: float = 0.3
     max_attempts_per_scenario: int = 40
+    # Hard GLOBAL attempt budget. 0 = auto (scenario_count * max_attempts_per_scenario). At low-yield
+    # regimes (e.g. urban N>=24 where the feasible bin is hard to fill) this terminates the rejection-
+    # sampling loop with a SMALLER dataset rather than thrashing for hours. Default 0 keeps the high-yield
+    # paths byte-identical (they finish far below the cap).
+    max_total_attempts: int = 0
     tau_requirement_min: float = TAU_REQUIREMENT_MIN
 
     def __post_init__(self) -> None:
@@ -610,7 +615,7 @@ def relay_aware_search_kwargs(
 
 
 def _measure_scene(
-    scene: Scene3D, quorum_size: int, regime: PhysicsRegime, tau: float
+    scene: Scene3D, quorum_size: int, regime: PhysicsRegime, tau: float, *, vectorized: bool = False
 ) -> dict[str, float]:
     from marl_topology.data.stage21_objective_stack_evidence import (
         Stage21ObjectiveStackEvaluator,
@@ -619,6 +624,14 @@ def _measure_scene(
     graph = CandidateGraph.from_scene(scene, max_distance_m=None)
     config = build_stack_config(regime)
     evaluator = Stage21ObjectiveStackEvaluator(scene=scene, graph=graph, config=config)
+    if vectorized:
+        # Bounded-cache, ~6x-faster, float-identical evaluator -- this is the dominant cost on the
+        # generation path (the SA family-binning search runs it thousands of times per scene), so the
+        # vectorized one is what makes N>=24 builds tractable (canonical OOMs/thrashes).
+        from marl_topology.data.vectorized_objective_stack_evaluator import (
+            VectorizedStage21Evaluator,
+        )
+        evaluator = VectorizedStage21Evaluator(scene=scene, graph=graph, config=config, ref=evaluator)
     link_records = evaluator.link_records
 
     from marl_topology.budgets import node_budgets_for_scene
@@ -692,6 +705,8 @@ def _sample_urban_scene(
 # --------------------------------------------------------------------------- #
 def generate_production_scenarios(
     config: ProductionScenarioConfig | None = None,
+    *,
+    vectorized: bool = False,
 ) -> tuple[ProductionScenarioSpec, ...]:
     """Generate a deterministic production scenario set with a measured gradient."""
 
@@ -711,9 +726,15 @@ def generate_production_scenarios(
     counts = {family: 0 for family in targets}
     specs: list[ProductionScenarioSpec] = []
     attempt = 0
+    # Hard global attempt cap (terminator for low-yield regimes -- see max_total_attempts). On the
+    # default high-yield paths the loop finishes in ~scenario_count attempts, far below the cap, so
+    # behavior is byte-identical; the cap only fires on the pathological urban N>=24 thrash path.
+    attempt_cap = config.max_total_attempts or (
+        config.scenario_count * config.max_attempts_per_scenario
+    )
     requested_cycle = ("feasible_sparse", "infeasible", "near_threshold")
 
-    while len(specs) < config.scenario_count:
+    while len(specs) < config.scenario_count and attempt < attempt_cap:
         # Choose which family still needs scenarios (round-robin over deficits).
         wanted = [f for f in requested_cycle if counts[f] < targets[f]]
         if not wanted:
@@ -728,7 +749,9 @@ def generate_production_scenarios(
             scene = _sample_scene(
                 rng, scenario_id, node_count, requested_family, reliable_range_m
             )
-        measure = _measure_scene(scene, quorum_size, config.regime, config.tau_requirement_min)
+        measure = _measure_scene(
+            scene, quorum_size, config.regime, config.tau_requirement_min, vectorized=vectorized
+        )
         realized_family = _family_of_measurement(measure, requested_family)
 
         attempt += 1

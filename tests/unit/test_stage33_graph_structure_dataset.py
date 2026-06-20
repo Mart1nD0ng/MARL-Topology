@@ -46,14 +46,16 @@ def test_stage33_dataset_keeps_node_counts_and_tau_within_owner_boundary() -> No
     assert config.tau_requirement_min == 0.9
     assert config.to_payload()["node_count_choices"] == [6, 10]
 
-    # Owner boundary widened from 6..10 to 6..20 to enable the large-scale / variable-density
-    # generalization study (the local message-passing GNN is size-invariant; the budget is
-    # scale-ready at rsu=64). 6..20 stays inside what the stage31 generator builds in practice.
+    # Owner boundary widened 6..10 -> 6..20 -> 6..48 to enable the full-scale-N generalization
+    # study (the local message-passing GNN is size-invariant; the budget is scale-ready at rsu=64).
+    # The stage31 urban generator builds N>=24 scenes (validated); 48 covers the N=24/32/48 sweep.
     Stage33GraphStructureConfig(scenario_count=7, node_count_choices=(6, 16))
-    for bad_counts in ((5,), (21,)):
+    Stage33GraphStructureConfig(scenario_count=7, node_count_choices=(6, 24))
+    Stage33GraphStructureConfig(scenario_count=7, node_count_choices=(6, 32))
+    for bad_counts in ((5,), (49,)):
         try:
             Stage33GraphStructureConfig(scenario_count=7, node_count_choices=bad_counts)
         except Stage33GraphStructureDatasetViolation:
             pass
         else:
-            raise AssertionError("Stage33 accepted a node count outside 6..20")
+            raise AssertionError("Stage33 accepted a node count outside 6..48")

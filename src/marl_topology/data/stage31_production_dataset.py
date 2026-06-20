@@ -23,6 +23,7 @@ from .stage21_objective_stack_evidence import (
     Stage21EvaluationContext,
     Stage21ObjectiveStackEvaluator,
 )
+from .vectorized_objective_stack_evaluator import VectorizedStage21Evaluator
 from .stage31_scenario_generator import (
     ProductionScenarioConfig,
     ProductionScenarioSpec,
@@ -43,16 +44,25 @@ STAGE31_PROTOCOL_MODEL_ID = "stage4_expected_initiator_pbft_over_stage3_network_
 
 def build_scenario_evaluator(
     spec: ProductionScenarioSpec,
+    *,
+    vectorized: bool = False,
 ) -> tuple[CandidateGraph, Stage21ObjectiveStackEvaluator]:
     graph = CandidateGraph.from_scene(spec.scene, max_distance_m=None)
-    evaluator = Stage21ObjectiveStackEvaluator(
-        scene=spec.scene, graph=graph, config=build_stack_config(spec.regime)
-    )
+    config = build_stack_config(spec.regime)
+    evaluator = Stage21ObjectiveStackEvaluator(scene=spec.scene, graph=graph, config=config)
+    if vectorized:
+        # Opt-in bounded-cache vectorized evaluator (float-identical to the canonical one to 1e-9,
+        # ~6x faster, cache capped at 256) -- required for N>=24 builds where the canonical path's
+        # unbounded cache + O(N^4) per-eval cost OOMs/thrashes. Reuse the canonical as `ref` so the
+        # link_records / validator_ids are shared (no second canonical construction).
+        evaluator = VectorizedStage21Evaluator(
+            scene=spec.scene, graph=graph, config=config, ref=evaluator
+        )
     return graph, evaluator
 
 
 def build_teacher_label(
-    spec: ProductionScenarioSpec, *, tau: float = TAU_REQUIREMENT_MIN
+    spec: ProductionScenarioSpec, *, tau: float = TAU_REQUIREMENT_MIN, vectorized: bool = False
 ) -> dict[str, object]:
     """Scalable heuristic teacher: best feasible topology among candidates.
 
@@ -62,7 +72,7 @@ def build_teacher_label(
 
     from marl_topology.budgets import node_budgets_for_scene
 
-    graph, evaluator = build_scenario_evaluator(spec)
+    graph, evaluator = build_scenario_evaluator(spec, vectorized=vectorized)
     candidates = enumerate_candidate_topologies(graph, evaluator.link_records, spec.quorum_size)
     # Moderate SA budget for the BC teacher target (heavier than family-binning, lighter
     # than the 200/6 default so dataset build stays tractable under scheduled MAC + relay).
@@ -96,10 +106,11 @@ def build_production_context(
     *,
     time_step: int = 1,
     sequence_id: str | None = None,
+    vectorized: bool = False,
 ) -> Stage21EvaluationContext:
     """Build a Stage 21 evaluation context for a procedural scenario."""
 
-    graph, evaluator = build_scenario_evaluator(spec)
+    graph, evaluator = build_scenario_evaluator(spec, vectorized=vectorized)
     variants = enumerate_candidate_topologies(graph, evaluator.link_records, spec.quorum_size)
     return Stage21EvaluationContext(
         fixture=scenario_fixture_from_spec(spec),
@@ -191,15 +202,16 @@ def build_production_dataset(
     *,
     train_fraction: float = 0.7,
     eval_fraction: float = 0.15,
+    vectorized: bool = False,
 ) -> Stage31ProductionDataset:
-    specs = generate_production_scenarios(config or ProductionScenarioConfig())
+    specs = generate_production_scenarios(config or ProductionScenarioConfig(), vectorized=vectorized)
     split = split_scenarios(
         specs,
         train_fraction=train_fraction,
         eval_fraction=eval_fraction,
         seed=(config.seed if config else 31),
     )
-    teacher_labels = {spec.scenario_id: build_teacher_label(spec) for spec in specs}
+    teacher_labels = {spec.scenario_id: build_teacher_label(spec, vectorized=vectorized) for spec in specs}
     quality = build_dataset_quality_report(specs, split, teacher_labels)
     return Stage31ProductionDataset(
         dataset_id=STAGE31_DATASET_ID,

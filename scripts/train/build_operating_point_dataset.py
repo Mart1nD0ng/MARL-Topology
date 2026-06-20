@@ -7,22 +7,35 @@ coverage-gated PBFT membership (the frozen metric). Labels are single-realizatio
 — the scene includes its realized large-scale fading, what a deployed twin would measure.
 
 These shards feed `scripts/train/train_recovered_decentralized.py`. Building is CPU-heavy (SA
-teacher + scheduled MAC + relay + stochastic channel per scene), so shard it across seeds.
+teacher + scheduled MAC + relay + stochastic channel per scene) and dominates campaign wall-clock,
+so each shard (one seed) builds in its own process via a spawn pool: pass ``--jobs N`` to fan the
+shards across N cores. Each worker is pinned to a single BLAS/OMP thread so N workers don't
+oversubscribe the machine. The build has no internal parallelism, so the outer pool is safe.
 
 Usage::
 
+    # 24 shards x 10 scenes built across 24 cores (240 scenes, ~minutes instead of hours)
     python scripts/train/build_operating_point_dataset.py \
-        --seeds 3001 3002 3003 3004 --count 60 --rsu-count 4 --tx-power 20 \
-        --out-dir result_save/operating_point
+        --seeds $(seq 3001 3024) --count 10 --rsu-count 4 --tx-power 20 \
+        --jobs 24 --out-dir result_save/operating_point
 """
 
 from __future__ import annotations
 
-import argparse
-import pickle
-import sys
-import time
-from pathlib import Path
+import os
+
+# Pin BLAS/OMP to one thread PER PROCESS so the outer shard pool (one worker per core) does not
+# oversubscribe. Set before numpy/torch import so it takes effect; setdefault lets a caller override.
+for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
+import argparse  # noqa: E402
+import pickle  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from concurrent.futures import ProcessPoolExecutor  # noqa: E402
+from multiprocessing import get_context  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
@@ -46,6 +59,36 @@ def operating_point_regime(tx_power_dbm: float) -> PhysicsRegime:
     )
 
 
+def _worker_init() -> None:
+    try:
+        import torch
+        torch.set_num_threads(1)
+    except Exception:
+        pass
+
+
+def _build_one_shard(task):
+    """Build a single shard (one seed) and pickle it. Module-level + picklable args for spawn."""
+
+    (seed, count, node_choices, rsu_count, tx_power, blocks, feas, near, infeas,
+     vectorized, max_total_attempts, out_dir) = task
+    t0 = time.time()
+    ds = build_stage33_graph_structure_dataset(Stage33GraphStructureConfig(
+        seed=seed, scenario_count=count, node_count_choices=tuple(node_choices),
+        urban_mode=True, urban_blocks_per_side=blocks, urban_rsu_count=rsu_count,
+        regime=operating_point_regime(tx_power),
+        target_feasible_fraction=feas, target_near_threshold_fraction=near,
+        target_infeasible_fraction=infeas,
+        vectorized_evaluator=vectorized, max_total_attempts=max_total_attempts,
+    ))
+    out = Path(out_dir) / f"_op_shard_{seed}.pkl"
+    with open(out, "wb") as handle:
+        pickle.dump(ds, handle)
+    labels = ds.source_dataset.teacher_labels
+    feas_n = sum(int(bool(l["feasible_exists"])) for l in labels.values())
+    return seed, count, feas_n, str(out), time.time() - t0
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--seeds", type=int, nargs="+", default=[3001, 3002, 3003, 3004])
@@ -61,6 +104,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--feasible-frac", type=float, default=0.6)
     p.add_argument("--near-frac", type=float, default=0.1)
     p.add_argument("--infeasible-frac", type=float, default=0.3)
+    p.add_argument("--vectorized", action="store_true",
+                   help="route the SA/measure path through the bounded-cache 6x-faster "
+                        "VectorizedStage21Evaluator (float-identical) -- REQUIRED for N>=24 builds")
+    p.add_argument("--max-total-attempts", type=int, default=0,
+                   help="hard cap on the rejection-sampling loop (0=auto=count*40); bounds low-yield "
+                        "N>=24 builds so they return a smaller dataset instead of thrashing for hours")
+    p.add_argument("--jobs", type=int, default=0,
+                   help="parallel shard builds (0 = min(num seeds, cpu_count-1))")
     p.add_argument("--out-dir", default=str(ROOT / "result_save" / "operating_point"))
     return p.parse_args()
 
@@ -69,27 +120,30 @@ def main() -> None:
     args = parse_args()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    regime = operating_point_regime(args.tx_power)
+    jobs = args.jobs or min(len(args.seeds), max(1, (os.cpu_count() or 2) - 1))
     print(f"[op] regime: tx={args.tx_power}dBm rsu={args.rsu_count} blocks={args.blocks_per_side} "
           f"relay=3 v2x_37885 backhaul shadowing nlosv coverage-gated; N={args.node_choices}; "
-          f"split feas/near/infeas={args.feasible_frac}/{args.near_frac}/{args.infeasible_frac}", flush=True)
-    for seed in args.seeds:
-        t0 = time.time()
-        out = out_dir / f"_op_shard_{seed}.pkl"
-        ds = build_stage33_graph_structure_dataset(Stage33GraphStructureConfig(
-            seed=seed, scenario_count=args.count, node_count_choices=tuple(args.node_choices),
-            urban_mode=True, urban_blocks_per_side=args.blocks_per_side, urban_rsu_count=args.rsu_count,
-            regime=regime,
-            target_feasible_fraction=args.feasible_frac,
-            target_near_threshold_fraction=args.near_frac,
-            target_infeasible_fraction=args.infeasible_frac,
-        ))
-        with open(out, "wb") as handle:
-            pickle.dump(ds, handle)
-        labels = ds.source_dataset.teacher_labels
-        feas = sum(int(bool(l["feasible_exists"])) for l in labels.values())
-        print(f"[op] shard {seed}: {args.count} scenes in {time.time() - t0:.0f}s, "
-              f"teacher-feasible {feas}/{args.count} -> {out}", flush=True)
+          f"split feas/near/infeas={args.feasible_frac}/{args.near_frac}/{args.infeasible_frac}; "
+          f"{len(args.seeds)} shards x {args.count} scenes, jobs={jobs}", flush=True)
+    tasks = [(seed, args.count, args.node_choices, args.rsu_count, args.tx_power,
+              args.blocks_per_side, args.feasible_frac, args.near_frac, args.infeasible_frac,
+              args.vectorized, args.max_total_attempts, str(out_dir)) for seed in args.seeds]
+
+    def _report(result):
+        seed, count, feas_n, out, dt = result
+        print(f"[op] shard {seed}: {count} scenes in {dt:.0f}s, "
+              f"teacher-feasible {feas_n}/{count} -> {out}", flush=True)
+
+    if jobs <= 1 or len(tasks) == 1:
+        _worker_init()
+        for task in tasks:
+            _report(_build_one_shard(task))
+    else:
+        # spawn (not fork) + single-thread workers: the known-good Linux pattern for this stack.
+        with ProcessPoolExecutor(max_workers=jobs, mp_context=get_context("spawn"),
+                                 initializer=_worker_init) as pool:
+            for result in pool.map(_build_one_shard, tasks):
+                _report(result)
 
 
 if __name__ == "__main__":
