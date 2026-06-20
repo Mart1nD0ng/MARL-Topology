@@ -295,6 +295,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--hidden", type=int, default=64)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--eval-every", type=int, default=5)
+    p.add_argument("--ckpt-every", type=int, default=0,
+                   help="save a resumable checkpoint every N updates (0=off) -- survives host sleep/kill; "
+                        "a relaunch with --resume continues instead of restarting from scratch")
+    p.add_argument("--resume", action="store_true",
+                   help="resume from out-dir/_ckpt.pt if present (continue training across restarts)")
     p.add_argument("--smoke", action="store_true", help="tiny fast end-to-end check")
     return p.parse_args()
 
@@ -358,7 +363,21 @@ def main() -> None:
     history = []
     rng = Random(args.seed)
 
-    for upd in range(1, args.updates + 1):
+    # Resume across host sleeps / external kills: a relaunch with --resume continues from the last
+    # checkpoint instead of recomputing from scratch (this host suspends background tasks when idle).
+    start_upd = 1
+    ckpt_path = out_dir / "_ckpt.pt"
+    if args.resume and ckpt_path.exists():
+        ck = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        actor.load_state_dict(ck["actor"]); opt.load_state_dict(ck["opt"])
+        best_state, best_val = ck["best_state"], ck["best_val"]
+        mean, std = ck["mean"], ck["std"]
+        baseline, lam_c, lam_b = ck["baseline"], ck["lam_c"], ck["lam_b"]
+        history, start_upd = ck["history"], ck["update"] + 1
+        print(f"[resume] from update {ck['update']} -> {start_upd}/{args.updates} (best VAL {best_val:.3f})",
+              flush=True)
+
+    for upd in range(start_upd, args.updates + 1):
         actor.train()
         frac = (upd - 1) / max(1, args.updates - 1)
         temp_now = args.temp + frac * (args.temp_end - args.temp)  # anneal train sampling -> deploy
@@ -426,6 +445,12 @@ def main() -> None:
             history.append({"update": upd, "train_reward": fmean(rwds), "train_feasible": fmean(feas),
                             "mean_g_c": mean_gc, "mean_g_b": mean_gb, "lam_c": lam_c, "lam_b": lam_b,
                             "val_raw": ve["raw"]})
+            if args.ckpt_every and upd % args.ckpt_every == 0:
+                torch.save({"actor": actor.state_dict(), "opt": opt.state_dict(),
+                            "best_state": best_state, "best_val": best_val, "mean": mean, "std": std,
+                            "baseline": baseline, "lam_c": lam_c, "lam_b": lam_b,
+                            "history": history, "update": upd}, ckpt_path)
+                print(f"[ckpt] update {upd} saved (best VAL {best_val:.3f})", flush=True)
 
     final_held = eval_held(actor, held_s, mean, std)   # FINAL-update policy (before keep-best revert)
     actor.load_state_dict(best_state)        # keep-best (never worse than warm-start on VAL)
