@@ -43,9 +43,7 @@ from marl_topology.training.decentralized_distillation import (  # noqa: E402
     load_actor_from_state,
     local_mutual_assemble,
 )
-from marl_topology.training.production_mappo_adapter import (  # noqa: E402
-    Stage33ProductionMappoAdapter,
-)
+from marl_topology.data.row_context_builder import build_row_contexts  # noqa: E402
 
 SPARSE2_SHARDS = [str(ROOT / "result_save" / "campaign" / "data" / "sparse2" / f"_op_shard_{s}.pkl")
                   for s in range(3001, 3025)]
@@ -53,14 +51,13 @@ ARTIFACTS = str(ROOT / "result_save" / "campaign" / "E9_sparse2" / "_artifacts.p
 
 
 def load_pool(shard_paths):
-    adapter = Stage33ProductionMappoAdapter()
     pool = []
     for shard_path in shard_paths:
         with open(shard_path, "rb") as handle:
             dataset = pickle.load(handle)
         labels = dataset.source_dataset.teacher_labels
         for split in ("train", "eval", "test"):
-            for row, context in adapter.build_row_contexts(dataset, split):
+            for row, context in build_row_contexts(dataset, split):
                 pool.append((row, context, labels[context.fixture.fixture_id]))
     return pool
 

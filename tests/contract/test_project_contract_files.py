@@ -6,22 +6,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_required_contract_files_exist() -> None:
     required = [
-        ROOT / "docs" / "CONTROL_MODEL.md",
-        ROOT / "docs" / "METRIC_CONTRACT.md",
-        ROOT / "docs" / "PHYSICS_CONTRACT.md",
-        ROOT / "docs" / "PROTOCOL_CONTRACT.md",
-        ROOT / "docs" / "REWARD_CONTRACT.md",
-        ROOT / "docs" / "DEC_POMDP_CONTRACT.md",
-        ROOT / "docs" / "MIGRATION_LEDGER.md",
-        ROOT / "docs" / "V5_LEARNING_STRATEGY.md",
-        ROOT / "docs" / "GOAL_SKELETON.md",
-        ROOT / "docs" / "V5_FAILURE_LESSONS.md",
-        ROOT / "docs" / "V5_LEARNING_AUDIT.md",
-        ROOT / "docs" / "V5_DO_NOT_LEARN_BLINDLY.md",
-        ROOT / "docs" / "SKILL_CALIBRATION.md",
-        ROOT / "docs" / "V5_LESSON_TO_GATE_MAP.md",
-        ROOT / "docs" / "PROJECT_STATE.md",
-        ROOT / "docs" / "CTDE_DEC_POMDP_DECISION.md",
+        ROOT / "docs" / "FOUR090_CAMPAIGN_PLAN.md",
+        ROOT / "docs" / "TRUNK_MAP.md",
+        ROOT / "docs" / "URBAN_V2X_RESEARCH_LOG.md",
+        ROOT / "docs" / "REVIEW_2026-06-21_EVIDENCE_PASS.md",
+        ROOT / "docs" / "NEXT_LOOP_INSTRUCTION.md",
     ]
 
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]

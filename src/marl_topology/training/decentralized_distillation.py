@@ -29,7 +29,7 @@ from marl_topology.policies.decentralized_mutual_acceptance import (
     global_argsort_assemble,
     local_mutual_assemble,
 )
-from marl_topology.training.mappo.stage28_repaired_critic_pilot import _graph_payload
+from marl_topology.data.graph_payload import graph_payload as _graph_payload
 
 TAU = 0.9
 DEFAULT_ROUNDS = 4

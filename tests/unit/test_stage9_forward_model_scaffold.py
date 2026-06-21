@@ -4,18 +4,13 @@ from pathlib import Path
 import pytest
 
 from marl_topology.models import (
-    CENTRALIZED_MLP_CRITIC_BASELINE_ID,
-    CRITIC_HEAD_NAMES,
     LOCAL_MLP_EDGE_SCORER_MODEL_ID,
-    CentralizedMLPCriticBaseline,
-    CentralizedMLPCriticConfig,
     LocalMLPEdgeScorer,
     LocalMLPEdgeScorerConfig,
     TensorizerViolation,
     build_model_registry,
     tensorize_actor_policy_inputs,
     tensorize_actor_policy_rows,
-    tensorize_critic_evidence_rows,
 )
 from marl_topology.policies import (
     ACTOR_EDGE_SCORE_OUTPUT_SCHEMA_ID,
@@ -101,25 +96,10 @@ def test_stage9_actor_scores_are_consumed_by_conflict_aware_assembler() -> None:
     assert assembled.diagnostics["objective_used"] is False
 
 
-def test_stage9_centralized_critic_heads_exist_and_are_training_only() -> None:
-    critic_batch = tensorize_critic_evidence_rows((_row(),))
-    critic = CentralizedMLPCriticBaseline(
-        CentralizedMLPCriticConfig(edge_output_dim=critic_batch.edge_count)
-    )
-    output = critic.predict_tensor_batch(critic_batch)
-
-    assert output.training_only is True
-    assert output.head_names == CRITIC_HEAD_NAMES
-    output.assert_shapes(batch_size=critic_batch.batch_size, edge_count=critic_batch.edge_count)
-
-
-def test_stage9_model_registry_declares_actor_and_critic_boundaries() -> None:
+def test_stage9_model_registry_declares_actor_boundaries() -> None:
     registry = build_model_registry()
 
     actor = registry[LOCAL_MLP_EDGE_SCORER_MODEL_ID]
-    critic = registry[CENTRALIZED_MLP_CRITIC_BASELINE_ID]
     assert actor.training_only is False
     assert actor.output_schema_id == "actor_policy_local_edge_score_output_v1"
     assert "selected_topology" in actor.forbidden_exports
-    assert critic.training_only is True
-    assert critic.role == "training_only_centralized_critic"

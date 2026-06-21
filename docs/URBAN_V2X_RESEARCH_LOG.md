@@ -2056,3 +2056,36 @@ RUN: train_decentralized_rl.py --shards scale24/_op_shard_400*.pkl --cold-start 
     polish for the DoD: multi-seed CIs on N=24, multi-config domain randomization (#4 breadth), energy
     objective (beta>0) for the low-energy target.
 
+--------------------------------------------------------------------------------
+ITERATION 16 (2026-06-21): MULTI-SEED N=24 -- the headline made statistically defensible (D1).
+--------------------------------------------------------------------------------
+MOTIVATION: the 2026-06-21 evidence review (docs/REVIEW_2026-06-21_EVIDENCE_PASS.md) flagged the i15 headline
+  as SINGLE-SEED = the weakest link. Ran 4 independent seeds (seed/split-seed pairs: 0/7 [=i15], 1/11, 2/17,
+  3/23) of the SAME recipe (cold-start gauss/dense/beta0/K8/temp 3->0.5/150 upd/val-scenes 20) on the fixed
+  64-scene scale24 pool. Variance source = random init + sampling + held/fit/val split (the scene POOL is fixed;
+  a fresh-data rebuild is hours/OOM-bound -- disclosed limitation). Metric = each seed's RL raw MINUS its OWN
+  held teacher ceiling (paired; different split -> different held set/ceiling, so absolute raw is not comparable
+  across seeds but the margin is).
+
+  PER-SEED (keep-best = the DEPLOYED, val-selected policy):
+    seed/split  ceiling  RL_raw  margin   conditional
+    0 / 7       0.577    0.769   +0.192   0.933
+    1 / 11      0.500    0.577   +0.077   0.769
+    2 / 17      0.500    0.692   +0.192   0.923
+    3 / 23      0.500    0.731   +0.231   1.000
+  AGGREGATE (n=4, two-sided t, df=3, t=3.182):
+    keep-best margin (DEPLOYED): mean +0.173  CI95 [+0.067, +0.279]  4/4 seeds >0  -> CI EXCLUDES 0 -> D1 PASS.
+    final-update margin:         mean +0.135  CI95 [-0.011, +0.280]  4/4 seeds >0  -> grazes 0 (not the deployed policy).
+    keep-best conditional:       mean 0.906   CI95 [0.751, 1.0].
+    keep-best raw:               mean 0.692   CI95 [0.560, 0.825].
+
+  VERDICT (honest): the i15 single-seed +0.231 was the OPTIMISTIC tail; the true mean margin is +0.173. BUT on
+  the deployed keep-best policy the 95% CI EXCLUDES 0 ([+0.067,+0.279]) and 4/4 independent seeds individually
+  beat the SA oracle -> "oracle-free cold-start decentralized RL beats the centralized SA oracle at out-of-range
+  N=24" is now STATISTICALLY DEFENSIBLE, not a single draw. D1 (CI95 lower>0) PASSES for the deployed policy.
+  (The final-update policy's CI grazes 0 -- report keep-best as the headline; final-update is secondary.) This
+  is the rigor the review demanded; INVARIANT #4 multi-seed sub-requirement is now MET for the N=24 headline.
+  INFRA NOTE: in-session Claude background tasks were repeatedly torn down at idle (NOT sleep/OOM -- confirmed via
+  no Kernel-Power events + clean logs + free RAM); the runs were completed by a user-launched detached .bat
+  (result_save/_multiseed_n24.bat, skip-if-done + ckpt-resume). ckpt+resume made the deaths cost <=10 updates each.
+

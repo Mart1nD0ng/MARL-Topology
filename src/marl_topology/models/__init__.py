@@ -1,25 +1,5 @@
 """Learnable model scaffolds for MARL topology control."""
 
-from .centralized_mlp_critic import (
-    CENTRALIZED_MLP_CRITIC_BASELINE_ID,
-    CRITIC_HEAD_NAMES,
-    CentralizedCriticTensorOutput,
-    CentralizedMLPCriticBaseline,
-    CentralizedMLPCriticConfig,
-)
-from .centralized_message_passing_graph_critic import (
-    CENTRALIZED_MESSAGE_PASSING_GRAPH_CRITIC_ID,
-    CentralizedMessagePassingGraphCritic,
-    CentralizedMessagePassingGraphCriticConfig,
-    GraphCriticBatch,
-    GraphCriticOutput,
-)
-from .enriched_centralized_mlp_critic import (
-    ENRICHED_CENTRALIZED_MLP_CRITIC_ID,
-    EnrichedCentralizedMLPCritic,
-    EnrichedCentralizedMLPCriticConfig,
-    EnrichedCriticOutput,
-)
 from .local_mlp_edge_scorer import (
     LOCAL_MLP_EDGE_SCORER_MODEL_ID,
     LocalMLPEdgeScorer,
@@ -66,28 +46,14 @@ __all__ = [
     "MESSAGE_PASSING_GRAPH_EDGE_SCORER_MODEL_ID",
     "MessagePassingGraphEdgeScorer",
     "MessagePassingGraphEdgeScorerConfig",
-    "CENTRALIZED_MLP_CRITIC_BASELINE_ID",
-    "CENTRALIZED_MESSAGE_PASSING_GRAPH_CRITIC_ID",
     "CRITIC_GLOBAL_FEATURE_FIELDS",
-    "CRITIC_HEAD_NAMES",
     "LOCAL_MLP_EDGE_SCORER_MODEL_ID",
     "LOCAL_GNN_EDGE_SCORER_MODEL_ID",
     "LOCAL_GNN_V3_RESIDUAL_NORM_MODEL_ID",
     "LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID",
     "STAGE33_ARCHIVED_GNN_VARIANT_IDS",
     "ActorEdgeTensorBatch",
-    "CentralizedCriticTensorOutput",
-    "CentralizedMessagePassingGraphCritic",
-    "CentralizedMessagePassingGraphCriticConfig",
-    "CentralizedMLPCriticBaseline",
-    "CentralizedMLPCriticConfig",
     "CriticTensorBatch",
-    "ENRICHED_CENTRALIZED_MLP_CRITIC_ID",
-    "EnrichedCentralizedMLPCritic",
-    "EnrichedCentralizedMLPCriticConfig",
-    "EnrichedCriticOutput",
-    "GraphCriticBatch",
-    "GraphCriticOutput",
     "LocalMLPEdgeScorer",
     "LocalMLPEdgeScorerConfig",
     "LocalGNNEdgeScorer",

@@ -4,13 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from marl_topology.training.critic_features import VALUE_CRITIC_FEATURE_FIELDS
-
-from .centralized_message_passing_graph_critic import (
-    CENTRALIZED_MESSAGE_PASSING_GRAPH_CRITIC_ID,
-)
-from .centralized_mlp_critic import CENTRALIZED_MLP_CRITIC_BASELINE_ID, CRITIC_HEAD_NAMES
-from .enriched_centralized_mlp_critic import ENRICHED_CENTRALIZED_MLP_CRITIC_ID
 from .local_mlp_edge_scorer import LOCAL_MLP_EDGE_SCORER_MODEL_ID
 from .local_gnn_edge_scorer import (
     ACTIVE_STAGE33_GNN_MODEL_ID,
@@ -19,7 +12,6 @@ from .local_gnn_edge_scorer import (
     LOCAL_ROLE_RESOURCE_GNN_V3_MODEL_ID,
 )
 from .message_passing_graph_edge_scorer import MESSAGE_PASSING_GRAPH_EDGE_SCORER_MODEL_ID
-from .tensorizers import ACTOR_EDGE_FEATURE_FIELDS, CRITIC_GLOBAL_FEATURE_FIELDS
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,43 +62,6 @@ def build_model_registry() -> dict[str, ModelRegistryEntry]:
                 "critic_output",
             ),
             diagnostic_baseline_only=True,
-        ),
-        CENTRALIZED_MLP_CRITIC_BASELINE_ID: ModelRegistryEntry(
-            model_id=CENTRALIZED_MLP_CRITIC_BASELINE_ID,
-            family="centralized_mlp",
-            role="training_only_centralized_critic",
-            input_schema_id="centralized_critic_global_tensor_v1",
-            output_schema_id="centralized_critic_multi_head_v1",
-            training_only=True,
-            allowed_stage="stage_9_forward_only",
-            forbidden_exports=tuple(ACTOR_EDGE_FEATURE_FIELDS)
-            + tuple(CRITIC_GLOBAL_FEATURE_FIELDS)
-            + CRITIC_HEAD_NAMES,
-        ),
-        ENRICHED_CENTRALIZED_MLP_CRITIC_ID: ModelRegistryEntry(
-            model_id=ENRICHED_CENTRALIZED_MLP_CRITIC_ID,
-            family="enriched_centralized_mlp",
-            role="training_only_value_critic",
-            input_schema_id="stage27_pre_action_value_critic_features_v1",
-            output_schema_id="stage27_normalized_value_with_aux_heads_v1",
-            training_only=True,
-            allowed_stage="stage_27_critic_baseline_repair",
-            forbidden_exports=tuple(ACTOR_EDGE_FEATURE_FIELDS)
-            + tuple(VALUE_CRITIC_FEATURE_FIELDS)
-            + ("normalized_value", "feasibility_logit", "consensus_proxy"),
-            active_for_future_value_baseline=False,
-        ),
-        CENTRALIZED_MESSAGE_PASSING_GRAPH_CRITIC_ID: ModelRegistryEntry(
-            model_id=CENTRALIZED_MESSAGE_PASSING_GRAPH_CRITIC_ID,
-            family="centralized_message_passing_graph",
-            role="training_only_value_critic_candidate",
-            input_schema_id="stage27_centralized_graph_value_features_v1",
-            output_schema_id="stage27_normalized_value_with_aux_heads_v1",
-            training_only=True,
-            allowed_stage="stage_27_critic_baseline_repair",
-            forbidden_exports=tuple(ACTOR_EDGE_FEATURE_FIELDS)
-            + ("normalized_value", "graph_state", "centralized_graph_features"),
-            active_for_future_value_baseline=True,
         ),
         LOCAL_GNN_EDGE_SCORER_MODEL_ID: ModelRegistryEntry(
             model_id=LOCAL_GNN_EDGE_SCORER_MODEL_ID,

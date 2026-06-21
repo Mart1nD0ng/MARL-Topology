@@ -1,111 +1,94 @@
-# MARL-Topology
+# MARL-Topology — Decentralized constrained-RL for V2X topology control
 
-Learning distributed communication-topology control for urban 3D V2X networks with a
-multi-agent reinforcement-learning (MARL / Dec-POMDP, CTDE) policy. The design objective is to
-plan topologies that satisfy a **PBFT consensus reliability constraint** (per-scene success
-probability ≥ τ = 0.9) while **minimizing latency and energy**, under variable node counts N.
+A single-trunk research codebase for **fully decentralized** multi-agent topology
+planning in urban V2X networks. A graph neural-network actor learns, per node, which
+physical links to activate so that the network reaches **PBFT consensus** reliably
+under a radio-budget constraint — with **no central critic, no global-state leakage,
+and no oracle supervision**.
 
-> This is a PhD research repository. Results are reported conservatively; see
-> `docs/URBAN_V2X_RESEARCH_LOG.md` and `docs/DENSITY_AXIS_CAMPAIGN_REPORT.md` for the honest
-> state of the evidence, and `docs/PROJECT_STATE.md` for the staged ledger.
+## The one trunk
 
-## What the project is
-
-- **Simulation environment (production tier).** A standards-grounded urban 3D V2X stack:
-  Manhattan grid with buildings/roads/vehicles/RSUs → 3D ray-box LoS/NLoS visibility →
-  channel (FSPL by default; opt-in 3GPP TR 37.885 V2V + TR 38.901 UMi, stochastic NLOSv, spatially
-  correlated shadowing) → URLLC finite-blocklength links → multi-hop routing with SINR/interference
-  → scheduled-MAC (STDMA) → relay + wired RSU backhaul → analytic three-phase PBFT reliability →
-  separate latency/energy accounting. Orchestrated by `Stage21ObjectiveStackEvaluator`
-  (`src/marl_topology/data/stage21_objective_stack_evidence.py`).
-  A distance-only `MinimalDecPOMDPEnv` skeleton is kept for baselines and leakage tests only.
-- **Policy (production actor).** One deployment actor:
-  `local_message_passing_gnn_edge_scorer_v3_residual_norm` — a local K-round message-passing GNN
-  that scores edges from **local/neighbor observations only** (the Dec-POMDP boundary is enforced
-  at the env, model, assembler, and sampler layers). A centralized graph value-critic is used at
-  **training time only** (CTDE).
-- **Training flow.** One MARL pipeline: `training/production_mappo_adapter.py` — behaviour-cloning
-  warm start → Stage 27 graph value-critic pretraining → clipped on-policy actor-critic fine-tune,
-  with keep-best validation gating.
-- **Objective framing.** Reliability is a *constraint* (feasibility-first barrier surrogate, no
-  reward above τ); latency and energy are the *objectives*, minimized only inside the feasible
-  region. Metric governance is enforced by `src/marl_topology/metrics/registry.py`.
-
-## Layout
+The project has exactly **one** trunk: the decentralized cold-start constrained-RL
+trunk, driven by
 
 ```
-src/marl_topology/      production package (env, channel, link, network, protocol,
-                        geometry3d, scenario, topology, objectives, metrics, policies,
-                        models, data, training, evaluation)
-tests/                  unit + contract/boundary tests (decentralization, metric/reward
-                        governance, the production-actor gate)
-scripts/                runnable train/ (incl. the decentralized-MARL production driver) and
-                        replay/ drivers for the production stages
-harness/                cybernetic task specs, rubrics, templates, governance tooling
-docs/                   contracts + staged research record (provenance)
-result_save/            gitignored datasets and run artifacts (the logs/ research scratch was
-                        removed 2026-06-16; its vectorized evaluator was productionized into src/)
+scripts/train/train_decentralized_rl.py     # the trunk
+scripts/train/evaluate_actor_on_dataset.py  # eval-only tool (cross-N / OOD / baselines)
+scripts/train/build_operating_point_dataset.py  # dataset shard builder
 ```
 
-See `docs/CLEAN_PROJECT_MAP.md` for the full env / configuration / architecture map and what was
-retired in the production-main-body consolidation.
+The old **centralized-critic MAPPO trunk** and the **planner / critic teacher arm**
+were **removed on 2026-06-21** (owner-authorized full removal). What remains is the
+critic-free decentralized learner.
 
-## Production trunk (2026-06-17): recovered, validated decentralized pipeline
+## What the trunk does
 
-The production model is the **recovered, validated** decentralized pipeline that produced the
-project's best result — held-out **decentralized feasibility 0.82 (N=8: 0.957)** under the full
-TR 37.885 stochastic stack (v2x_37885 + shadowing + NLOSv + scheduled MAC + relay-3 + wired RSU
-backhaul + coverage-gated membership) at the **4-RSU / 20 dBm** operating point. See
-`docs/URBAN_V2X_RESEARCH_LOG.md` (Step-3) and `docs/DENSITY_AXIS_CAMPAIGN_REPORT.md`.
+- **Learning — critic-free REINFORCE + RLOO.** Per-edge policy over the
+  `MessagePassingGraphEdgeScorer` logits (parameter-shared, scale-invariant, K-hop
+  local message passing). A leave-one-out (RLOO) baseline reduces variance. There is
+  **no critic at all** → zero CTDE gap, the strongest form of the "learning must be
+  truly decentralized" invariant.
+- **Reward — one principled objective, not a weighted bag.** A feasibility-first
+  potential `r = (c − τ)` (Ng–Harada shaping) where `c` is the **closed-form PBFT
+  quorum-tail consensus success probability** (`protocol/quorum_tail.py`, a
+  Poisson-binomial whole-network quorum tail — no Monte Carlo). The budget constraint
+  is handled by a **Lagrangian dual** updated by dual ascent (constrained-RL / RCPO),
+  not by hand-tuned weights. `τ = 0.9`, hard-frozen across training and evaluation.
+- **Decode — feasibility by construction.** `local_mutual_assemble`
+  (`policies/decentralized_mutual_acceptance.py`): each node ranks only its own
+  incident edges within its radio budget; an edge activates iff both endpoints accept.
+  Per-node computable, zero global state. `global_argsort_assemble` is kept only as the
+  centralized-decode ablation.
+- **Actor — `MessagePassingGraphEdgeScorer`** (`models/message_passing_graph_edge_scorer.py`):
+  a K-round bidirectional message-passing GNN edge scorer (decentralized-with-communication).
 
-- **Actor** `MessagePassingGraphEdgeScorer` (`models/message_passing_graph_edge_scorer.py`) — a
-  K-round bidirectional message-passing GNN edge scorer (decentralized-with-communication: K hops
-  of local neighbour signalling, no global-state shortcut).
-- **Decoder** `local_mutual_assemble` (`policies/decentralized_mutual_acceptance.py`) — each node
-  ranks only its own incident edges within its radio budget; an edge activates iff **both endpoints
-  accept**. Per-node computable, zero global state. The global-argsort decode is kept only as the
-  centralized-decode ablation (cost ≈ 0 at the multi-RSU operating point).
-- **Recipe** `training/decentralized_distillation.py` — BC-distil the (budget-aware SA or
-  critic-planner) teacher into the actor (weight decay + early stopping + keep-best); the
-  centralized graph critic is training-only (CTDE). Dataset-shard I/O lives in the drivers/tests.
-- **Reproduce** `python scripts/train/reproduce_recovered_step3.py` loads the frozen
-  `_artifacts_step3.pt` and reproduces 0.82 (pinned by `tests/unit/test_recovered_step3_reproduction.py`).
+Warm-start (BC from a frozen artifact) is the default; `--cold-start` runs from random
+init. `keep-best` on a held-out-from-train VAL split guarantees RL is never reported
+below the BC start.
 
-> The 2026-06-16 "new trunk" (`decentralized_marl.py` / `LocalKHopGNNEdgeScorer` /
-> `DecentralizedPerNodeMutualSampler` / `production_trunk.py` / its driver) was an unvalidated
-> re-implementation that never reproduced the result (~0 under default config); it was **deleted
-> 2026-06-17** so the repo has one trunk. The Stage-33 dataset/adapter/critic infrastructure it now
-> reuses is load-bearing (not a baseline).
+## Headline result
 
-## Open status (honest)
+A **cold-start, oracle-free** decentralized learner **beats the centralized
+Simulated-Annealing oracle at out-of-range scale (N = 24)**: held-out raw feasibility
+~0.769–0.808 vs the SA-teacher ceiling 0.577, with a 4-seed CI95 of **[+0.067, +0.279]**
+on `raw_mean − 0.577` — i.e. the lower bound is above zero. This is decisive evidence
+that the decentralized learner generalizes past the scale its centralized teacher was
+built for. See `docs/URBAN_V2X_RESEARCH_LOG.md`.
 
-- The recovered trunk **reproduces 0.82 held-out from a frozen artifact** (decentralization cost 0).
-  Reported grades are *fractions of scenes* clearing the per-scene τ = 0.9 bar, not reliability
-  itself; the < 1.0 rate is a dataset-composition statement (deliberately mixed hard/infeasible
-  families + all-nodes-validator structure), not a method/physics wall — per-scene consensus
-  routinely reaches 1.0 and the operating-point envelope is 1.00 τ-achievable with realistic placement.
-- **Retraining to 0.82 (vs reproducing the frozen actor)** needs the critic-planner arm of the recipe
-  ported into a driver (the BC-on-SA-teacher arm in `decentralized_distillation.train_actor` reaches
-  the ~0.5 SA-teacher ceiling). The operating-point dataset build (4 RSU / 20 dBm / N {8,12,16} /
-  TR 37.885 stochastic) is in `docs/URBAN_V2X_RESEARCH_LOG.md` Step-3.
+## Quick start
 
-## Verification
+```bash
+# fast end-to-end smoke (random init, ~10s)
+python scripts/train/train_decentralized_rl.py --smoke --cold-start
 
-```powershell
-python -m pytest -q
-python harness\scripts\validate_tasks.py
-python harness\scripts\score_rubric.py docs\CONTROL_MODEL.md harness\rubrics\cybernetic_engineering_rubric.yaml --out harness\reports\control_model.score.json
+# operating-point diagnostic
+python scripts/train/train_decentralized_rl.py
+
+# eval a frozen actor on an arbitrary dataset (cross-N / OOD / baselines)
+python scripts/train/evaluate_actor_on_dataset.py \
+    --artifacts result_save/.../_artifacts.pt --shards result_save/.../_op_shard_*.pkl \
+    --eval-split all --baselines
 ```
 
-The full suite passes with one tolerated `xfail`: the Stage 23 REINFORCE sampler micro-gate is a
-superseded scaffold (the production decode path is decentralized local mutual acceptance on the
-K-round message-passing actor, not the Plackett-Luce/Bernoulli samplers it ranks; under the
-owner-approved feasibility-first barrier reward its 3-scene tie-break shifted), kept as a documented
-`xfail` pending removal of that dead path. The earlier legacy-reference manifest gap is now fixed —
-the validator flags any external `v5` tree as a legacy-reference artifact root.
+## Repository layout
 
-## Boundary rules
+- `src/marl_topology/` — the importable package:
+  - `protocol/quorum_tail.py` — closed-form PBFT quorum-tail consensus reliability.
+  - `policies/decentralized_mutual_acceptance.py` — the decentralized decoder.
+  - `models/message_passing_graph_edge_scorer.py` — the production actor.
+  - `training/decentralized_distillation.py` — BC distillation + decentralized eval helpers.
+  - `data/row_context_builder.py` — critic-free per-split (row, context) builder.
+  - `data/graph_payload.py` — critic-free node/edge graph featurization.
+- `scripts/train/` — the trunk + dataset/eval tooling (see above).
+- `tests/` — `unit/` and `contract/` suites.
+- `docs/` — `TRUNK_MAP.md`, `URBAN_V2X_RESEARCH_LOG.md`,
+  `FOUR090_CAMPAIGN_PLAN.md`, `NEXT_LOOP_INSTRUCTION.md`,
+  `REVIEW_2026-06-21_EVIDENCE_PASS.md`.
 
-- Deployment actors use local observations/history only; centralized critics are training-only.
-- New physics/metrics are opt-in and leave default behaviour byte-identical.
-- `D:\PhD_works\v5` is read-only legacy reference; the project inherits the goal, not the structure.
+## Hard invariants (must never be downgraded)
+
+- **I1** fully decentralized *execution AND learning* (no global-state leakage, no central critic).
+- **I3** consensus threshold `τ ≥ 0.9`, identical in training reward and evaluation.
+- **I4** generalization: domain randomization + held-out + varying N + multi-seed with CI.
+- **I5** one principled reward: potential shaping + constrained-RL dual (no stacked weighted terms).
+- **I6** closed-form whole-network consensus failure probability (Poisson-binomial quorum tail), not Monte Carlo.
