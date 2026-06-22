@@ -114,6 +114,9 @@ class PhysicsRegime:
     # one_hop_relay: build the PBFT matrix from DIRECT links only so relay_hops is the single
     #   multi-hop layer (Spec S4.2). MUST be paired with relay_hops >= 2 to keep reachability.
     one_hop_relay: bool = False
+    # timeout_aware_latency: quorum-completion timeout-aware latency (Spec S4.10) instead of the
+    #   degenerate max-all-pairs; a failed topology pays the phase budget.
+    timeout_aware_latency: bool = False
 
     def channel_config(self) -> ChannelModelConfig:
         return ChannelModelConfig(
@@ -415,6 +418,7 @@ def build_stack_config(regime: PhysicsRegime):
         # corrected env-math (recalibration); getattr legacy default keeps old regimes byte-identical
         fault_model=getattr(regime, "fault_model", "remove_largest"),
         one_hop_relay=getattr(regime, "one_hop_relay", False),
+        timeout_aware_latency=getattr(regime, "timeout_aware_latency", False),
     )
 
 

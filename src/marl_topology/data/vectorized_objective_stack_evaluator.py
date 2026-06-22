@@ -36,6 +36,7 @@ from marl_topology.data.stage21_objective_stack_evidence import (
     Stage21ObjectiveEvaluation,
     Stage21ObjectiveStackEvaluator,
     _apply_schedule_latency,
+    _consensus_completion_latency,
     _resource_assignments,
     _restrict_matrix,
     _stdma_schedule_for,
@@ -291,6 +292,7 @@ class VectorizedStage21Evaluator:
             one_hop_relay=self.config.one_hop_relay,
         )
         validators = self.validator_ids
+        fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
         if len(validators) >= 4:
             if validators == self.graph.node_ids:
                 pre, pre2, com = matrices.pre_prepare_matrix, matrices.prepare_matrix, matrices.commit_matrix
@@ -299,7 +301,6 @@ class VectorizedStage21Evaluator:
                 pre = _restrict_matrix(matrices.pre_prepare_matrix, vs)
                 pre2 = _restrict_matrix(matrices.prepare_matrix, vs)
                 com = _restrict_matrix(matrices.commit_matrix, vs)
-            fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
             if self.config.fault_model == "fixed_set":
                 reliability = robust_consensus_reliability(
                     validators, pre_prepare_matrix=pre, prepare_matrix=pre2, commit_matrix=com,
@@ -326,10 +327,16 @@ class VectorizedStage21Evaluator:
             graph=self.graph, selected=selected, records=records, matrices=matrices,
             accounting=accounting, config=self.config, schedule=schedule,
         )
+        if self.config.timeout_aware_latency:
+            latency_value = _consensus_completion_latency(
+                validators, fault_tolerance, phase_records, self.config.phase_budget_s
+            )
+        else:
+            latency_value = accounting.protocol_latency_s
         metrics = {
             "consensus_success": int(probability >= self.config.tau_requirement_min),
             "consensus_success_probability": probability,
-            "latency": accounting.protocol_latency_s,
+            "latency": latency_value,
             "energy": accounting.protocol_energy_j,
             "topology_diagnostics": diagnostics,
         }

@@ -43,8 +43,10 @@ from marl_topology.policies import PolicyBaselines, build_local_observations
 from marl_topology.protocol import (
     FAULT_FILTER_REMOVE_LARGEST,
     MESSAGE_MATRIX_ADAPTER_ID,
+    PBFT_PHASE_NAMES,
     PBFTExpectedInitiatorConfig,
     PBFTPhaseBudgets,
+    PBFTQuorumSpec,
     STRATEGY_AUTO,
     account_pbft_protocol_latency_energy,
     build_pbft_message_matrices_from_network_records,
@@ -141,6 +143,10 @@ class Stage21ObjectiveStackConfig:
     # one_hop_relay: when True the PBFT matrix is built from DIRECT links only, so relay_hops is
     #   the single multi-hop layer (Spec S4.2). Pair with relay_hops > 1 to keep reachability.
     one_hop_relay: bool = False
+    # timeout_aware_latency: when True the "latency" metric is the quorum-completion timeout-aware
+    #   consensus time E[min(T,B)] (Spec S4.10) summed over the three phases -- a FAILED topology
+    #   pays the full phase budget -- instead of the degenerate min(max_all_pairs, budget).
+    timeout_aware_latency: bool = False
     evaluator_id: str = STAGE21_EVALUATOR_ID
 
     def __post_init__(self) -> None:
@@ -372,6 +378,7 @@ class Stage21ObjectiveStackEvaluator:
             one_hop_relay=self.config.one_hop_relay,
         )
         validators = self.validator_ids
+        fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
         if len(validators) >= 4:
             if validators == self.graph.node_ids:
                 pre_prepare = matrices.pre_prepare_matrix
@@ -384,7 +391,6 @@ class Stage21ObjectiveStackEvaluator:
                 pre_prepare = _restrict_matrix(matrices.pre_prepare_matrix, validator_set)
                 prepare = _restrict_matrix(matrices.prepare_matrix, validator_set)
                 commit = _restrict_matrix(matrices.commit_matrix, validator_set)
-            fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
             if self.config.fault_model == "fixed_set":
                 reliability = robust_consensus_reliability(
                     validators,
@@ -425,10 +431,16 @@ class Stage21ObjectiveStackEvaluator:
             config=self.config,
             schedule=schedule,
         )
+        if self.config.timeout_aware_latency:
+            latency_value = _consensus_completion_latency(
+                validators, fault_tolerance, phase_records, self.config.phase_budget_s
+            )
+        else:
+            latency_value = accounting.protocol_latency_s
         metrics = {
             "consensus_success": int(probability >= self.config.tau_requirement_min),
             "consensus_success_probability": probability,
-            "latency": accounting.protocol_latency_s,
+            "latency": latency_value,
             "energy": accounting.protocol_energy_j,
             "topology_diagnostics": diagnostics,
         }
@@ -826,6 +838,46 @@ def _restrict_matrix(
         for key, value in matrix.items()
         if key[0] in node_set and key[1] in node_set
     }
+
+
+def _consensus_completion_latency(
+    validators: tuple[str, ...],
+    fault_tolerance: int,
+    phase_records: Mapping[str, tuple],
+    phase_budget_s: float,
+) -> float:
+    """Quorum-completion, timeout-aware consensus latency (Spec S4.10), summed over the
+    three PBFT phases. A FAILED topology pays the full phase budget per phase (a timeout),
+    instead of the degenerate max-all-pairs latency. Uses each validator-to-validator route
+    record's scheduled latency + delivery as the per-message arrival CDF step."""
+
+    from marl_topology.protocol.quorum_completion_latency import quorum_completion_latency
+
+    if len(validators) < 4:
+        # No fault-tolerant quorum exists -> consensus never completes -> full timeout/phase.
+        return 3.0 * phase_budget_s
+    spec = PBFTQuorumSpec(node_count=len(validators), fault_tolerance=fault_tolerance)
+    validator_set = set(validators)
+    total = 0.0
+    for phase_name in PBFT_PHASE_NAMES:
+        arrival: dict[tuple[str, str], float] = {}
+        delivery: dict[tuple[str, str], float] = {}
+        for record in phase_records.get(phase_name, ()):  # type: ignore[union-attr]
+            if record.source_id not in validator_set:
+                continue
+            for target_id in record.target_ids:
+                if target_id in validator_set and target_id != record.source_id:
+                    arrival[(record.source_id, target_id)] = record.network_scheduled_latency_s
+                    delivery[(record.source_id, target_id)] = record.network_delivery_probability
+        total += quorum_completion_latency(
+            validators,
+            arrival_latencies=arrival,
+            deliveries=delivery,
+            external_quorum=spec.external_quorum,
+            global_quorum=spec.quorum,
+            phase_budget_s=phase_budget_s,
+        ).expected_s
+    return total
 
 
 def _stdma_schedule_for(

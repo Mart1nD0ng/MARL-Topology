@@ -2707,3 +2707,29 @@ DECISION: KEEP step 2a (production regime is corrected; feasibility preserved; b
   corrected regime (heavy ~2x, detached build), then wire the timeout latency + tri-state
   labels (separate test-migration sub-steps), then retrain + a multi-seed headline under
   corrected data. The recalibration is now low-risk: feasibility is preserved, cost is bounded.
+
+================================================================================
+RECALIBRATION step 2b (2026-06-22): timeout-aware latency wired into the evaluator.
+================================================================================
+HYPOTHESIS: replace the degenerate latency (min(max_all_pairs, budget); a FAILED topology
+  pays ~0) with the Phase-4a quorum-completion timeout-aware latency (Spec S4.10), so a failed
+  topology pays the full phase budget. Config-gated; on in the production regime.
+IMPLEMENTATION (failing-test-first; tests/unit/test_timeout_aware_latency_wiring.py, 3 tests):
+  - Stage21 config + PhysicsRegime: timeout_aware_latency knob (default False; threaded via
+    build_stack_config getattr; ON in operating_point_regime).
+  - _consensus_completion_latency(validators, f, phase_records, budget): per phase, build the
+    validator-to-validator (arrival_latency, delivery) from the route records (which carry the
+    multi-hop route latency network_scheduled_latency_s), run quorum_completion_latency with the
+    safe quorum spec, sum over the 3 phases. <4 validators -> 3*budget (full timeout).
+  - Both evaluators: hoisted fault_tolerance; metrics["latency"] uses the timeout-aware value
+    when the flag is on, else the legacy accounting latency.
+MECHANISM ACTIVATION: empty topology -> 3*budget (full timeout, not ~0); != legacy; bounded
+  [0, 3*budget]; default-off byte-identical (full-graph latency unchanged).
+CAVEAT: the latency uses route-record latency+delivery (consistent multi-hop arrival), which is
+  a slightly different source than the one-hop+relay reliability matrix -- a minor consistency
+  gap; the fully latency-aware relay (Pareto (latency,delivery) DP) remains a Phase-2 sub-item.
+DECISION: KEEP (config-gated, default off, on in production; verified non-degenerate). Suite
+  289 fail / 559 pass / 1 xfail (zero new failures); smoke 0.
+NEXT (step 2c): wire tri-state labels into the scenario generator (feasible_exists -> witness/
+  unknown; a finite-search MISS is `unknown`, not infeasible; #11/#12). Then 2d rebuild +
+  2e headline.
