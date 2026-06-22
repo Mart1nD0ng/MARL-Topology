@@ -257,6 +257,21 @@ default-mode bug). Remaining: latency-aware relay (deadline propagation). Suite 
 > P0–P4 exit gate. Recommendation: land the Phase 3/4 primitives, then run **one** batched
 > recalibration that flips all corrected-environment flags together, rather than piecemeal.
 
+## 10. Recalibration (owner-approved 2026-06-22) — step 1: measured, low-impact
+
+Owner chose **Recalibrate + activate**. Step 1 added configurable knobs to
+`Stage21ObjectiveStackConfig` — `fault_model` (`remove_largest` | `fixed_set`) and
+`one_hop_relay` — wired through both evaluators, **default off → byte-identical** (zero new
+failures). **Impact measurement** (`logs/recalib_impact.txt`, 12 scenes N∈{8,12,16}): the
+corrected math (`fixed_set` + `one_hop_relay`) at **`relay_hops≥2`** gives essentially the
+**same feasibility as baseline** (0.731 vs 0.733); `relay_hops=2` suffices; only `relay_hops=1`
+(direct-only) collapses. **The recalibration does not collapse feasibility** — the Phase-1b-wire
+collapse was the τ-cap bug (since fixed) + relay_hops=1, not the model. Recommended production
+config: `fault_model="fixed_set", one_hop_relay=True, relay_hops=2`. Next: flip the default,
+wire the timeout latency + tri-state labels, migrate absolute-number tests, multi-seed headline.
+
+---
+
 **Phase-3 update — tri-state solvability (opt-in).** Confirmed the binary `feasible_exists`
 conflates a *finite-search miss* with *infeasible* (stage31 sets it `False` when no candidate
 reaches τ — violates #11). New `src/marl_topology/solvability/` package:

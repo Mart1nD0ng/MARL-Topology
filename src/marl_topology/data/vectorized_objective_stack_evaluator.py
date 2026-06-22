@@ -62,9 +62,11 @@ from marl_topology.protocol import (
     FAULT_FILTER_REMOVE_LARGEST,
     PBFTExpectedInitiatorConfig,
     PBFTPhaseBudgets,
+    STRATEGY_AUTO,
     account_pbft_protocol_latency_energy,
     build_pbft_message_matrices_from_network_records,
     evaluate_expected_initiator_pbft_reliability,
+    robust_consensus_reliability,
 )
 from marl_topology.topology.evaluator import topology_id_for_edges
 
@@ -286,6 +288,7 @@ class VectorizedStage21Evaluator:
         matrices = build_pbft_message_matrices_from_network_records(
             self.graph.node_ids, phase_records, budgets,
             relay_hops=self.config.relay_hops, perfect_pairs=perfect_pairs,
+            one_hop_relay=self.config.one_hop_relay,
         )
         validators = self.validator_ids
         if len(validators) >= 4:
@@ -296,14 +299,21 @@ class VectorizedStage21Evaluator:
                 pre = _restrict_matrix(matrices.pre_prepare_matrix, vs)
                 pre2 = _restrict_matrix(matrices.prepare_matrix, vs)
                 com = _restrict_matrix(matrices.commit_matrix, vs)
-            reliability = evaluate_expected_initiator_pbft_reliability(
-                PBFTExpectedInitiatorConfig(
-                    node_ids=validators,
-                    fault_tolerance=min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3)),
-                    fault_filter_mode=FAULT_FILTER_REMOVE_LARGEST,
-                ),
-                pre_prepare_matrix=pre, prepare_matrix=pre2, commit_matrix=com,
-            )
+            fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
+            if self.config.fault_model == "fixed_set":
+                reliability = robust_consensus_reliability(
+                    validators, pre_prepare_matrix=pre, prepare_matrix=pre2, commit_matrix=com,
+                    fault_tolerance=fault_tolerance, strategy=STRATEGY_AUTO,
+                )
+            else:
+                reliability = evaluate_expected_initiator_pbft_reliability(
+                    PBFTExpectedInitiatorConfig(
+                        node_ids=validators,
+                        fault_tolerance=fault_tolerance,
+                        fault_filter_mode=FAULT_FILTER_REMOVE_LARGEST,
+                    ),
+                    pre_prepare_matrix=pre, prepare_matrix=pre2, commit_matrix=com,
+                )
             probability = reliability.consensus_success_probability
             per_primary = dict(reliability.per_primary_reliability)
         else:

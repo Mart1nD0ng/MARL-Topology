@@ -45,9 +45,11 @@ from marl_topology.protocol import (
     MESSAGE_MATRIX_ADAPTER_ID,
     PBFTExpectedInitiatorConfig,
     PBFTPhaseBudgets,
+    STRATEGY_AUTO,
     account_pbft_protocol_latency_energy,
     build_pbft_message_matrices_from_network_records,
     evaluate_expected_initiator_pbft_reliability,
+    robust_consensus_reliability,
 )
 from marl_topology.protocol.pbft_accounting import PBFT_PROTOCOL_ACCOUNTING_MODEL_ID
 from marl_topology.protocol.stdma_scheduler import (
@@ -131,6 +133,14 @@ class Stage21ObjectiveStackConfig:
     # Fewer than 4 validators -> consensus 0.0 (no fault-tolerant quorum exists). Default off.
     coverage_gated_membership: bool = False
     membership_min_link_delivery: float = 0.5
+    # --- Phase 0-4 corrected environment math (recalibration knobs; defaults reproduce the
+    #     legacy behaviour byte-for-byte so they are inert until the recalibration flips them).
+    # fault_model: "remove_largest" (legacy per-phase filter) | "fixed_set" (the principled
+    #   single fixed Byzantine set C_robust = min_{|B|<=f} C(x;B), Spec S4.7).
+    fault_model: str = "remove_largest"
+    # one_hop_relay: when True the PBFT matrix is built from DIRECT links only, so relay_hops is
+    #   the single multi-hop layer (Spec S4.2). Pair with relay_hops > 1 to keep reachability.
+    one_hop_relay: bool = False
     evaluator_id: str = STAGE21_EVALUATOR_ID
 
     def __post_init__(self) -> None:
@@ -144,6 +154,8 @@ class Stage21ObjectiveStackConfig:
             raise Stage21EvidenceViolation("mac_slot_duration_s must be positive when scheduled_mac is on")
         if not 0.0 <= self.membership_min_link_delivery <= 1.0:
             raise Stage21EvidenceViolation("membership_min_link_delivery must be in [0, 1]")
+        if self.fault_model not in ("remove_largest", "fixed_set"):
+            raise Stage21EvidenceViolation("fault_model must be 'remove_largest' or 'fixed_set'")
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,6 +369,7 @@ class Stage21ObjectiveStackEvaluator:
             budgets,
             relay_hops=self.config.relay_hops,
             perfect_pairs=perfect_pairs,
+            one_hop_relay=self.config.one_hop_relay,
         )
         validators = self.validator_ids
         if len(validators) >= 4:
@@ -371,16 +384,27 @@ class Stage21ObjectiveStackEvaluator:
                 pre_prepare = _restrict_matrix(matrices.pre_prepare_matrix, validator_set)
                 prepare = _restrict_matrix(matrices.prepare_matrix, validator_set)
                 commit = _restrict_matrix(matrices.commit_matrix, validator_set)
-            reliability = evaluate_expected_initiator_pbft_reliability(
-                PBFTExpectedInitiatorConfig(
-                    node_ids=validators,
-                    fault_tolerance=min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3)),
-                    fault_filter_mode=FAULT_FILTER_REMOVE_LARGEST,
-                ),
-                pre_prepare_matrix=pre_prepare,
-                prepare_matrix=prepare,
-                commit_matrix=commit,
-            )
+            fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
+            if self.config.fault_model == "fixed_set":
+                reliability = robust_consensus_reliability(
+                    validators,
+                    pre_prepare_matrix=pre_prepare,
+                    prepare_matrix=prepare,
+                    commit_matrix=commit,
+                    fault_tolerance=fault_tolerance,
+                    strategy=STRATEGY_AUTO,
+                )
+            else:
+                reliability = evaluate_expected_initiator_pbft_reliability(
+                    PBFTExpectedInitiatorConfig(
+                        node_ids=validators,
+                        fault_tolerance=fault_tolerance,
+                        fault_filter_mode=FAULT_FILTER_REMOVE_LARGEST,
+                    ),
+                    pre_prepare_matrix=pre_prepare,
+                    prepare_matrix=prepare,
+                    commit_matrix=commit,
+                )
             probability = reliability.consensus_success_probability
             per_primary = dict(reliability.per_primary_reliability)
         else:

@@ -2615,3 +2615,54 @@ model phases (7-9 Graph-MAPPO/COMA/critic) is the frozen banned-literal src gate
 stale contract tests (CURRENT_HEAD_STATUS.md S5). Both are surfaced to the owner for a
 go/no-go before committing heavy compute. Remaining cheap primitives before that gate: Phase
 4b/4c (message plan + validator/client), Phase 5 Temporal Value Test harness.
+
+================================================================================
+RECALIBRATION (2026-06-22, owner: "Recalibrate + activate"): step 1 -- configurable
+activation + IMPACT MEASUREMENT. Result: the corrected math barely moves feasibility.
+================================================================================
+OWNER DECISION (AskUserQuestion at the P0-P4 primitives milestone): "Recalibrate + activate"
+  -- wire the corrected env-math flags, rebuild the dataset, re-tune tau-gradient, re-establish
+  the headline. This is the multi-step P0-P4 exit campaign; step 1 = configurable activation +
+  measure-before-flip (to avoid the Phase-1b-wire feasibility collapse).
+
+STEP 1 IMPLEMENTATION: added two recalibration knobs to Stage21ObjectiveStackConfig (defaults
+  reproduce legacy byte-for-byte; wired through BOTH evaluators):
+  - fault_model: "remove_largest" (legacy) | "fixed_set" (the corrected honest-primary
+    C_robust = min_{|B|<=f} C(x;B), Spec S4.7).
+  - one_hop_relay: build the PBFT matrix from DIRECT links only so relay_hops is the single
+    multi-hop layer (Spec S4.2). (relay_hops already existed, default 1.)
+  Default-off full suite: 289 fail / 556 pass / 1 xfail (ZERO new failures); smoke 0; vectorized
+  equivalence holds.
+
+IMPACT MEASUREMENT (logs/recalib_impact.txt; 12 scenes N in {8,12,16}, heuristic sparse
+  candidates + full graph, feasibility = best-candidate consensus >= tau; safe quorum already
+  wired in ALL variants):
+    variant                              feas%   meanBestC
+    baseline (remove_largest, relay1)     67%     0.733
+    fixed_set + one_hop, relay1 (direct)   0%     0.000   <- collapse: direct-only, no multi-hop
+    fixed_set + one_hop, relay2           67%     0.731   <- == baseline
+    fixed_set + one_hop, relay3           67%     0.731   <- relay2 already suffices
+    fixed_set (legacy relay1)             67%     0.731
+    remove_largest + one_hop, relay3      67%     0.733
+
+KEY FINDINGS (decisive for the recalibration):
+  1. The corrected math (fixed_set + one_hop_relay) at relay_hops>=2 gives ESSENTIALLY THE SAME
+     feasibility as baseline (0.731 vs 0.733). The recalibration does NOT collapse feasibility.
+  2. one_hop_relay MUST be paired with relay_hops>=2 (relay_hops=1 = direct-only -> 0%).
+  3. relay_hops=2 SUFFICES (relay2 == relay3); no need for higher hop counts.
+  4. The Phase-1b-wire collapse was the tau-CAP BUG (now fixed: honest-primary averaging) +
+     relay_hops=1 -- NOT the fixed-B model itself. With the bug fixed, the corrected reliability
+     barely differs from baseline on the feasibility ceiling.
+  => The scenario tau-gradient likely needs LITTLE-TO-NO re-tuning. The recalibration is far more
+     tractable than feared. Recommended production config: fault_model="fixed_set",
+     one_hop_relay=True, relay_hops=2.
+
+NOTE: latency unchanged (5.6ms) -- the timeout-aware quorum-completion latency (Phase 4a) is NOT
+  yet wired into account_pbft_protocol_latency_energy; that is a separate recalibration step.
+
+DECISION: KEEP step 1 (configurable activation, default off, byte-identical; the measurement
+  de-risks the flip). NEXT (recalibration step 2): flip the production default to the corrected
+  config (fixed_set + one_hop_relay + relay_hops=2), wire the timeout latency + tri-state labels,
+  migrate the absolute-number tests to the corrected values, run the smoke + a multi-seed headline
+  under correct math. Watch the fixed_set O(n^4) cost (n x reliability; the unit suite was 11x at
+  one point) -- consider a cheaper exact f=1 worst-case if it bites the rebuild.
