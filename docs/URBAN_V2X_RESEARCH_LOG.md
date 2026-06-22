@@ -2204,3 +2204,37 @@ VERDICT: KEEP -- the loop's FIRST genuine improvement. B is NON-INFERIOR (never 
   honesty gap. ADOPTED into the recommended recipe (--live-consensus-dual). Headline N=24 upgrades to margin
   +0.221 [+0.117, +0.326] (oracle-beating, 4/4 seeds, tighter+higher CI than the plain dense trunk).
 
+--------------------------------------------------------------------------------
+ITERATION 22 (2026-06-22): 5th seed -- B's edge does NOT hold. B is NON-INFERIOR, not a significant gain.
+--------------------------------------------------------------------------------
+Added seed 4 (split 29) for BOTH dense and B to push the borderline n=4 delta to significance.
+  RESULT: seed-4 B margin +0.154 < dense +0.192 (the FIRST seed where B < dense), pulling the paired delta down.
+    DENSE (n=5): margin mean +0.177  CI95 [+0.104, +0.249]  5/5 seeds beat oracle
+    B     (n=5): margin mean +0.208  CI95 [+0.128, +0.288]  5/5 seeds beat oracle
+    PAIRED delta (B - dense) n=5: mean +0.031  CI95 [-0.031, +0.093]  (4/5 seeds >=0)  -> NON-INFERIOR.
+  HONEST CORRECTION of iteration 21: B is NOT significantly better -- the n=4 +0.048 / [-0.011,+0.107] edge was
+  partly an optimistic draw (the same few-seed optimism that inflated the headline + energy single-seeds). At
+  n=5 B is NON-INFERIOR (paired CI includes 0); it neither significantly helps nor hurts. KEEP B as an opt-in
+  NON-INFERIOR ABLATION (a MACPO-style live consensus dual); the dense Ng-Harada potential alone remains the
+  PRINCIPLED DEFAULT and already handles consensus. The honesty gap ("dual ascent on consensus") is closed
+  either way: with B the consensus dual is genuinely live; without it the accurate statement is "consensus via
+  the potential, budget via the dual." BONUS: the 5th seed STRENGTHENED the DENSE HEADLINE -- N=24 margin now
+  +0.177 CI95 [+0.104, +0.249] (n=5, 5/5 beat oracle), a tighter CI than n=4's [+0.067, +0.279].
+
+================================================================================
+LOOP FINAL SUMMARY (iterations 17-22, 2026-06-22): the deployment is COMPLETE.
+================================================================================
+All 3 NEXT_LOOP innovations were implemented and MULTI-SEED-evaluated against the dense trunk:
+  A (per-node consensus-decomposition reward) -> NULL (paired +0.019, n.s.; higher variance). Rolled back.
+  C (energy / reliability-energy Pareto)       -> NULL (paired energy -4.5%, n.s.; feasibility cost). Rolled back.
+  B (live consensus dual, MACPO sparse cost)   -> NON-INFERIOR (paired +0.031, n.s.). Kept as opt-in ablation +
+                                                  honesty fix; NOT a metric improvement.
+NET FINDING: the dense beta=0 trunk is a ROBUST OPTIMUM -- oracle-beating cold-start at out-of-range N=24,
+  n=5 CI95 [+0.104, +0.249], 5/5 seeds -- that credit-assignment, energy, and constrained-dual tweaks do NOT
+  significantly beat. The project's defensible novelty is the OBJECT (closed-form PBFT consensus REWARD) + the
+  feasibility-by-construction DECODER/explorer + the oracle-beating cold-start RESULT, NOT a new optimisation
+  method (consistent with the 2026-06-21 honesty audit). METHODOLOGICAL TAKEAWAY: single-/few-seed results here
+  are systematically optimistic; every claim needs >=5 seeds. REMAINING WORK is expensive BREADTH (multi-config
+  domain randomisation; larger-N out-of-range, e.g. N=32/48 -- each needs an owner-gated heavy dataset build),
+  not more cheap tweaks. Loop paused for owner direction (polish/breadth vs consolidate for the paper).
+
