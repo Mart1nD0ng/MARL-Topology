@@ -2562,3 +2562,56 @@ NEXT: Phase 4 (PBFT accounting + non-degenerate latency, Spec S4.8-4.10): phase-
   message plan (pre-prepare/prepare/commit distinct message sets), validator/client split
   (clients relay only, no vote), quorum-completion timeout-aware latency (failed topologies pay
   timeout, not 0), expected/P50/P95/CVaR. Another verified+opt-in primitive toward recalibration.
+
+================================================================================
+PHASE 4a (2026-06-22): quorum-completion timeout-aware latency -- KEEP (opt-in).
+================================================================================
+HYPOTHESIS (one variable): the protocol latency is DEGENERATE. pbft_accounting._account_phase
+  sets phase_latency_s = min(max_all_pairs_latency, phase_budget) (line 237): a single slow
+  link dominates, it is topology-insensitive (saturates ~constant ~0.029s), and a FAILED
+  topology pays the same small clipped latency as a success (no timeout, Spec S4.10 violation).
+  Replace with the time-to-reach-GLOBAL-QUORUM, where a failed topology pays the full budget.
+CONTROLLED VARIABLES: the accounting record, evaluator, trunk -- unchanged. New
+  protocol/quorum_completion_latency.py is additive; production accounting untouched.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_quorum_completion_latency.py, 7 tests):
+  - quorum_completion_latency(node_ids, arrival_latencies, deliveries, external_quorum,
+    global_quorum, phase_budget_s, cvar_alpha): F_j(t)=Q_qext({M_ij if L_ij<=t else 0}),
+    F_T(t)=Q_qglobal({F_j(t)}), E[min(T,B)]=∫_0^B (1-F_T) dt as an EXACT finite sum over the
+    arrival breakpoints (F_T is a right-continuous step). Reports expected, P50, P95,
+    CVaR_alpha (= VaR + 1/(1-a)·∫_VaR^B (1-F_T)dt, capped at B), and timeout_rate (=1-F_T(B)).
+    Uses the same closed-form heterogeneous_quorum_tail as the reliability metric.
+
+MECHANISM ACTIVATION EVIDENCE: all-fail -> expected==B, timeout_rate==1, P50=P95=B;
+  all-deliver@0.001 -> expected==0.001, timeout_rate==0; 10%-links -> expected>0.5B (NOT ~0,
+  unlike the legacy max-all-pairs); faster links -> lower latency; two delivery profiles give
+  DIFFERENT latencies (topology-sensitive); P50<=P95<=B; CVaR>=expected.
+
+KNOWN REMAINING (Phase 4b/4c, folded into recalibration): phase-specific message PLAN (Spec
+  S4.8: distinct pre-prepare/prepare/commit message sets) and the validator/CLIENT split
+  (clients relay only, no vote -- only forwarding cost). The legacy accounting reuses the same
+  records for all three phases. These refine energy/latency further; the latency DEGENERACY
+  (the flagged blocker) is fixed by 4a.
+
+DECISION: KEEP (correct timeout-aware latency primitive; verified, opt-in, production-inert).
+  Suite 289 fail / 556 pass / 1 xfail (zero new failures); smoke 0.
+
+================================================================================
+P0-P4 ENVIRONMENT-MATH PRIMITIVES: SUBSTANTIVELY COMPLETE -- recalibration is the gate.
+================================================================================
+The corrected environment math is now landed as verified, opt-in, INERT primitives:
+  1a safe quorum (WIRED, the only active one)        protocol/quorum_spec.py
+  1b fixed Byzantine fault set (opt-in)              protocol/fault_set_robustness.py
+  1c Torch differentiable quorum-tail               protocol/torch_quorum_tail.py
+  2  one-hop relay (opt-in flag)                     message_matrix_adapter.one_hop_relay
+  3  tri-state solvability (opt-in package)          solvability/{status,witness_memory}.py
+  4a quorum-completion timeout latency (opt-in)      protocol/quorum_completion_latency.py
+Each is individually verified but INERT in production (only the safe quorum is wired). Turning
+them on collectively SHIFTS reliability/feasibility/latency and BREAKS the stage31 scenario
+tau-gradient calibration -> a one-time, heavy, owner-gated RECALIBRATION campaign (rebuild the
+scenario dataset + re-tune the tau-gradient under the corrected math + wire the flags) is the
+true P0-P4 exit gate, AHEAD of any model phase (5+). The OTHER owner-gated blocker for the
+model phases (7-9 Graph-MAPPO/COMA/critic) is the frozen banned-literal src gates + the 287
+stale contract tests (CURRENT_HEAD_STATUS.md S5). Both are surfaced to the owner for a
+go/no-go before committing heavy compute. Remaining cheap primitives before that gate: Phase
+4b/4c (message plan + validator/client), Phase 5 Temporal Value Test harness.
