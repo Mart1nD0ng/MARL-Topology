@@ -237,3 +237,22 @@ so the base package stays Torch-free); two stage8/stage9 torch-purity sub-tests 
 updated to allow that one spec-mandated file. Suite 289 fail / **531 pass**, zero new
 failures. This completes the Phase-1 *primitives*; the remaining Phase-1 item is the
 deferred 1b-wire-v2 (fixed-B cost + scenario re-calibration).
+
+**Phase-2 update — route/relay (opt-in correct semantics).** Confirmed the double
+multi-hop layer: the evaluator BFS-routes every pair (so the record is already end-to-end
+multi-hop), then `_multi_hop_reach` relays again at `relay_hops>1`; even at the production
+`relay_hops=1` the A–B–C topology wrongly gives P(A→C)>0. `_multi_hop_reach` is itself the
+correct one-hop→relay DP — only its input is wrong. Fix landed **opt-in**
+(`build_pbft_message_matrices_from_network_records(one_hop_relay=…)`, default off): when on,
+the matrix is built from direct-link records only, so the relay DP is the single multi-hop
+layer (A–B–C regression passes; `tests/unit/test_route_relay_semantics.py`, 1 xfail pins the
+default-mode bug). Remaining: latency-aware relay (deadline propagation). Suite 289 fail /
+**538 pass** / 1 xfail, zero new failures.
+
+> **⚠️ Strategic convergence (owner decision approaching).** The corrected environment math
+> (1b-wire-v2 fixed-`B` fault model, 2 one-hop relay, and foreseeably 3/4) all break the
+> **same** stage31 scenario τ-gradient calibration, so each is landed *verified + opt-in +
+> inert*. Activating them requires **one heavy/owner-gated recalibration campaign** (rebuild
+> the scenario dataset + re-tune the τ-gradient under the corrected math) — that is the real
+> P0–P4 exit gate. Recommendation: land the Phase 3/4 primitives, then run **one** batched
+> recalibration that flips all corrected-environment flags together, rather than piecemeal.

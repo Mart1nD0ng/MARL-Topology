@@ -136,12 +136,21 @@ def build_pbft_message_matrices_from_network_records(
     phase_budgets: PBFTPhaseBudgets,
     relay_hops: int = 1,
     perfect_pairs: frozenset[tuple[str, str]] = frozenset(),
+    one_hop_relay: bool = False,
 ) -> PBFTMessageMatrices:
     """Build PBFT phase matrices from Stage 3 network communication records.
 
     relay_hops > 1 enables multi-hop relaying: each phase's delivery matrix becomes the
     end-to-end most-reliable relayed path (<= relay_hops links) instead of direct-link only.
     Default 1 keeps the single-hop behaviour byte-identical.
+
+    one_hop_relay (Phase 2, Spec S4.2): when True the per-phase matrix is built from ONLY the
+    DIRECT-link records (route length 2), so the ``relay_hops`` DP is the SINGLE multi-hop
+    layer. This is the correct route/relay semantics (A--B--C: relay_hops=1 -> P(A->C)=0;
+    relay_hops=2 -> P(A->C)>0). Default False reproduces the legacy behaviour, where the
+    matrix already holds the evaluator's end-to-end BFS-route probabilities and ``relay_hops``
+    relays them AGAIN (double counting -- hard-constraint #10). Activation is deferred to the
+    scenario recalibration (it shifts reliability); see docs/CURRENT_HEAD_STATUS.md.
 
     perfect_pairs marks directed (source, target) pairs with an out-of-band reliable channel
     (e.g. WIRED RSU-RSU BACKHAUL): their delivery is set to 1.0 BEFORE the multi-hop pass, so
@@ -166,6 +175,7 @@ def build_pbft_message_matrices_from_network_records(
             checked_node_ids,
             records,
             phase_budgets.budget_for_phase(phase_name),
+            direct_only=one_hop_relay,
         )
         for pair in perfect_pairs:
             matrix[pair] = 1.0
@@ -217,6 +227,7 @@ def _matrix_for_phase(
     node_ids: tuple[str, ...],
     records: tuple[NetworkCommunicationRecord, ...],
     phase_budget_s: float,
+    direct_only: bool = False,
 ) -> tuple[MessageMatrixDict, int, int]:
     matrix: MessageMatrixDict = {}
     deadline_filtered = 0
@@ -225,6 +236,10 @@ def _matrix_for_phase(
         _validate_record_nodes(node_ids, record)
         if record.is_oracle:
             raise ValueError("Stage 3 oracle records cannot feed PBFT message matrices")
+        # Phase 2 (Spec S4.2): a DIRECT link is a route of exactly two nodes (source, target).
+        # Skip multi-hop route records so the relay DP is the single multi-hop layer.
+        if direct_only and len(record.route_node_ids) != 2:
+            continue
         delivery = 0.0
         if record.network_scheduled_latency_s <= phase_budget_s:
             delivery = record.network_delivery_probability

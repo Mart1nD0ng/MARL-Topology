@@ -2477,3 +2477,49 @@ NEXT: Phase 1 environment-math work continues. Remaining in Phase 1: Phase 1b-wi
   (route/relay dedup; tri-state solvability; phase-specific accounting + non-degenerate latency)
   are the next environment-math fixes per the implementation order. Likely next: Phase 2 route/relay
   (the A--B--C H=1->0 / H=2->>0 regression, Spec S4.2).
+
+================================================================================
+PHASE 2 (2026-06-22): route/relay -- single correct semantics (opt-in), bug pinned.
+================================================================================
+HYPOTHESIS (one variable): the route/relay has TWO multi-hop layers. The evaluator routes
+  every ordered pair via a BFS shortest path, so record.network_delivery_probability is
+  ALREADY an end-to-end multi-hop probability; the adapter's _multi_hop_reach then relays it
+  AGAIN at relay_hops>1 (double counting, hard-constraint #10). Even at the production default
+  relay_hops=1 the A--B--C topology wrongly gives P(A->C)>0 (should be 0: no DIRECT link).
+DIAGNOSIS (confirmed): network/communication.py _shortest_path_trace is a BFS (multi-hop) and
+  _delivery_probability is the product along that path; message_matrix_adapter._matrix_for_phase
+  feeds those end-to-end values into _multi_hop_reach. _multi_hop_reach itself is the CORRECT
+  one-hop->relay max-product DP -- the bug is purely its INPUT (multi-hop, not one-hop).
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_route_relay_semantics.py):
+  - 5 tests pin _multi_hop_reach as correct GIVEN a one-hop matrix (A--B--C: relay_hops=1 ->
+    no A-C; relay_hops=2 -> 0.72; chain needs enough hops; max-product over paths; disconnected).
+  - 1 xfail (strict) pins the DEFAULT-mode production bug (relay_hops=1 keeps the multi-hop
+    route record's A-C=0.72) -- the known violation, deferred.
+  - opt-in fix in build_pbft_message_matrices_from_network_records(one_hop_relay=False default):
+    when True, _matrix_for_phase keeps only DIRECT-link records (route_node_ids length 2), so the
+    relay DP is the SINGLE multi-hop layer. Verified A--B--C regression passes in one_hop_relay
+    mode; default mode byte-unchanged.
+
+KNOWN REMAINING (relay reimpl, deferred): _multi_hop_reach tracks delivery only, not cumulative
+  latency, so a relayed path's deadline (Spec S4.2 "deadline propagation") is not enforced. The
+  full correct relay is latency-aware (max delivery over paths within the phase budget); folded
+  into the recalibration scope.
+
+DECISION: KEEP (correct opt-in primitive + bug pinned). Activation DEFERRED -- like Phase
+  1b-wire, turning one_hop_relay on shifts reliability (relay_hops=1 becomes direct-only ->
+  consensus much harder) and breaks the stage31 scenario tau-gradient calibration.
+
+STRATEGIC CONVERGENCE (the key environment-math finding): the corrected environment math is
+  accumulating DEFERRED activations that all break the SAME scenario calibration --
+  (1b-wire-v2) fixed-B fault model, (2) one-hop relay, and (foreseeably 3/4) tri-state
+  solvability + phase-accounting/latency. Each is individually verified but INERT until the
+  scenario dataset is REBUILT and the tau-gradient RE-CALIBRATED under the corrected math. That
+  recalibration is a single heavy/owner-gated campaign and is the real P0-P4 exit gate. The
+  primitives are being landed verified+opt-in so the recalibration can flip them on together.
+  RECOMMENDATION (owner): after the Phase 3/4 primitives land, run ONE recalibration campaign
+  that activates all corrected-environment flags + rebuilds + re-tunes stage31, rather than
+  flipping them piecemeal. Suite 289 fail / 538 pass / 1 xfail (zero new failures); smoke 0.
+NEXT: Phase 3 (tri-state solvability: witness_feasible / certified_infeasible / unknown;
+  a finite-search MISS must be `unknown`, never `certified_infeasible`; train-only witness
+  memory; strictly-optimistic upper bound) -- another verified primitive toward the recalibration.
