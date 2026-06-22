@@ -40,6 +40,11 @@ from marl_topology.scenario.scene import (
     advance_scene,
 )
 from marl_topology.scenario.urban_grid import UrbanGridConfig, build_urban_grid_scene
+from marl_topology.solvability import (
+    SOLVABILITY_STATES,
+    UNKNOWN,
+    solvability_from_finite_search,
+)
 from marl_topology.topology import CandidateGraph
 
 TAU_REQUIREMENT_MIN = 0.9
@@ -228,10 +233,16 @@ class ProductionScenarioSpec:
     feasible_exists: bool
     sparse_beats_full_energy: bool
     candidate_edge_count: int
+    # Tri-state solvability (Spec S5; recalibration step 2c). A finite-search MISS is
+    # `unknown`, NEVER `certified_infeasible` (#11). Recorded beside feasible_exists; default
+    # `unknown` so specs constructed before this field default to the honest unknown.
+    solvability_status: str = UNKNOWN
 
     def __post_init__(self) -> None:
         if self.family not in {"feasible_sparse", "near_threshold", "infeasible"}:
             raise ProceduralGeneratorViolation(f"unknown family: {self.family}")
+        if self.solvability_status not in SOLVABILITY_STATES:
+            raise ProceduralGeneratorViolation(f"unknown solvability_status: {self.solvability_status}")
         if not 0.0 <= self.full_graph_psucc <= 1.0:
             raise ProceduralGeneratorViolation("full_graph_psucc out of range")
 
@@ -793,6 +804,11 @@ def generate_production_scenarios(
             feasible_exists=bool(measure["feasible_exists"]),
             sparse_beats_full_energy=bool(measure["sparse_beats_full_energy"]),
             candidate_edge_count=int(measure["candidate_edge_count"]),
+            # Tri-state from the FINITE search: witness_feasible if the best found topology
+            # reaches tau, else unknown (never certified_infeasible -- #11).
+            solvability_status=solvability_from_finite_search(
+                measure["best_feasible_psucc"], config.tau_requirement_min
+            ).status,
         )
         specs.append(spec)
         counts[realized_family] += 1

@@ -2733,3 +2733,39 @@ DECISION: KEEP (config-gated, default off, on in production; verified non-degene
 NEXT (step 2c): wire tri-state labels into the scenario generator (feasible_exists -> witness/
   unknown; a finite-search MISS is `unknown`, not infeasible; #11/#12). Then 2d rebuild +
   2e headline.
+
+================================================================================
+RECALIBRATION step 2c (2026-06-22): tri-state solvability recorded in the generator.
+================================================================================
+HYPOTHESIS: the binary feasible_exists conflates a finite-search miss with infeasibility.
+  Record the honest tri-state beside it: a MISS is `unknown`, NEVER certified_infeasible (#11).
+IMPLEMENTATION (failing-test-first; tests/unit/test_scenario_tri_state_labels.py):
+  - ProductionScenarioSpec: append solvability_status field (default `unknown`; validated in
+    __post_init__). Computed in generate_production_scenarios via
+    solvability_from_finite_search(best_feasible_psucc, tau).status -> witness_feasible iff the
+    best FOUND topology reaches tau, else unknown (a finite search proves no infeasibility).
+  - Non-breaking: feasible_exists + family labeling + the training mask are UNCHANGED (the
+    tri-state is an honest annotation; the full tri-state training-semantics change -- how to
+    handle `unknown` scenes in the loss / distribution constraint, Spec S5.4 -- is deferred).
+MECHANISM ACTIVATION: across generated specs, statuses subset {witness_feasible, unknown};
+  certified_infeasible NEVER appears (the generator's "infeasible"-family scenes are `unknown`,
+  not proven-infeasible); witness_feasible iff feasible_exists.
+DECISION: KEEP (honest tri-state recorded; non-breaking). Suite 289 fail / 560 pass / 1 xfail
+  (zero new failures); smoke 0.
+
+================================================================================
+RECALIBRATION: contained wirings COMPLETE (2a/2b/2c). NEXT = the heavy rebuild + headline.
+================================================================================
+The corrected env-math is now fully wired into the PRODUCTION regime (operating_point_regime):
+  safe quorum (always) + fixed_set fault model + one_hop_relay (relay_hops=3) + timeout latency,
+  and the generator records tri-state solvability. Feasibility distribution is preserved
+  (0.667, identical bins; step 2a measurement), cost ~2x/scene.
+REMAINING (heavy, owner-gated compute -- approved under "Recalibrate + activate"):
+  step 2d: rebuild the operating-point dataset under corrected math (detached, ~2x). Pilot a
+    SMALL corrected build first (validate the end-to-end corrected pipeline trains a sensible
+    feasible-rate) before committing the full N=24 build.
+  step 2e: retrain the trunk + a multi-seed N=24 held-out headline under corrected data; report
+    per-seed + CI + evaluator-call/wall-clock cost. This re-establishes (or honestly revises)
+    the oracle-beating margin under the corrected environment math.
+The reliability/relay/latency core being correct + feasibility-preserving means the rebuild is
+now mechanical (no calibration uncertainty). Watch fixed_set O(n^4) (~2x).
