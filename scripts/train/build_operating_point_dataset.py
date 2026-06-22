@@ -56,6 +56,11 @@ def operating_point_regime(tx_power_dbm: float) -> PhysicsRegime:
         scheduled_mac=True, relay_hops=3, target_reliability=None,
         path_loss_model="v2x_37885", wired_rsu_backhaul=True,
         coverage_gated_membership=True, shadowing_37885=True, nlosv_37885=True,
+        # Recalibration (P0-P4 corrected env-math activated for the production dataset):
+        # fixed Byzantine fault set (Spec S4.7) + one-hop relay (Spec S4.2). relay_hops=3
+        # (>=2) keeps multi-hop reachability; measured to preserve feasibility (~0.731 vs
+        # 0.733) -- see docs/CURRENT_HEAD_STATUS.md S10.
+        fault_model="fixed_set", one_hop_relay=True,
     )
 
 

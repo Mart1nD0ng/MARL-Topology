@@ -2666,3 +2666,44 @@ DECISION: KEEP step 1 (configurable activation, default off, byte-identical; the
   migrate the absolute-number tests to the corrected values, run the smoke + a multi-seed headline
   under correct math. Watch the fixed_set O(n^4) cost (n x reliability; the unit suite was 11x at
   one point) -- consider a cheaper exact f=1 worst-case if it bites the rebuild.
+
+================================================================================
+RECALIBRATION step 2a (2026-06-22): production regime flipped to corrected math --
+feasibility distribution UNCHANGED, no tau-gradient re-tuning needed.
+================================================================================
+HYPOTHESIS: activate the corrected env-math (fixed_set fault model + one_hop_relay) on the
+  PRODUCTION dataset regime, and verify the scenario feasibility gradient survives (the
+  recalibration's hardest risk -- a shifted gradient would need re-tuning + could collapse
+  the trainable feasible mix).
+CONTROLLED VARIABLES: physics (scheduled_mac, v2x_37885, relay_hops=3, wired backhaul,
+  coverage-gating), node counts, candidates -- unchanged. Only fault_model + one_hop_relay flip.
+
+IMPLEMENTATION:
+  - PhysicsRegime: appended fault_model + one_hop_relay fields (LAST, so positional
+    construction is unaffected -- a first attempt inserting them mid-dataclass shifted
+    positional args and broke the smoke with "unknown path_loss_model: True"; fixed by
+    appending at the end). build_stack_config threads them via getattr (legacy default ->
+    old serialized regimes byte-identical).
+  - scripts/train/build_operating_point_dataset.py operating_point_regime: flipped to
+    fault_model="fixed_set", one_hop_relay=True (relay_hops=3 already, one-hop-compatible).
+  Zero unit-test blast radius (operating_point_regime is script-only, not imported by tests;
+  tests use the default regime + getattr legacy default). Full suite byte-identical
+  (289 fail / 556 pass / 1 xfail); smoke 0.
+
+MEASUREMENT (logs/recalib_prod_feasibility.txt; 12 scenes N in {4,6,8} under the FULL
+  production regime, legacy vs corrected):
+    legacy (remove_largest, one_hop=F):  feasible=0.667  bins={6 feas, 2 near, 4 infeas}  0.68 s/scene
+    CORRECTED (fixed_set, one_hop=T):    feasible=0.667  bins={6 feas, 2 near, 4 infeas}  1.40 s/scene (2x)
+  full_graph_feasible: 0.667 -> 0.750 (corrected fixed_set is slightly LESS over-pessimistic
+  than remove_largest, consistent with the Phase-1b finding).
+
+KEY FINDING: the corrected production math gives an IDENTICAL feasibility distribution
+  (same feasible fraction, same family bins). => The scenario tau-gradient needs NO re-tuning;
+  the recalibration's biggest feared risk is a non-issue. Cost is ~2x/scene (fixed_set O(n^4));
+  the full rebuild is heavier but straightforward (no thrash, healthy feasible mix preserved).
+
+DECISION: KEEP step 2a (production regime is corrected; feasibility preserved; byte-identical
+  default-off elsewhere). NEXT (step 2b): rebuild the operating-point dataset under the
+  corrected regime (heavy ~2x, detached build), then wire the timeout latency + tri-state
+  labels (separate test-migration sub-steps), then retrain + a multi-seed headline under
+  corrected data. The recalibration is now low-risk: feasibility is preserved, cost is bounded.

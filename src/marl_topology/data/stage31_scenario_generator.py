@@ -106,6 +106,14 @@ class PhysicsRegime:
     shadowing_37885: bool = False
     nlosv_37885: bool = False
     shadowing_realization: int = 0
+    # --- Phase 0-4 corrected environment math (recalibration; defaults reproduce legacy
+    #     byte-for-byte). Appended LAST so positional PhysicsRegime construction is unaffected.
+    # fault_model: "remove_largest" (legacy per-phase filter) | "fixed_set" (the principled
+    #   single fixed Byzantine set C_robust = min_{|B|<=f} C(x;B), Spec S4.7).
+    fault_model: str = "remove_largest"
+    # one_hop_relay: build the PBFT matrix from DIRECT links only so relay_hops is the single
+    #   multi-hop layer (Spec S4.2). MUST be paired with relay_hops >= 2 to keep reachability.
+    one_hop_relay: bool = False
 
     def channel_config(self) -> ChannelModelConfig:
         return ChannelModelConfig(
@@ -404,6 +412,9 @@ def build_stack_config(regime: PhysicsRegime):
         wired_rsu_backhaul=getattr(regime, "wired_rsu_backhaul", False),
         coverage_gated_membership=getattr(regime, "coverage_gated_membership", False),
         membership_min_link_delivery=getattr(regime, "membership_min_link_delivery", 0.5),
+        # corrected env-math (recalibration); getattr legacy default keeps old regimes byte-identical
+        fault_model=getattr(regime, "fault_model", "remove_largest"),
+        one_hop_relay=getattr(regime, "one_hop_relay", False),
     )
 
 
