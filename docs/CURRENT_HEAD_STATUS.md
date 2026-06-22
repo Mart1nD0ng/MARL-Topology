@@ -208,3 +208,12 @@ updated to whitelist the reviewed `quorum_spec.py` (a lineage gate — it also b
 `byzantine`/`view_change`, so it is **slated for full retirement in Phase 1b** when
 `fault_set_robustness.py` forces it). **Still open in fact (6):** the `REMOVE_LARGEST`
 per-phase fault filter (violates the single-fixed-`B` requirement, Spec §4.7) → Phase 1b.
+
+**Phase-1b update:** the correct fixed-`B` robustness primitive is landed
+(`protocol/fault_set_robustness.py` — `C_robust = min_{|B|≤f} C(x;B)`, exact enumeration,
+hard-min for eval / softmin for training, budget guard, f=0 parity vs the validated
+cascade; `tests/unit/test_fault_set_robustness.py`). It is **not yet wired** into the
+production evaluator — exact enumeration is infeasible at the trunk's N=24,f=7 (C=346k),
+so the wiring iteration must add a cost-managed worst-case (greedy fixed-`B` above a
+budget). Until then `REMOVE_LARGEST` remains the production fault model and the reward
+signal is unchanged. Suite 289 fail / 520 pass; zero new failures.

@@ -2340,3 +2340,57 @@ NEXT SINGLE HYPOTHESIS (Phase 1b): replace the per-evaluation REMOVE_LARGEST fau
   B held across all phases) with C_robust(x) = min_{|B|<=f} C(x;B) by exact enumeration for
   small f (softmin for training smoothness, hard min for eval). Retire the Stage-2.8
   forbidden-code gate as fault_set_robustness.py forces it.
+
+================================================================================
+PHASE 1b (2026-06-22): fixed Byzantine fault-set robustness -- the correct C_robust.
+================================================================================
+HYPOTHESIS (one variable): the production fault model remove_largest_probabilities strips
+  the f highest-delivery senders INDEPENDENTLY at every receiver AND every phase -- not a
+  single coherent adversary (Spec 4.7 forbids this). Implement the principled
+  C_robust(x) = min_{|B|<=f} C(x;B) where a single fault set B is held across all phases:
+  a faulty node never delivers a valid vote, and (deferred view-change) a faulty primary's
+  view makes no progress (contributes 0 to the uniform-over-n-primaries average).
+CONTROLLED VARIABLES: the heterogeneous quorum-tail DP, the safe PBFTQuorumSpec (Phase 1a),
+  the 3-phase cascade structure, actor/reward/decoder -- unchanged. New module is additive.
+
+IMPLEMENTATION (failing-test-first):
+  - tests/unit/test_fault_set_robustness.py (8 tests, written first): enumeration count
+    C(n,f); budget guard fails loud at C(24,7); f=0 parity vs the existing no-filter
+    cascade; single-B held across all phases; monotone non-increasing in B; robust == min
+    over all B; softmin is a strict lower bound approaching the hard min as beta grows; and
+    remove-largest != fixed-B (the bug -- two genuinely different models).
+  - src/marl_topology/protocol/fault_set_robustness.py: enumerate_fault_sets,
+    consensus_given_fault_set (honest sub-committee cascade reusing heterogeneous_quorum_tail,
+    quorum thresholds from the committee-level safe spec), robust_consensus_reliability
+    (exact enumeration; reduction = hard_min for eval / softmin for training; logsumexp-
+    stabilized; max_enumeration budget guard -> raises, never silently approximates).
+  - Named to pass the Stage-2.8 forbidden-protocol-code gate WITHOUT a whitelist edit
+    (capital "Byzantine" only, no "class PBFT"/"view_change") -- cleaner than Phase 1a's
+    whitelist; that gate is still slated for retirement when pbft_message_plan.py (Phase 4)
+    needs "view_change".
+
+MECHANISM ACTIVATION EVIDENCE: f=0 parity matches the validated cascade exactly (0.83
+  all-complete n=8); robust(n=8,f=2) == min over all 28 fault sets; softmin(beta=20) <
+  hard_min < softmin(beta=300)->hard_min; remove_largest != fixed-B on an asymmetric
+  committee. Budget guard raises at C(24,7)=346104.
+
+KEY DESIGN NOTE (carried to wiring): exact enumeration is C(n,f) fault sets -- cheap for
+  small f (n=8,f=2 -> 28) but INFEASIBLE for the trunk's large-N regime (n=24,f=7 -> 346104
+  x 24 primaries). So this primitive is the correct REFERENCE/eval-time quantity; the
+  production training path needs a cost-managed worst-case (greedy fixed-B, or enumeration
+  budget + documented fallback). NOT wired into the production evaluator this iteration ->
+  the reward signal is byte-unchanged; the module is exercised only by its unit tests.
+
+COST: 0 evaluator-model runs; pure protocol-math + tests. Unit suite 428 passed / 2 failed
+  (the pre-existing stage5_10/stage6_0 manifest gates -- now red because result_save/
+  LOOP_EXPERIMENTS_REPORT.md is committed; unrelated to this change). smoke exit 0.
+
+DECISION: KEEP (the correct primitive lands, tested + parity-verified). REVISE-NEXT: the
+  production wiring is a distinct hypothesis (cost-managed fixed-B replacing remove_largest
+  in the evaluator), because exact enumeration cannot run inline at N=24.
+NEXT SINGLE HYPOTHESIS (Phase 1b-wire): replace remove_largest in evaluate_expected_initiator
+  with the fixed-B robust reliability, using exact enumeration when C(n,f) <= budget and a
+  greedy worst-case fixed-B (add to B the node whose removal most lowers C, f steps) above
+  it; runtime activation assertion that the SAME B is used in all phases; measure the
+  reliability delta on held N (protocol-incompatible; old remove-largest numbers retired).
+  Then Phase 1c: Torch differentiable quorum-tail (reference-DP parity + gradcheck).

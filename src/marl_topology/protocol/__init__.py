@@ -32,6 +32,18 @@ from .pbft_reliability import (
     evaluate_pbft_given_primary,
     evaluate_pbft_three_phase_reliability,
 )
+from .fault_set_robustness import (
+    DEFAULT_MAX_ENUMERATION,
+    DEFAULT_SOFTMIN_BETA,
+    FAULT_SET_ROBUSTNESS_MODEL_ID,
+    REDUCTION_HARD_MIN,
+    REDUCTION_SOFTMIN,
+    REDUCTIONS,
+    FaultSetRobustnessResult,
+    consensus_given_fault_set,
+    enumerate_fault_sets,
+    robust_consensus_reliability,
+)
 from .quorum_spec import (
     QUORUM_MODES,
     QUORUM_MODE_CLASSIC,
@@ -58,6 +70,16 @@ from .stdma_scheduler import (
 __all__ = [
     "ConsensusConfig",
     "ConsensusResult",
+    "DEFAULT_MAX_ENUMERATION",
+    "DEFAULT_SOFTMIN_BETA",
+    "FAULT_SET_ROBUSTNESS_MODEL_ID",
+    "FaultSetRobustnessResult",
+    "REDUCTION_HARD_MIN",
+    "REDUCTION_SOFTMIN",
+    "REDUCTIONS",
+    "consensus_given_fault_set",
+    "enumerate_fault_sets",
+    "robust_consensus_reliability",
     "FAULT_FILTER_MODES",
     "FAULT_FILTER_NONE",
     "FAULT_FILTER_REMOVE_LARGEST",
