@@ -2089,3 +2089,80 @@ MOTIVATION: the 2026-06-21 evidence review (docs/REVIEW_2026-06-21_EVIDENCE_PASS
   no Kernel-Power events + clean logs + free RAM); the runs were completed by a user-launched detached .bat
   (result_save/_multiseed_n24.bat, skip-if-done + ckpt-resume). ckpt+resume made the deaths cost <=10 updates each.
 
+--------------------------------------------------------------------------------
+ITERATION 17 (2026-06-21): INNOVATION A -- per-node consensus-decomposition reward. IMPLEMENTED + I6-tested.
+--------------------------------------------------------------------------------
+HYPOTHESIS (one variable): replace the single per-scene scalar potential (c - tau), shared across ALL of a
+  scene's edge log-probs, with a PER-NODE potential phi_j = per_primary[j] - tau (validator j's closed-form
+  consensus reliability as initiator), crediting each edge (u,v) by adv_u + adv_v. Sharper credit assignment
+  (attacks lazy-node collapse + the val-noise the multi-seed flagged) WITHOUT a critic and WITHOUT a local
+  proxy. No paper in the 40-set decomposes a closed-form Poisson-binomial consensus tail per-agent (closest:
+  Zhang&Guo neighbourhood-SUM LOCAL reward) -> the project's novel credit-assignment mechanism.
+IMPLEMENTATION (scripts/train/train_decentralized_rl.py, opt-in --reward-mode dense-pernode):
+  - gauss_perturb_sample_peredge returns the per-edge logp vector [E]; _evaluate_pernode returns
+    (c, per_primary dict, energy) from the SAME closed-form evaluation (no evaluator surgery).
+  - per-node RLOO leave-one-out advantage over the K samples -> per-edge adv = adv_u + adv_v; per-sample
+    loss = sum_e adv_e * logp_e, averaged over samples (scale-matched to the scalar path so the A/B isolates
+    ONLY the per-node-credit variable). beta=0; budget feasible-by-construction.
+  - INVARIANT #6 PRESERVED: the global closed-form c is unchanged and still drives the constraint + held
+    eval; per_primary are READ from the one evaluation. Exact: sum_j weights[j]*phi_j == c - tau (uniform).
+VERIFICATION: smoke (--smoke dense-pernode) exit 0 and LEARNS off random init (3-update held raw 0.000 ->
+  RLfin 0.375 / cond 0.6); new tests/unit/test_pernode_consensus_decomposition.py (4 passed) pins the exact
+  reconstruction to 1e-12 -- the D2 I6-conservation gate.
+NEXT: A/B vs the dense scalar baseline on the SAME 4 (seed,split) pairs (0/7, 1/11, 2/17, 3/23); compare
+  keep-best margin-over-ceiling mean+-CI95 vs dense's +0.173 [+0.067,+0.279]. Go/no-go single-seed probe first
+  (rollback if it collapses; proceed to the full 4-seed A/B if it learns comparably/better).
+
+  RESULT: v1 (per-node potential phi_j + per-node RLOO) had a BUG -- per_primary was read from .metrics
+  where it is ABSENT (it is a TOP-LEVEL attr on the eval result, on BOTH evaluators) -> all per-node advs
+  zero -> FROZEN at N=24 (feas 0.000 for 150 upd; the small-N smoke only "moved" via a stray entropy term).
+  Fixed the accessor. v1-fixed UNFROZE but UNDER-LEARNED: the per-node RLOO DILUTES the coherent global
+  signal into tiny, partially-cancelling per-node advantages (feas ~0.05 / VAL 0.05 @ upd80 vs dense
+  VAL 0.70). -> v1.1: keep the COHERENT global RLOO advantage A_k, only MODULATE each edge by a per-node
+  bottleneck weight w_j (deficit tau - per_primary[j], mean-1 normalised, floor 0.5). v1.1 competitive
+  (upd-80 RLfin 0.769 == dense's 150-upd keep-best). FULL 4-seed A/B (150 upd, SAME seed/split pairs):
+    DENSE    keep-best margin: mean +0.173  sd 0.067  CI95 [+0.067, +0.279]  4/4>0
+    PN v1.1  keep-best margin: mean +0.192  sd 0.113  CI95 [+0.012, +0.372]  4/4>0
+    PAIRED delta (v1.1 - dense): mean +0.019  CI95 [-0.060, +0.098]  -> NO SIGNIFICANT DIFFERENCE.
+  VERDICT: NULL. Per-node credit does NOT beat the dense scalar (paired +0.019 indistinguishable from 0)
+  AND v1.1 has HIGHER variance (sd 0.113 vs 0.067 -> WIDER CI), the OPPOSITE of the stabilise-the-result
+  hypothesis. The dense scalar's coherent global advantage already captures the per-scene consensus signal;
+  decomposing it per-node is redundant here (the global PBFT quorum tail lacks strong per-node credit
+  structure that the global signal misses). ROLLBACK: dense-pernode mode + helpers + the I6 test reverted
+  (git checkout HEAD -- train_decentralized_rl.py; rm the test); trunk default unchanged, tests green.
+  POSITIONING UPDATE (honest): the project's defensible novelty is the closed-form consensus REWARD (C1) +
+  the feasibility decoder/explorer (C6/C3) + the oracle-beating cold-start RESULT (C5) -- NOT a per-agent
+  credit-assignment METHOD. Next: INNOVATION C (energy/Pareto, the DoD low-energy dimension) is reprioritised
+  ABOVE INNOVATION B (live consensus dual = mostly rigor) since A showed credit/optimisation tweaks add
+  nothing over the strong dense baseline, whereas energy opens a NEW deliverable dimension.
+
+--------------------------------------------------------------------------------
+ITERATION 18-19 (2026-06-22): ENERGY / RELIABILITY-ENERGY PARETO (DoD low-energy). Tradeoff mapped, no free lunch.
+--------------------------------------------------------------------------------
+HYPOTHESIS: the dense reward already has a feasible-gated energy term (beta*er); sweep beta at N=24 (seed0/
+  split7) to trace the reliability-energy Pareto front (DoD low-energy target). Then test margin-gated energy
+  (shed only when c >= tau + delta) to seek a FREE energy win (remove redundant edges without feasibility loss).
+RESULT (keep-best deployed policy; energy = mean over feasible held topologies; baseline beta=0: margin +0.192,
+  cond 0.933, E 0.754 J, 29.2 edges):
+    beta=0.1            : margin +0.231  cond 0.933  E 0.759 (+0.6%)  -- energy term TOO WEAK to bite.
+    beta=0.3 (ungated)  : margin +0.038  cond 0.800  E 0.651 (-13.8%) -- real energy win, STEEP feasibility cost
+                          (final-update policy collapsed to 0; keep-best caught an earlier ckpt).
+    beta=0.3 margin=.05 : margin +0.154  cond 0.933  E 0.890 (+18%)   -- feasibility RECOVERED but energy term
+                          almost never fires (at N=24 feasible scenes sit at the boundary c~=tau, so c>=0.95 is
+                          rare) -> NO energy reduction. Margin-gating is an informative NULL here.
+VERDICT: reliability and energy are FUNDAMENTALLY COUPLED (energy ~ link count/power ~ consensus). The policy
+  traces a genuine Pareto front; the two deployable operating points are beta=0 (high-reliability, +0.192/0.754J)
+  and beta=0.3 (low-energy, -14% E, +0.038 margin). There is NO free-lunch low-energy point at N=24 (boundary-
+  feasible regime). This IS a valid DoD low-energy result (the decentralized policy CAN trade reliability for
+  energy on demand), just not a breakthrough. ROLLBACK the --energy-margin knob (null); the Pareto front is
+  reproducible with the existing --beta. Pareto front uses single seed (seed0) -- multi-seed CIs per beta are
+  the polish step if a publication-grade frontier figure is wanted.
+
+LOOP CHECKPOINT (2026-06-22, after iters 17-19): the autonomous /loop deployed the two highest-value NEXT_LOOP
+  innovations. INNOVATION A (per-node credit) = NULL. INNOVATION C (energy/Pareto) = fundamental tradeoff mapped.
+  Net finding: the strong dense beta=0 trunk (oracle-beating N=24, 4-seed CI [+0.067,+0.279]) is the headline and
+  is NOT beaten by credit-assignment or energy tweaks. Remaining (all incremental polish, diminishing returns):
+  INNOVATION B (live consensus dual = rigor/citability, low metric impact), full multi-seed energy Pareto,
+  omega-conditioned single-network Pareto, multi-config domain-randomisation breadth (#4). Paused for owner
+  direction on whether that polish is worth the compute vs consolidating for the paper.
+
