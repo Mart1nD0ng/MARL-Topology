@@ -2769,3 +2769,28 @@ REMAINING (heavy, owner-gated compute -- approved under "Recalibrate + activate"
     the oracle-beating margin under the corrected environment math.
 The reliability/relay/latency core being correct + feasibility-preserving means the rebuild is
 now mechanical (no calibration uncertainty). Watch fixed_set O(n^4) (~2x).
+
+================================================================================
+RECALIBRATION step 2d-PILOT (2026-06-22): corrected pipeline VALIDATED end-to-end.
+================================================================================
+HYPOTHESIS: does the fully-corrected env-math (safe quorum + fixed_set + one_hop_relay relay3
+  + timeout latency) BUILD a healthy dataset AND TRAIN a working decentralized policy? (Validate
+  the pipeline before committing the heavy full N=24 multi-seed campaign.)
+PILOT (small, NOT a headline -- #16): build 1 corrected operating-point shard (N=8, 4 RSU,
+  20 dBm, urban, v2x_37885, scheduled_mac, fixed_set + one_hop_relay + timeout latency), 16
+  scenes; then cold-start dense-reward train 40 updates.
+  - BUILD: 16 scenes in 314s (~20 s/scene under the corrected urban operating point), teacher-
+    feasible 11/16 = 0.69 -> a HEALTHY feasible mix, matching the legacy ~0.66-0.69.
+  - TRAIN (cold-start, dense, beta=0): feasibility 0.031 -> 1.000 over 40 updates; train R
+    -0.460 -> +0.100; consensus-violation g_c 0.463 -> 0.000; VAL raw 0.750 stable.
+  - HELD: RL raw 0.571, conditional 1.0 (every solvable held scene reaches tau), from BC=0.
+RESULT: the corrected environment math BUILDS a healthy dataset and TRAINS a feasible policy
+  end-to-end -- the recalibration is mechanically VALIDATED. The dense reward + Lagrangian dual
+  drive consensus to tau under the corrected (safe-quorum + fixed-Byzantine-set) reliability.
+COST: ~20 s/scene build (urban + scheduled_mac + fixed_set 2x); 28 s for 40 train updates.
+  Extrapolated full build: in-range N in {8,12,16} ~tens of min (4 shards parallel); the
+  out-of-range HELD N=24 build is the heavy tail (the SA family-binning x fixed_set O(n^3+)
+  cost grows fast -- the prior loop already flagged N=24 builds as heavy/owner-gated).
+DECISION: KEEP (pipeline validated). The recalibration's contained work is DONE and proven.
+  NEXT is the heavy deliverable: full corrected dataset rebuild + multi-seed N=24 held-out
+  headline -- presented to the owner for go/no-go before committing the multi-hour compute.
