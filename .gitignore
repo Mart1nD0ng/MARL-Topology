@@ -21,6 +21,7 @@ logs/
 harness/reports/*.json
 result_save/*
 !result_save/.gitkeep
+!result_save/*.md
 
 # Local editor and OS files
 .idea/
