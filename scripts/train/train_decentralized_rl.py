@@ -123,7 +123,8 @@ def _ref_energy(sample):
     return max(e, 1e-9)
 
 
-def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier"):
+def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier",
+              live_consensus_dual=False):
     """ONE constrained objective. Returns (reward, consensus_violation, budget_violation, feasible).
 
     barrier (binary): feasible -> 1 - beta*E/E_ref; infeasible -> -lam_c*g_c - lam_b*g_b. Gives NO
@@ -147,6 +148,12 @@ def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier"
     er = min(energy / e_ref, 2.0)
     if reward_mode == "dense":
         r = (c - TAU) - lam_b * g_b - (beta * er if feasible else 0.0)   # potential-based, dense in c
+        if live_consensus_dual and c < TAU:
+            # INNOVATION B (MACPO dense/sparse split): a SPARSE binary consensus-violation cost makes the
+            # consensus dual lam_c LIVE (in plain dense it is computed+ascended but never enters the reward).
+            # ONE potential (c-tau) + TWO distinct Lagrangian duals (lam_c on consensus, lam_b on budget) --
+            # still INVARIANT #5 (not a weighted bag). Critic-free; lam_c is dual ascent, not a tuned weight.
+            r = r - lam_c
     elif feasible:
         r = 1.0 - beta * er                      # barrier: in [1-2*beta, 1]  (>= 0.8 for beta<=0.1)
     else:
@@ -268,6 +275,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--updates", type=int, default=40)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--beta", type=float, default=0.1, help="energy-minimization weight (feasible set)")
+    p.add_argument("--live-consensus-dual", action="store_true",
+                   help="INNOVATION B: add a sparse binary consensus-violation cost (-lam_c on infeasible) so "
+                        "the consensus dual is LIVE in dense mode (else lam_c is computed but inert)")
     p.add_argument("--reward-mode", choices=["barrier", "dense"], default="barrier",
                    help="dense = potential-based shaping r=(c-tau) (gradient on every sample, even "
                         "infeasible) -- needed when the binary barrier is signal-starved on a sharp policy")
@@ -400,7 +410,8 @@ def main() -> None:
                     action = dist.sample()
                     logp = dist.log_prob(action).sum()
                     topo = [eid for j, eid in enumerate(s["edge_ids"]) if action[j] > 0.5]
-                r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode)
+                r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
+                                            args.live_consensus_dual)
                 s_logps.append(logp); s_rs.append(r); s_gc.append(g_c); s_gb.append(g_b); s_ok.append(ok)
             if K > 1:
                 tot = sum(s_rs)
