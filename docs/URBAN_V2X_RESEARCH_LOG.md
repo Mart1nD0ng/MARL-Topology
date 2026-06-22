@@ -2523,3 +2523,42 @@ STRATEGIC CONVERGENCE (the key environment-math finding): the corrected environm
 NEXT: Phase 3 (tri-state solvability: witness_feasible / certified_infeasible / unknown;
   a finite-search MISS must be `unknown`, never `certified_infeasible`; train-only witness
   memory; strictly-optimistic upper bound) -- another verified primitive toward the recalibration.
+
+================================================================================
+PHASE 3 (2026-06-22): tri-state solvability primitive -- KEEP (opt-in, inert).
+================================================================================
+HYPOTHESIS (one variable): the binary feasible_exists label conflates "finite-search miss"
+  with "infeasible". stage31_scenario_generator.best_feasible_topology sets feasible_exists=
+  False (line ~575) whenever no candidate in the fixed pool reaches tau -- but an unsearched
+  feasible topology may still exist (hard-constraint #11). Replace with a tri-state where a
+  miss is `unknown`, never `certified_infeasible`.
+CONTROLLED VARIABLES: the scenario generator, evaluator, trunk -- unchanged. New
+  src/marl_topology/solvability/ package is additive; production feasible_exists untouched.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_solvability.py, 11 tests):
+  - solvability/status.py: SolvabilityVerdict + classify_solvability(lower_bound, tau,
+    upper_bound=None) -> witness_feasible iff LB>=tau; certified_infeasible iff a PROVEN
+    upper_bound<tau; else unknown. solvability_from_finite_search(best_witness, tau) hard-codes
+    upper_bound=None, so a finite search yields only W or U -- NEVER I (#11). Validates LB<=UB.
+  - solvability/witness_memory.py: Witness(topology, reliability, energy, latency) + per-split
+    WitnessMemory (monotone best-per-scene = the lower bound). merge_from enforces S5.3
+    isolation: a `train` memory refuses to absorb `val`/`test` witnesses (held discoveries
+    never feed training) -- a runtime activation assertion (#17).
+
+MECHANISM ACTIVATION EVIDENCE: finite-search miss -> UNKNOWN (not infeasible); proven UB<tau ->
+  CERTIFIED_INFEASIBLE; LB>tau but UB<tau (invalid) raises; train.merge_from(test) raises.
+  legacy feasible_exists=False maps to UNKNOWN.
+
+KNOWN REMAINING (deferred to recalibration): the PROVEN optimistic upper bound (S5.2 -- a
+  proven relaxation, e.g. full candidate graph at interference-free per-link delivery through
+  the same PBFT pipeline) is interfaced (upper_bound arg) but not yet computed in production;
+  without it every non-witnessed scene is `unknown` (the safe #11 default). Wiring the
+  scenario generator from binary feasible_exists -> tri-state + the witness memory into
+  training (train-only) is part of the batched scenario recalibration (it relabels scenes).
+
+DECISION: KEEP (correct tri-state primitive + split-isolated witness memory; verified, opt-in,
+  production-inert). Suite 289 fail / 549 pass / 1 xfail (zero new failures); smoke 0.
+NEXT: Phase 4 (PBFT accounting + non-degenerate latency, Spec S4.8-4.10): phase-specific
+  message plan (pre-prepare/prepare/commit distinct message sets), validator/client split
+  (clients relay only, no vote), quorum-completion timeout-aware latency (failed topologies pay
+  timeout, not 0), expected/P50/P95/CVaR. Another verified+opt-in primitive toward recalibration.

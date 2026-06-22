@@ -256,3 +256,12 @@ default-mode bug). Remaining: latency-aware relay (deadline propagation). Suite 
 > the scenario dataset + re-tune the τ-gradient under the corrected math) — that is the real
 > P0–P4 exit gate. Recommendation: land the Phase 3/4 primitives, then run **one** batched
 > recalibration that flips all corrected-environment flags together, rather than piecemeal.
+
+**Phase-3 update — tri-state solvability (opt-in).** Confirmed the binary `feasible_exists`
+conflates a *finite-search miss* with *infeasible* (stage31 sets it `False` when no candidate
+reaches τ — violates #11). New `src/marl_topology/solvability/` package:
+`classify_solvability` (witness_feasible iff LB≥τ; certified_infeasible iff a **proven** UB<τ;
+else unknown) + `solvability_from_finite_search` (a finite search yields only W or U, never I)
++ split-isolated `WitnessMemory` (`merge_from` refuses test→train, S5.3). 11 tests. Production
+`feasible_exists` untouched; the relabel + the proven optimistic UB (S5.2) are part of the
+batched recalibration. Suite 289 fail / **549 pass** / 1 xfail, zero new failures.
