@@ -2394,3 +2394,45 @@ NEXT SINGLE HYPOTHESIS (Phase 1b-wire): replace remove_largest in evaluate_expec
   it; runtime activation assertion that the SAME B is used in all phases; measure the
   reliability delta on held N (protocol-incompatible; old remove-largest numbers retired).
   Then Phase 1c: Torch differentiable quorum-tail (reference-DP parity + gradcheck).
+
+================================================================================
+PHASE 1b-wire (2026-06-22): REVISE -- naive fixed-B wiring blocked by two findings.
+================================================================================
+HYPOTHESIS: wire fault_set_robustness (fixed-B) into the production evaluator
+  (stage21 + vectorized) replacing REMOVE_LARGEST. ATTEMPTED, then REVERTED on evidence.
+
+FINDING 1 (modeling bug, FIXED): the Phase-1b primitive ZEROED faulty primaries (treating
+  a Byzantine primary as a permanent round failure). That caps C_robust <= (n-f)/n -- at
+  n=8,f=1 the max is 0.875 < tau=0.9, so tau becomes UNREACHABLE regardless of link quality.
+  Wiring it turned 10 scenario/feasibility tests red (procedural_generator tau-reachable,
+  non-saturation; stage22 teacher feasibility; stage31 dataset feasible/infeasible split).
+  ROOT CAUSE: zeroing contradicts the project's established deferred-view-change semantics
+  (the existing cascade averages over all primaries and never zeroes -- a faulty primary is
+  replaced by an honest one). FIX: average C_p(B) over the n-|B| HONEST initiators only
+  (renormalized), faulty nodes report 0 in the per-primary diagnostic. Verified: n=8,f=1
+  perfect links -> C_robust=1.0 (was capped 0.875); tau reachable again. The primitive
+  (committed 36d927d) is CORRECTED in this commit; f=0 parity vs the existing cascade holds.
+
+FINDING 2 (cost, DEFERRED): the fixed-B wiring is O(n^4) -- for each of the n fault sets
+  (f=1) it reruns the per-primary cascade. The full unit suite went 60s -> 681s (11x),
+  dominated by the dataset-generation / teacher tests that do thousands of evaluations.
+  (End-to-end the trunk smoke was only 8s->14s, ~1.75x, since reliability is a minority of
+  per-eval cost -- but the dataset/teacher build cost is prohibitive.) Wiring also shifts the
+  reliability numbers (protocol-incompatible), which requires RE-CALIBRATING the scenario
+  generator's tau-gradient (stage31) against the corrected reliability so feasible scenes
+  still exist. Both are real, separable work.
+
+DECISION: REVISE. Production wiring REVERTED (stage21 + vectorized back to REMOVE_LARGEST,
+  byte-identical via git checkout); reward signal unchanged. KEPT + corrected: the
+  fault_set_robustness primitive now has (a) the honest-primary model, (b) per_primary
+  output, (c) a greedy worst-case fallback for large f, (d) strategy=exact/greedy/auto with
+  activation metadata (worst_case_fault_set, fault_set_count, enumeration_exact). 12 unit
+  tests pass; full suite 289 fail / 524 pass (zero new failures); smoke 0.
+
+NEXT SINGLE HYPOTHESIS (Phase 1b-wire-v2): make the fixed-B reliability affordable enough to
+  wire, then RE-CALIBRATE the scenario generator. Options to evaluate (one variable): (i)
+  cache/memoize the honest cascade across fault sets; (ii) use fixed-B only at EVAL (held
+  metrics) while training keeps a cheaper consistent surrogate -- but Spec D3 wants one
+  reliability definition, so prefer (i)/(iii); (iii) a cheaper exact f=1 identity. Then
+  re-tune the stage31 tau-gradient so witness-feasible scenes remain plentiful under the
+  corrected (lower) reliability. Only after that is the REMOVE_LARGEST -> fixed-B swap landed.

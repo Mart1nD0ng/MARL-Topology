@@ -217,3 +217,13 @@ production evaluator — exact enumeration is infeasible at the trunk's N=24,f=7
 so the wiring iteration must add a cost-managed worst-case (greedy fixed-`B` above a
 budget). Until then `REMOVE_LARGEST` remains the production fault model and the reward
 signal is unchanged. Suite 289 fail / 520 pass; zero new failures.
+
+**Phase-1b-wire update (REVISE):** a wiring attempt was reverted on evidence. (1) A
+modeling bug was found and **fixed**: the primitive zeroed faulty *primaries*, capping
+`C_robust ≤ (n−f)/n` (< τ at small n → τ unreachable, which broke 10 scenario/feasibility
+tests); corrected to average over the honest initiators only (deferred view-change),
+verified perfect-links → 1.0. (2) The wiring is O(n⁴) (11× unit-suite cost even at f=1)
+and shifts reliability enough to require re-calibrating the stage31 scenario τ-gradient —
+both **deferred** to Phase 1b-wire-v2. Production still uses `REMOVE_LARGEST`; the
+corrected primitive now has a greedy fallback + strategy metadata. Suite 289 fail / **524
+pass**, zero new failures.

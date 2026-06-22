@@ -22,6 +22,9 @@ from marl_topology.protocol import (
 from marl_topology.protocol.quorum_spec import PBFTQuorumSpec
 
 
+NODES24 = tuple(f"n{i}" for i in range(24))
+
+
 NODES8 = tuple(f"n{i}" for i in range(8))
 
 
@@ -85,12 +88,9 @@ def test_consensus_given_fault_set_excludes_B_in_every_phase() -> None:
         NODES8, fault_set, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m,
         quorum=spec.quorum, external_quorum=spec.external_quorum,
     )
-    # a faulty node is never a successful primary and never votes; with n0,n1 faulty
-    # the honest committee is the other 6, so 0 <= c <= 1 and the faulty primaries
-    # contribute exactly zero (uniform over all 8 primaries).
+    # a faulty node never votes and is not a successful initiator; with n0,n1 faulty the
+    # honest committee is the other 6, and c is the mean over those 6 honest initiators.
     assert 0.0 <= c <= 1.0
-    # symmetric all-0.9: each honest primary identical; faulty primaries contribute 0,
-    # so c == (6/8) * c_single_honest_primary.
     honest_only = consensus_given_fault_set(
         NODES8, fault_set, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m,
         quorum=spec.quorum, external_quorum=spec.external_quorum,
@@ -184,3 +184,62 @@ def test_remove_largest_differs_from_fixed_set_robustness() -> None:
     assert 0.0 <= remove_largest <= 1.0
     assert 0.0 <= fixed <= 1.0
     assert remove_largest != pytest.approx(fixed)
+
+
+# --- per-primary contributions are reported and average to C_robust (Phase 1b-wire) ---
+
+def test_per_primary_reliability_averages_to_consensus() -> None:
+    m = _complete_matrix(0.9, NODES8)
+    res = robust_consensus_reliability(
+        NODES8, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m, fault_tolerance=2,
+    )
+    pp = res.per_primary_reliability
+    assert set(pp) == set(NODES8)
+    for node in res.worst_case_fault_set:  # faulty nodes are not successful initiators
+        assert pp[node] == 0.0
+    # the scalar is the mean over the HONEST initiators (deferred view-change), not all n.
+    honest = [pp[p] for p in NODES8 if p not in res.worst_case_fault_set]
+    assert sum(honest) / len(honest) == pytest.approx(res.consensus_success_probability)
+
+
+# --- greedy fallback for large f; equals exact at f = 1 ---
+
+def test_greedy_equals_exact_at_f1() -> None:
+    m = _complete_matrix(0.85, NODES8)
+    for r in NODES8:           # asymmetric so the worst single node is well-defined
+        if r != "n3":
+            m[("n3", r)] = 0.3
+    exact = robust_consensus_reliability(
+        NODES8, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m,
+        fault_tolerance=1, strategy="exact",
+    )
+    greedy = robust_consensus_reliability(
+        NODES8, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m,
+        fault_tolerance=1, strategy="greedy",
+    )
+    assert greedy.consensus_success_probability == pytest.approx(exact.consensus_success_probability)
+    assert greedy.worst_case_fault_set == exact.worst_case_fault_set
+
+
+def test_auto_strategy_falls_back_to_greedy_above_budget() -> None:
+    # n=24, f=7: C(24,7)=346104 >> budget -> auto must NOT raise; it uses greedy (O(f*n) evals).
+    m = _complete_matrix(0.95, NODES24)
+    res = robust_consensus_reliability(
+        NODES24, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m,
+        fault_tolerance=7, strategy="auto", max_enumeration=10000,
+    )
+    assert res.strategy == "greedy"
+    assert res.enumeration_exact is False
+    assert len(res.worst_case_fault_set) == 7
+    assert 0.0 <= res.consensus_success_probability <= 1.0
+
+
+def test_exact_strategy_records_activation_metadata() -> None:
+    m = _complete_matrix(0.9, NODES8)
+    res = robust_consensus_reliability(
+        NODES8, pre_prepare_matrix=m, prepare_matrix=m, commit_matrix=m,
+        fault_tolerance=2, strategy="auto",
+    )
+    assert res.strategy == "exact"
+    assert res.enumeration_exact is True
+    assert res.fault_set_count == 28
