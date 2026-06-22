@@ -32,6 +32,13 @@ from .pbft_reliability import (
     evaluate_pbft_given_primary,
     evaluate_pbft_three_phase_reliability,
 )
+from .quorum_spec import (
+    QUORUM_MODES,
+    QUORUM_MODE_CLASSIC,
+    QUORUM_MODE_SAFE,
+    PBFTQuorumSpec,
+    safe_quorum_size,
+)
 from .quorum_tail import (
     QUORUM_TAIL_EVALUATOR_ID,
     QuorumTailResult,
@@ -68,8 +75,13 @@ __all__ = [
     "PBFTThreePhaseConfig",
     "PBFTThreePhaseReliabilityRecord",
     "PRIMARY_DISTRIBUTION_UNIFORM",
+    "PBFTQuorumSpec",
+    "QUORUM_MODES",
+    "QUORUM_MODE_CLASSIC",
+    "QUORUM_MODE_SAFE",
     "QUORUM_TAIL_EVALUATOR_ID",
     "QuorumTailResult",
+    "safe_quorum_size",
     "STDMA_SCHEDULER_ID",
     "StdmaSchedule",
     "StdmaScheduleConfig",

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Mapping
 
+from .quorum_spec import QUORUM_MODE_SAFE, PBFTQuorumSpec
 from .quorum_tail import heterogeneous_quorum_tail, remove_largest_probabilities
 
 
@@ -28,6 +29,7 @@ class PBFTThreePhaseConfig:
     fault_tolerance: int
     fault_filter_mode: str = FAULT_FILTER_REMOVE_LARGEST
     protocol_variant: str = PBFT_RELIABILITY_VARIANT_ID
+    quorum_mode: str = QUORUM_MODE_SAFE
 
     def __post_init__(self) -> None:
         if not self.protocol_variant:
@@ -53,18 +55,28 @@ class PBFTThreePhaseConfig:
             raise ValueError("PBFT requires n >= 3f + 1")
         if self.fault_filter_mode not in FAULT_FILTER_MODES:
             raise ValueError("fault_filter_mode is not supported")
+        # Validate quorum-intersection safety + liveness for this committee.
+        self.quorum_spec
 
     @property
     def node_count(self) -> int:
         return len(self.node_ids)
 
     @property
+    def quorum_spec(self) -> PBFTQuorumSpec:
+        return PBFTQuorumSpec(
+            node_count=len(self.node_ids),
+            fault_tolerance=self.fault_tolerance,
+            mode=self.quorum_mode,
+        )
+
+    @property
     def total_quorum(self) -> int:
-        return 2 * self.fault_tolerance + 1
+        return self.quorum_spec.quorum
 
     @property
     def external_quorum(self) -> int:
-        return 2 * self.fault_tolerance
+        return self.quorum_spec.external_quorum
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +89,7 @@ class PBFTExpectedInitiatorConfig:
     model_id: str = PBFT_EXPECTED_INITIATOR_MODEL_ID
     mean_field_assumption: bool = True
     view_change_mode: str = VIEW_CHANGE_DEFERRED
+    quorum_mode: str = QUORUM_MODE_SAFE
 
     def __post_init__(self) -> None:
         if self.model_id != PBFT_EXPECTED_INITIATOR_MODEL_ID:
@@ -106,10 +119,20 @@ class PBFTExpectedInitiatorConfig:
             raise ValueError("Stage 4.4 requires mean_field_assumption=true")
         if self.view_change_mode not in {VIEW_CHANGE_DEFERRED, VIEW_CHANGE_NONE}:
             raise ValueError("view_change_mode must be deferred or none")
+        # Validate quorum-intersection safety + liveness for this committee.
+        self.quorum_spec
 
     @property
     def node_count(self) -> int:
         return len(self.node_ids)
+
+    @property
+    def quorum_spec(self) -> PBFTQuorumSpec:
+        return PBFTQuorumSpec(
+            node_count=len(self.node_ids),
+            fault_tolerance=self.fault_tolerance,
+            mode=self.quorum_mode,
+        )
 
     @property
     def distribution_weights(self) -> dict[str, float]:
@@ -280,6 +303,7 @@ def evaluate_pbft_given_primary(
         primary_id=primary_id,
         fault_tolerance=config.fault_tolerance,
         fault_filter_mode=config.fault_filter_mode,
+        quorum_mode=config.quorum_mode,
     )
     return evaluate_pbft_three_phase_reliability(
         primary_config,

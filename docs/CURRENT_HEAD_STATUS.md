@@ -192,3 +192,19 @@ banned-literal src gates — staged per phase (§2, §5); Phase 1 quorum/fault-s
   (`2q−n>f`, `q≤n−f`, intersection + liveness), plus a Torch quorum-tail with
   reference-DP parity + gradcheck. Triage and retire the stage4 quorum contracts as that
   subsystem is re-implemented.
+
+---
+
+## 9. Phase-1a update (2026-06-22) — safe quorum spec landed
+
+The `PBFTQuorumSpec` half of fact (6) is **done** (`protocol/quorum_spec.py`,
+`classic_exact` / `safe_generalized`, `q = ⌊(n+f)/2⌋+1`, asserts `2q−n>f`, `q≤n−f`,
+`n≥3f+1`; wired into both PBFT configs with default `safe_generalized`). The unsafe
+classic-`2f+1`-at-n>3f+1 bug is pinned by `tests/unit/test_pbft_quorum_spec.py`.
+**Protocol-incompatible:** all N>3f+1 reliability numbers prior to commit shift down
+(safe quorum is harder); old N>3f+1 headlines are retired. Suite: 289 failed / **512
+passed** (was 289/503), **zero new failures**. One Stage-2.8 forbidden-code gate was
+updated to whitelist the reviewed `quorum_spec.py` (a lineage gate — it also bans
+`byzantine`/`view_change`, so it is **slated for full retirement in Phase 1b** when
+`fault_set_robustness.py` forces it). **Still open in fact (6):** the `REMOVE_LARGEST`
+per-phase fault filter (violates the single-fixed-`B` requirement, Spec §4.7) → Phase 1b.

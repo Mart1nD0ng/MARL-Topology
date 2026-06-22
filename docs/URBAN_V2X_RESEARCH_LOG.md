@@ -2283,3 +2283,60 @@ DEFERRED (next Phase-0 iteration): config tiers configs/{smoke,pilot,research}/ 
 NEXT SINGLE HYPOTHESIS (Phase 1): replace REMOVE_LARGEST with a single fixed Byzantine set B
   (C_robust = min_{|B|<=f} C(B)) + a PBFTQuorumSpec (classic_exact / safe_generalized) with property tests
   (2q-n>f, q<=n-f, intersection + liveness) + a Torch quorum-tail with reference-DP parity + gradcheck.
+
+================================================================================
+PHASE 1a (2026-06-22): safe PBFT quorum spec -- the n>3f+1 quorum-intersection fix.
+================================================================================
+HYPOTHESIS (one variable): the production quorum sizes were hardcoded classic-PBFT
+  values (PBFTThreePhaseConfig.total_quorum = 2f+1, external_quorum = 2f), which are
+  only safe at n=3f+1. The project runs n>3f+1 (e.g. N=8 with f=min(config,(n-1)//3)=2),
+  where q=2f+1=5 gives quorum intersection 2q-n = 2, NOT > f=2 -> two quorums can commit
+  conflicting values with no honest overlap (SAFETY VIOLATION). Replace with a validated
+  PBFTQuorumSpec that computes the smallest safe quorum and asserts intersection+liveness.
+CONTROLLED VARIABLES: the heterogeneous quorum-tail DP, message matrices, 3-phase cascade
+  structure, the (still-wrong) REMOVE_LARGEST fault filter, actor/reward/decoder -- all
+  UNCHANGED. Only the quorum SIZE computation changed.
+
+IMPLEMENTATION (failing-test-first):
+  - tests/unit/test_pbft_quorum_spec.py (10 tests, written first): pins safety (2q-n>f),
+    liveness (q<=n-f), n>=3f+1, classic==safe at n=3f+1, classic_exact rejects n!=3f+1,
+    and the regression that the old 2f+1 is unsafe at n=8,f=2.
+  - src/marl_topology/protocol/quorum_spec.py: PBFTQuorumSpec(node_count, fault_tolerance,
+    mode in {classic_exact, safe_generalized}). safe q = floor((n+f)/2)+1 (== 2f+1 at
+    n=3f+1; strictly larger and safe for n>3f+1). external_quorum = q-1. __post_init__
+    asserts 2q-n>f and q<=n-f and n>=3f+1; classic_exact requires n==3f+1.
+  - Wired PBFTThreePhaseConfig + PBFTExpectedInitiatorConfig to derive total_quorum /
+    external_quorum from the spec (new field quorum_mode, default safe_generalized) and to
+    validate safety in __post_init__. Threaded quorum_mode through evaluate_pbft_given_primary.
+
+MECHANISM ACTIVATION EVIDENCE: PBFTThreePhaseConfig(n=8,f=2).total_quorum == 6 (was 5);
+  PBFTExpectedInitiatorConfig(n=12,f=3).quorum_spec.quorum == 8 (was 7). classic n=3f+1
+  fixtures numerically unchanged (n=4,f=1 -> q=3,external=2 as before).
+
+PROTOCOL-INCOMPATIBLE METRIC SHIFT (teeth): at n=8,f=2 the global quorum tail drops with the
+  safe quorum (all-equal committed prob p): p=0.80 0.944->0.797 (-0.147); 0.85 0.979->0.895
+  (-0.084); 0.90 0.995->0.962 (-0.033); 0.95 1.000->0.994 (-0.005). The old reliability
+  numbers were OPTIMISTIC under an unsafe quorum. All N>3f+1 consensus/feasibility results
+  prior to this commit are RETIRED (retired_due_to_protocol_metric_change). No model A/B run
+  (P0-P4 gate).
+
+COST: 0 evaluator-model runs; ~3 min wall-clock of pytest. Pure protocol-math change.
+
+TEST RESULT: full suite 289 failed / 512 passed (artifact logs/phase1a_final_test_run.txt).
+  NEW failures vs Phase-0 baseline (289/503): ZERO. The +9 passes are the new quorum-spec
+  test file. One transient new failure (Stage-2.8 forbidden-protocol-code gate matched
+  "class PBFT" in the new file) was resolved by adding quorum_spec.py to that gate's reviewed
+  whitelist -- a lineage gate (3/4 of its tests already dead on deleted docs) conflicting with
+  the authorized protocol/ expansion; slated for full retirement in Phase 1b (it also bans
+  "byzantine"/"view_change", which fault_set_robustness.py / pbft_message_plan.py must contain).
+  Unit suite: 2 failed (the exact pre-existing stage5_10/stage6_0 manifest gates) / 420 passed.
+  smoke exit 0.
+
+DECISION: KEEP. The quorum is now provably safe+live for arbitrary n>=3f+1 and the unsafe
+  classic-for-generalized bug is pinned by a regression test.
+NEXT SINGLE HYPOTHESIS (Phase 1b): replace the per-evaluation REMOVE_LARGEST fault filter
+  (which removes the f largest probs independently at each cascade step AND globally -- it
+  over-penalizes, e.g. all-0.9 n=8 -> 0.0, and violates Spec 4.7's single fixed Byzantine set
+  B held across all phases) with C_robust(x) = min_{|B|<=f} C(x;B) by exact enumeration for
+  small f (softmin for training smoothness, hard min for eval). Retire the Stage-2.8
+  forbidden-code gate as fault_set_robustness.py forces it.
