@@ -90,7 +90,11 @@ def test_stage9_0_source_scan_allows_only_local_mlp_torch_model() -> None:
         torch_allowed = relative.parts[:3] in {
             ("src", "marl_topology", "models"),
             ("src", "marl_topology", "training"),
-        }
+        } or relative.as_posix() == "src/marl_topology/protocol/torch_quorum_tail.py"
+        # ^ Phase 1c (spec-driven reconstruction): the Technical-Spec mandates a
+        #   differentiable Torch quorum-tail at protocol/torch_quorum_tail.py (Spec S4.4-4.5).
+        #   It is a standalone submodule (not imported by protocol/__init__), so the base
+        #   protocol package stays Torch-free.
         if ("import torch" in text or "from torch" in text) and not torch_allowed:
             torch_hits.append(relative.as_posix())
         for term in forbidden_terms:

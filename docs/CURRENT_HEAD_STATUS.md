@@ -227,3 +227,13 @@ and shifts reliability enough to require re-calibrating the stage31 scenario τ-
 both **deferred** to Phase 1b-wire-v2. Production still uses `REMOVE_LARGEST`; the
 corrected primitive now has a greedy fallback + strategy metadata. Suite 289 fail / **524
 pass**, zero new failures.
+
+**Phase-1c update — Torch quorum-tail landed.** `protocol/torch_quorum_tail.py`
+(`torch_quorum_tail`) — the reference DP as a batched, autograd-differentiable Torch op.
+Verified: reference parity <1e-12, small-N exact vs brute force, `gradcheck`, and the
+analytic Spec §4.5 sensitivity `∂Q/∂p_i = P(exactly q−1 of the others)` <1e-10
+(`tests/unit/test_torch_quorum_tail.py`). Standalone submodule (not in `protocol/__init__`,
+so the base package stays Torch-free); two stage8/stage9 torch-purity sub-tests were
+updated to allow that one spec-mandated file. Suite 289 fail / **531 pass**, zero new
+failures. This completes the Phase-1 *primitives*; the remaining Phase-1 item is the
+deferred 1b-wire-v2 (fixed-B cost + scenario re-calibration).

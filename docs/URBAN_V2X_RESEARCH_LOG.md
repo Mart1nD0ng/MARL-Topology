@@ -2436,3 +2436,44 @@ NEXT SINGLE HYPOTHESIS (Phase 1b-wire-v2): make the fixed-B reliability affordab
   reliability definition, so prefer (i)/(iii); (iii) a cheaper exact f=1 identity. Then
   re-tune the stage31 tau-gradient so witness-feasible scenes remain plentiful under the
   corrected (lower) reliability. Only after that is the REMOVE_LARGEST -> fixed-B swap landed.
+
+================================================================================
+PHASE 1c (2026-06-22): Torch differentiable quorum-tail -- KEEP.
+================================================================================
+HYPOTHESIS (one variable): the closed-form quorum tail exists only as a non-differentiable
+  reference DP (protocol/quorum_tail.heterogeneous_quorum_tail). The differentiable reward /
+  SCQ supervision (Phases 8-9) need the SAME tail as a Torch op so gradients flow into per-edge
+  delivery probabilities. Implement it with exact numerical + gradient parity.
+CONTROLLED VARIABLES: the reference DP, all protocol math, the trunk -- unchanged. New module
+  is a standalone submodule, imported by nothing in production yet (additive).
+
+IMPLEMENTATION (failing-test-first):
+  - tests/unit/test_torch_quorum_tail.py (7 tests, written first): reference-DP parity across
+    (n,quorum); small-N EXACT parity vs 2^n brute force; batch (..., n) equivalence; edge cases
+    (q=0->1, q>n->0); autograd.gradcheck (float64); the analytic Spec-S4.5 gradient
+    dQ/dp_i = P(exactly q-1 of the OTHER n-1) vs brute force; end-to-end backprop into logits.
+  - src/marl_topology/protocol/torch_quorum_tail.py: the identical capped generating-polynomial
+    DP in Torch (buckets[k]=P(exactly k) for k<q, P(>=q) for k=q), processing the n Bernoullis
+    one at a time, batched over all leading dims, out-of-place ops only (autograd-safe). NOT
+    re-exported from protocol/__init__ so `import marl_topology.protocol` stays Torch-free.
+
+MECHANISM ACTIVATION EVIDENCE: gradcheck passes (analytic == numeric Jacobian, float64);
+  autograd grad equals the closed-form leave-one-out sensitivity to abs<1e-10; reference parity
+  abs<1e-12 across n in {1,3,5,8,12} and all quorum sizes.
+
+GATE: the Technical-Spec mandates this Torch op in protocol/, but two source-scan gates
+  (stage8/stage9) forbade `import torch` outside models/ + training/. The two specific torch-
+  purity sub-tests (green at baseline) were updated to allow exactly protocol/torch_quorum_tail.py
+  (one named file, not the whole dir; the base package stays Torch-free) -- legitimate allowlist
+  maintenance for spec-mandated work, not weakening a correctness check.
+
+COST: 0 evaluator-model runs; pure Torch + tests (~4s). Suite 289 fail / 531 pass (zero new
+  failures vs Phase-0 baseline); smoke 0.
+
+DECISION: KEEP. The differentiable quorum-tail is verified numerically AND in gradient against
+  both the reference DP and the closed-form sensitivity. Ready for the differentiable reward path.
+NEXT: Phase 1 environment-math work continues. Remaining in Phase 1: Phase 1b-wire-v2 (fixed-B
+  cost optimization + scenario tau re-calibration -- DEFERRED, possibly owner-gated). Phases 2-4
+  (route/relay dedup; tri-state solvability; phase-specific accounting + non-degenerate latency)
+  are the next environment-math fixes per the implementation order. Likely next: Phase 2 route/relay
+  (the A--B--C H=1->0 / H=2->>0 regression, Spec S4.2).
