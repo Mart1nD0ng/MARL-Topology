@@ -2238,3 +2238,48 @@ NET FINDING: the dense beta=0 trunk is a ROBUST OPTIMUM -- oracle-beating cold-s
   domain randomisation; larger-N out-of-range, e.g. N=32/48 -- each needs an owner-gated heavy dataset build),
   not more cheap tweaks. Loop paused for owner direction (polish/breadth vs consolidate for the paper).
 
+
+================================================================================
+PHASE 0 (2026-06-22): spec-driven reconstruction begins -- freeze status + doc governance.
+================================================================================
+NEW AUTHORITY OF RECORD: docs/MARL-Topology-Technical-Spec.md + docs/MARL-Topology-Engineering-Plan.md
+  (2026-06-22). Target architecture: CTDE Graph-Counterfactual PPO + SCQ exact counterfactual supervision +
+  recurrent directional PNA actor + vector graph-temporal critic + chance/CVaR constraint + Pareto policy.
+  On conflict the specs win over old code/comments/results. Phase 0 = freeze + governance only; NO model A/B
+  (P0-P4 gate: no architecture-effectiveness claim before the environment math is fixed).
+
+FROZEN SNAPSHOT (docs/CURRENT_HEAD_STATUS.md):
+  HEAD 15fcb8a ; Python 3.11.5 ; torch 2.5.1+cu118 ; Windows-10.0.26200.
+  TEST BASELINE: 289 failed, 503 passed (python -m pytest -q ; artifact logs/phase0_full_test_run.txt).
+    -> 287/289 failures are tests/contract stage-gate suites; 2 are tests/unit manifest/training-stack gates.
+    -> ROOT CAUSE (verified, NOT a physics regression): the consolidation 4e7aa62 deleted the governance
+       artifacts these contracts assert on (docs/PROJECT_STATE.md absent; tau decision record / CODEX_WORKFLOW
+       / STAGE*.md / harness tasks removed; the whole MAPPO/critic/planner lineage removed) but LEFT the
+       contracts. The physics/protocol/channel/link/quorum/model UNIT suite is GREEN (the bulk of 503).
+    -> These are protocol/metric/lineage-INCOMPATIBLE gates (Plan Phase-13 retired_due_to_protocol_metric_change).
+       Retirement is STAGED per phase, not done in Phase 0. No CORRECT physics test will be weakened to go green.
+
+KNOWN-STATUS RE-CONFIRMATION (11 facts): the specs' picture of HEAD holds, with two deltas that SHRINK work:
+  (6) PBFT f is NO LONGER fixed at 1 -- it scales f=min(config, floor((n-1)/3)) [stage21_objective_stack_evidence.py:377];
+      BUT the fault model is REMOVE_LARGEST per-evaluation (violates Spec 4.7 fixed-set B); q-safety UNVERIFIED -> Phase 1.
+  (10) energy is ALREADY per-phase message accounting (pbft_accounting.py:226,248), not 3x all-pairs; still missing
+      relay/MAC/policy-comm/reconfig/view-change terms -> Phase 4.
+  All other 9 facts CONFIRMED unchanged (single-step bandit; M=1 EMA default; K-round shared actor; local mutual
+  decoder; no critic; binary feasible_exists; degenerate max-latency; no Temporal Value Test).
+
+GOVERNANCE CONFLICT RESOLVED: old AGENTS/README invariant I1 ("no critic is a hard invariant") DIRECTLY
+  contradicts Spec 2.1/19 (CTDE: central critic legal in training; only central DECODER illegal; stop using
+  "critic-free" as identity). Per the loop's hard-constraint #4 + "specs win", AGENTS.md was rewritten to the
+  CTDE / deployment-decentralization boundary (D1-D6). The critic-free REINFORCE trunk is DEMOTED to a required
+  baseline (Spec 15), not the identity. README I1 to be aligned at Phase 13 to avoid churn.
+
+FORWARD BLOCKER LOGGED: the frozen banned-literal src gates (MAPPO/COMA/Transformer/optimizer/class Critic(/...)
+  block Phases 7-9 (they reject the very modules the plan adds). Retired in the same staged way as the 287
+  contract failures. Recorded as the Phases 7-9 dependency; not actioned in Phase 0.
+
+ACTIONS THIS ITERATION: wrote docs/CURRENT_HEAD_STATUS.md ; rewrote AGENTS.md (CTDE) ; this log entry.
+DEFERRED (next Phase-0 iteration): config tiers configs/{smoke,pilot,research}/ + unified run manifest (built on
+  the existing stage5_9/5_10 manifest contracts, not invented fresh).
+NEXT SINGLE HYPOTHESIS (Phase 1): replace REMOVE_LARGEST with a single fixed Byzantine set B
+  (C_robust = min_{|B|<=f} C(B)) + a PBFTQuorumSpec (classic_exact / safe_generalized) with property tests
+  (2q-n>f, q<=n-f, intersection + liveness) + a Torch quorum-tail with reference-DP parity + gradcheck.
