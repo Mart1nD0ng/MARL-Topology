@@ -75,10 +75,12 @@ from marl_topology.training.decentralized_action import (  # noqa: E402
 )
 from marl_topology.models.centralized_graph_critic import CentralizedGraphCritic  # noqa: E402
 from marl_topology.training.graph_mappo import (  # noqa: E402
+    critic_q_value,
     critic_scene_value,
     explained_variance,
     ppo_clip_actor_loss,
 )
+from marl_topology.training.counterfactual_credit import counterfactual_advantages  # noqa: E402
 from marl_topology.solvability.status import WITNESS_FEASIBLE  # noqa: E402
 from marl_topology.training.tristate_training import (  # noqa: E402
     assert_split_isolation,
@@ -240,6 +242,18 @@ def forward_value(critic, sample, mean, std):
                               node_mean=mean[0], node_std=std[0], edge_mean=mean[1], edge_std=std[1])
 
 
+def forward_q(critic, sample, active_indices, mean, std):
+    """Action-conditioned Q(s, S) (Phase 8b counterfactual arm): forward_value conditioned on the
+    realized active-edge one-hot. Requires a critic built with critic_sees_action=True. Grad-on (Spec
+    S8.4) -- the UPDATE caller trains the Q critic by regressing Q(s, S_actual) -> reward; the ROLLOUT
+    caller / counterfactual baseline wrap their own no_grad."""
+    oh = sample["ef"].new_zeros(sample["ef"].shape[0])
+    if active_indices:
+        oh[list(active_indices)] = 1.0
+    return critic_q_value(critic, sample["nf"], sample["ef"], sample["ei"], oh,
+                          node_mean=mean[0], node_std=std[0], edge_mean=mean[1], edge_std=std[1])
+
+
 def eval_held(actor, samples, mean, std):
     """Deterministic decentralized eval (local_mutual_assemble): raw / conditional + mean energy,
     latency, edge-count over the FEASIBLE decoded topologies (DoD low-energy/low-latency signal)."""
@@ -354,6 +368,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--critic-lr", type=float, default=1e-3, help="centralized critic learning rate")
     p.add_argument("--critic-hidden", type=int, default=64, help="critic hidden width")
     p.add_argument("--critic-rounds", type=int, default=4, help="critic message-passing rounds")
+    # --- Phase 8b Graph-Counterfactual PPO arm ---
+    p.add_argument("--counterfactual", action="store_true",
+                   help="Phase 8b: per-agent COMA counterfactual credit A_i=Q(s,S)-E[Q(s,S~_i,S_-i)] "
+                        "(action-conditioned Q critic) replacing the shared scene advantage. The "
+                        "counterfactual Q evals are critic forwards -> the evaluator budget is unchanged "
+                        "(1/scene). Requires --baseline graph-mappo.")
+    p.add_argument("--k-cf", type=int, default=4,
+                   help="counterfactual subset samples per agent for the COMA baseline (Phase 8b)")
     return p.parse_args()
 
 
@@ -367,6 +389,9 @@ def main() -> None:
     if args.baseline == "rloo" and args.samples_per_scene < 2:
         raise SystemExit("[graph-mappo] --baseline rloo requires --samples-per-scene >= 2 "
                          "(RLOO needs M>=2 rollouts for the leave-one-out baseline)")
+    if args.counterfactual and args.baseline != "graph-mappo":
+        raise SystemExit("[counterfactual] --counterfactual (Phase 8b) requires --baseline graph-mappo "
+                         "(the action-conditioned Q critic lives in the graph-mappo arm)")
     torch.manual_seed(args.seed)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -432,10 +457,17 @@ def main() -> None:
     critic = opt_c = None
     critic_history: list = []
     if args.baseline == "graph-mappo":
-        critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden, rounds=args.critic_rounds)
+        critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden,
+                                        rounds=args.critic_rounds, critic_sees_action=args.counterfactual)
         opt_c = torch.optim.AdamW(critic.parameters(), lr=args.critic_lr, weight_decay=1e-4)
         print(f"[graph-mappo] centralized critic: hidden={args.critic_hidden} rounds={args.critic_rounds} "
               f"clip={args.clip_epsilon} ppo_epochs={args.ppo_epochs} critic_lr={args.critic_lr}")
+        if args.counterfactual:
+            assert critic.critic_sees_action, "Phase 8b needs an action-conditioned Q critic"
+            cf_gen = torch.Generator().manual_seed(args.seed)
+            print(f"[counterfactual] Phase 8b COMA per-agent credit ACTIVE: K_cf={args.k_cf} "
+                  f"(action-conditioned Q critic; counterfactuals are critic forwards -> "
+                  f"evaluator budget unchanged 1/scene)")
     lam_c, lam_b = args.lam_c, args.lam_b
     ws_val = eval_held(actor, val_s, mean, std)["raw"]            # warm-start VAL = keep-best floor
     best_val, best_state = ws_val, {k: v.detach().clone() for k, v in actor.state_dict().items()}
@@ -484,28 +516,47 @@ def main() -> None:
                     act = sample_decentralized_bcsp_action(logits0, s["edge_ids"], edges=edges,
                                                            budgets=budgets, temperature=temp_now,
                                                            compute_entropy=False)
-                    v0 = float(forward_value(critic, s, mean, std))   # rollout baseline (no_grad)
+                    if not args.counterfactual:
+                        v0 = float(forward_value(critic, s, mean, std))   # rollout baseline (no_grad)
                 topo = [s["edge_ids"][j] for j in act.active_edge_indices]
                 r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
                                             args.live_consensus_dual)
                 # PER-AGENT records for the per-agent PPO ratio (Spec S9.2 -- NOT a joint sum). Each
                 # agent with >=1 incident edge contributes (incident, accepted-subset, budget, logp_old).
+                filtered = [pa for pa in act.per_agent if pa.incident_edge_indices]
                 per_agent = [(pa.incident_edge_indices, pa.accepted_local_indices, pa.budget, float(pa.logp))
-                             for pa in act.per_agent if pa.incident_edge_indices]
-                batch.append({"s": s, "per_agent": per_agent, "r": r, "V": v0})
+                             for pa in filtered]
+                per_agent_adv = None
+                if args.counterfactual:
+                    # Phase 8b: per-agent COMA advantage A_i = Q(s,S) - E[Q(s,S~_i,S_-i)]. The
+                    # counterfactual Q evals are critic forwards (no_grad inside) -- NO evaluator call.
+                    cf = counterfactual_advantages(
+                        critic, node_features=s["nf"], edge_features=s["ef"], edge_index=s["ei"],
+                        edge_ids=s["edge_ids"], edges=edges, per_agent_actions=act.per_agent,
+                        logits=logits0, temperature=temp_now, k_cf=args.k_cf,
+                        node_mean=mean[0], node_std=std[0], edge_mean=mean[1], edge_std=std[1],
+                        generator=cf_gen)
+                    per_agent_adv = [cf.advantages[pa.node_id] for pa in filtered]
+                    v0 = cf.q_actual                                  # action-conditioned value of S
+                batch.append({"s": s, "per_agent": per_agent, "per_agent_adv": per_agent_adv,
+                              "r": r, "V": v0, "active": act.active_edge_indices})
                 rwds.append(r); gcs.append(g_c); gbs.append(g_b); feas.append(float(ok))
             if not batch:
                 continue
-            adv_all = torch.tensor([b["r"] - b["V"] for b in batch])  # single-step A = r - V (GAE at T=1)
-            if args.normalize_adv:
-                adv_all = (adv_all - adv_all.mean()) / (adv_all.std() + 1e-6)
             # ---- PPO-clip inner epochs on the actor: PER-AGENT ratio (Spec S9.2 -- NOT a joint sum).
             #      Flatten (scene, agent): each agent re-scores its recorded BCSP subset under fresh
-            #      logits; the scene's single-step advantage A_s is shared across its agents. The old
-            #      logps + the per-agent advantages are fixed across epochs (recorded at rollout). ----
+            #      logits. The advantage is per (scene, agent) and FIXED across epochs (recorded at
+            #      rollout): the shared single-step A_s = r - V (graph-mappo) OR the per-agent COMA
+            #      counterfactual A_i = Q(s,S) - E[Q(s,S~_i,S_-i)] (Phase 8b, --counterfactual). ----
             logp_old_flat = torch.tensor([lo for b in batch for (_inc, _acc, _bud, lo) in b["per_agent"]])
-            adv_flat = torch.tensor([float(adv_all[bi]) for bi, b in enumerate(batch)
-                                     for _ in b["per_agent"]])
+            if args.counterfactual:
+                adv_flat = torch.tensor([a for b in batch for a in b["per_agent_adv"]])
+            else:
+                adv_all = torch.tensor([b["r"] - b["V"] for b in batch])   # single-step A = r - V (GAE at T=1)
+                adv_flat = torch.tensor([float(adv_all[bi]) for bi, b in enumerate(batch)
+                                         for _ in b["per_agent"]])
+            if args.normalize_adv:
+                adv_flat = (adv_flat - adv_flat.mean()) / (adv_flat.std() + 1e-6)
             last_kl, last_clip = 0.0, 0.0
             for _epoch in range(args.ppo_epochs):
                 lp_new, en_new = [], []
@@ -525,10 +576,15 @@ def main() -> None:
                 last_kl, last_clip = float(info["approx_kl"]), float(info["clip_fraction"])
                 if last_kl > args.target_kl * 1.5:                  # early-stop the inner loop
                     break
-            # ---- critic regression V(scene) -> reward (its OWN optimizer; never touches the actor) ----
+            # ---- critic regression -> reward (its OWN optimizer; never touches the actor). The
+            #      graph-mappo critic regresses V(scene); the Phase-8b Q critic regresses the action-
+            #      conditioned Q(s, S_actual) (Spec S9.7) -- same target reward, grad-on. ----
             r_t = torch.tensor([float(b["r"]) for b in batch])
             for _ in range(args.ppo_epochs):
-                v_pred = torch.stack([forward_value(critic, b["s"], mean, std) for b in batch])
+                if args.counterfactual:
+                    v_pred = torch.stack([forward_q(critic, b["s"], b["active"], mean, std) for b in batch])
+                else:
+                    v_pred = torch.stack([forward_value(critic, b["s"], mean, std) for b in batch])
                 v_loss = args.critic_coef * (r_t - v_pred).pow(2).mean()
                 opt_c.zero_grad(); v_loss.backward()
                 torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
@@ -537,7 +593,9 @@ def main() -> None:
             critic_history.append({"update": upd, "explained_variance": ev, "approx_kl": last_kl,
                                    "clip_fraction": last_clip, "n_scenes": len(batch),
                                    "evaluator_calls": len(batch),       # 1 _evaluate/scene == EMA budget
-                                   "evaluator_calls_per_scene": 1,      # fair A/B vs ema (rloo spends K)
+                                   "evaluator_calls_per_scene": 1,      # fair A/B vs ema (rloo spends K);
+                                   "counterfactual": bool(args.counterfactual),  # Phase 8b COMA credit
+                                   "k_cf": args.k_cf if args.counterfactual else 0,  # critic forwards, not evals
                                    "critic_value_mean": fmean([b["V"] for b in batch])})
         else:
             for i in order:
@@ -600,8 +658,10 @@ def main() -> None:
                   f"| VAL raw={ve['raw']:.3f} (best {best_val:.3f})")
             if args.baseline == "graph-mappo" and critic_history:
                 cm = critic_history[-1]
+                cf_tag = f" cf(K={cm['k_cf']})" if cm.get("counterfactual") else ""
                 print(f"           [critic] EV={cm['explained_variance']:+.3f} approx_kl={cm['approx_kl']:.4f} "
-                      f"clip_frac={cm['clip_fraction']:.3f} eval_calls/scene={cm['evaluator_calls']}")
+                      f"clip_frac={cm['clip_fraction']:.3f} "
+                      f"eval_calls={cm['evaluator_calls']}({cm['evaluator_calls_per_scene']}/scene){cf_tag}")
             history.append({"update": upd, "train_reward": fmean(rwds), "train_feasible": fmean(feas),
                             "mean_g_c": mean_gc, "mean_g_b": mean_gb, "lam_c": lam_c, "lam_b": lam_b,
                             "val_raw": ve["raw"]})

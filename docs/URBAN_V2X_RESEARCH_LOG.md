@@ -3488,3 +3488,37 @@ subsets S~pi_i (BCSP, independent of the actual S_i given o_i,S_{-i}), fix S_{-i
 mutual decoder, evaluate Q(s,S~,S_{-i}) [critic forward, free], baseline b_i=mean, per-agent advantage
 A_i^E=Q(s,S)-b_i replaces the shared A_s in the per-agent PPO loss. CAVEAT (unchanged): the corrected
 headline is gated on the dataset rebuild; 8a/8b validate the MECHANISM.
+
+================================================================================
+PHASE 8b (2026-06-24): COMA per-agent counterfactual credit. KEEP.
+================================================================================
+HYPOTHESIS: the shared scene advantage A_s=R_s-V(s) (R7) can be upgraded to a PER-AGENT counterfactual
+credit A_i^E = Q(s,S) - E_{S~_i~pi_i}[Q(s,S~_i,S_{-i})] (Spec 9.4) computed for FREE -- the
+counterfactual Q evals are critic forwards, NOT evaluator calls, so the evaluator budget stays 1/scene
+(== EMA, the Spec 9.8 fair-budget basis).
+
+CHANGE: +training/counterfactual_credit.py (counterfactual_advantages + acceptance_map +
+mutual_active_indices). For each agent i: draw K_cf BCSP subsets S~_i~pi_i (from theta_i=logits[inc]/T
+and b_i ONLY -> INDEPENDENT of the actual S_i given o_i,S_{-i}, the COMA unbiasedness condition), fix
+S_{-i}, RE-PASS the same mutual decoder (edge active iff both endpoints accept -- byte-identical to
+sample_decentralized_bcsp_action's decode), evaluate the LEARNED Q (no_grad critic forward), baseline
+b_i=mean, A_i=Q(s,S)-b_i. All no_grad (A_i is a detached rollout target; the Q critic trains by its own
+(Q(s,S_actual)-R)^2 regression, Spec 9.7). Trunk wiring (--counterfactual --k-cf): the graph-mappo arm
+builds a critic_sees_action=True Q critic, the rollout records per-agent A_i (replacing the shared
+adv_flat), the critic regresses forward_q(s, S_actual). Also fixed a pre-existing honest-budget log bug
+(eval_calls/scene printed len(batch), now eval_calls=N(1/scene)).
+
+TESTS (tests/unit/test_counterfactual_credit_8b.py, 5; fail without the module): a counterfactual on
+agent i changes the active set ONLY on edges incident to i (S_-i fixed, re-decoded); the call does not
+mutate the caller's S_-i; the per-agent advantages are not all identical (genuine credit, not a shared
+scalar); the baseline is INDEPENDENT of the actual S_i (same theta+S_-i+seed -> identical b_i despite
+different realized S_i; only q_actual differs); SMALL-GAME UNBIASEDNESS -- the MC baseline (K_cf=20000)
+converges to the exact enumerated E_{S~_i~pi_i}[Q] within 0.02 on a non-linear mock Q. Full suite 641
+passed / 0 failed (was 636; zero new failures). Both smokes exit 0; --counterfactual logs
+eval_calls=6(1/scene) cf(K=4) (budget unchanged); non-cf graph-mappo byte-identical (approx_kl=0.0157).
+
+DECISION: KEEP (mechanism). The COMA per-agent counterfactual credit is wired, unbiased, and
+budget-neutral. Next: adversarial-verify 8b (Q correct / counterfactual unbiased+independent / credit
+non-degenerate / D1 no-leak / budget fair), then the credit/sample-efficiency A/B vs Graph-MAPPO.
+CAVEAT (unchanged): the corrected HEADLINE (8b vs R7 at equal budget) is gated on the dataset rebuild;
+8b validates the MECHANISM, not the headline.
