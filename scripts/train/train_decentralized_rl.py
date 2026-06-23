@@ -77,6 +77,12 @@ from marl_topology.training.graph_mappo import (  # noqa: E402
     explained_variance,
     ppo_clip_actor_loss,
 )
+from marl_topology.solvability.status import WITNESS_FEASIBLE  # noqa: E402
+from marl_topology.training.tristate_training import (  # noqa: E402
+    assert_split_isolation,
+    solvability_status_for_label,
+    trainable_under_tristate,
+)
 
 OP_SHARDS = [str(ROOT / "result_save" / "campaign" / "data" / "op" / f"_op_shard_{s}.pkl")
              for s in range(3001, 3025)]
@@ -91,7 +97,11 @@ def load_pool(shard_paths):
         labels = dataset.source_dataset.teacher_labels
         for split in ("train", "eval", "test"):
             for row, context in build_row_contexts(dataset, split):
-                pool.append((row, context, labels[context.fixture.fixture_id]))
+                label = dict(labels[context.fixture.fixture_id])  # copy; never mutate the shared label
+                # R3: stamp tri-state solvability (back-compat for shards built before the field).
+                # A finite-search miss is `unknown`, never certified_infeasible (#11).
+                label["solvability_status"] = solvability_status_for_label(label)
+                pool.append((row, context, label))
     return pool
 
 
@@ -232,6 +242,7 @@ def eval_held(actor, samples, mean, std):
     latency, edge-count over the FEASIBLE decoded topologies (DoD low-energy/low-latency signal)."""
     actor.eval()
     solved = total = solved_solv = solvable = 0
+    unknown_total = unknown_discovered = 0
     e_acc, l_acc, edge_acc, nfeas = 0.0, 0.0, 0, 0
     by_n: dict = {}
     for s in samples:
@@ -243,13 +254,22 @@ def eval_held(actor, samples, mean, std):
         d = by_n.setdefault(n, [0, 0])
         d[0] += int(ok); d[1] += 1
         total += 1; solved += int(ok)
-        if bool(s["label"]["feasible_exists"]):
+        # R3 tri-state: witness recall is over the KNOWN-solvable (witness_feasible) held scenes;
+        # solving an `unknown` scene is a WITNESS DISCOVERY (U->W), reported separately -- it has
+        # no recall denominator (we never certified it solvable/infeasible).
+        status = solvability_status_for_label(s["label"])
+        if status == WITNESS_FEASIBLE:
             solvable += 1; solved_solv += int(ok)
+        else:  # unknown (no certified_infeasible exists yet)
+            unknown_total += 1; unknown_discovered += int(ok)
         if ok:
             e_acc += energy; l_acc += lat; edge_acc += len(topo); nfeas += 1
+    witness_recall = (solved_solv / solvable) if solvable else None
     return {
         "raw": solved / max(1, total),
-        "conditional": (solved_solv / solvable) if solvable else None,
+        "witness_recall": witness_recall,
+        "conditional": witness_recall,  # back-compat alias (== witness_recall)
+        "witness_discovered": unknown_discovered, "unknown_total": unknown_total,
         "solved": solved, "total": total, "solvable": solvable,
         "raw_by_n": {n: by_n[n][0] / by_n[n][1] for n in sorted(by_n)},
         "mean_energy_feasible_j": (e_acc / nfeas) if nfeas else None,
@@ -296,10 +316,15 @@ def parse_args() -> argparse.Namespace:
                    help="K rollouts per scene per update; K>1 uses a low-variance RLOO leave-one-out "
                         "baseline (instead of the per-scene EMA) -- K chances to sample the fixing "
                         "topology on the few scenes BC misses (headroom is capturable but signal-starved)")
+    p.add_argument("--exclude-unknown", action="store_true",
+                   help="R3 ABLATION: exclude `unknown` scenes from training (reproduce the old "
+                        "feasible-only training). DEFAULT OFF -- per D8/#8 an unknown scene is NOT "
+                        "deleted; it enters exploration (the dense reward gives a gradient toward "
+                        "higher consensus and the policy may DISCOVER a witness, U->W). Only a PROVEN "
+                        "certified_infeasible scene is always excluded (none exist yet -- no UB proof).")
     p.add_argument("--include-unsolvable", action="store_true",
-                   help="include feasible_exists=False scenes in the PG + dual (DEFAULT OFF: the "
-                        "consensus constraint is UNSATISFIABLE there, so the lam_c dual ratchets "
-                        "unboundedly and destabilizes; the controller is optimized on solvable scenes)")
+                   help="DEPRECATED (R3): superseded by tri-state -- `unknown` scenes now train by "
+                        "default. Accepted as a no-op for back-compat; use --exclude-unknown to opt out.")
     p.add_argument("--normalize-adv", action="store_true",
                    help="batch-normalize advantages (DEFAULT OFF: normalization un-learns the warm "
                         "start by giving already-solved scenes a spurious negative advantage)")
@@ -359,6 +384,21 @@ def main() -> None:
     ceiling = fmean(float(bool(l["feasible_exists"])) for _r, _c, l in held_items)
     print(f"[data] pool {len(pool)} | fit {len(train_s)} | val {len(val_s)} | held {len(held_s)} "
           f"| teacher ceiling(held) {ceiling:.3f}")
+
+    # R3 tri-state: (a) witness-memory isolation -- fit/val/held are DISJOINT pool-item slices, so a
+    # held/val witness discovery can never feed training (Spec 5.3; the loop reads only train_s). The
+    # guard keys on item identity, NOT scenario_id (which is shard-local: the same proc name in two
+    # shards is a different geometry, not a leak); (b) mechanism-activation log -- `unknown` scenes
+    # now ENTER training (D8).
+    assert_split_isolation({id(it) for it in fit_items}, {id(it) for it in val_items},
+                           {id(it) for it in held_items})
+    n_wf = sum(1 for s in train_s if s["label"]["solvability_status"] == WITNESS_FEASIBLE)
+    n_unk = len(train_s) - n_wf
+    n_train = sum(1 for s in train_s
+                  if trainable_under_tristate(s["label"]["solvability_status"],
+                                              exclude_unknown=args.exclude_unknown))
+    print(f"[tri-state] train pool {len(train_s)}: {n_wf} witness_feasible + {n_unk} unknown -> "
+          f"{n_train} enter training (exclude_unknown={args.exclude_unknown})")
 
     node_dim, edge_dim = train_s[0]["nf"].shape[1], train_s[0]["ef"].shape[1]
     if args.cold_start:
@@ -428,8 +468,9 @@ def main() -> None:
             batch = []
             for i in order:
                 s = train_s[i]
-                if not args.include_unsolvable and not bool(s["label"]["feasible_exists"]):
-                    continue
+                if not trainable_under_tristate(s["label"]["solvability_status"],
+                                                exclude_unknown=args.exclude_unknown):
+                    continue   # R3: certified_infeasible never trains; unknown trains by default (D8)
                 edges = {e.edge_id: (e.node_u, e.node_v) for e in s["context"].graph.edges}
                 budgets = dict(node_budgets_for_scene(s["context"].evaluator.scene))
                 with torch.no_grad():
@@ -489,8 +530,9 @@ def main() -> None:
         else:
             for i in order:
                 s = train_s[i]
-                if not args.include_unsolvable and not bool(s["label"]["feasible_exists"]):
-                    continue   # no feasible topology exists -> nothing learnable; excluded from PG + dual
+                if not trainable_under_tristate(s["label"]["solvability_status"],
+                                                exclude_unknown=args.exclude_unknown):
+                    continue   # R3: certified_infeasible never trains; unknown trains by default (D8)
                 logits = forward_logits(actor, s, mean, std)              # [E], grad on; reused for K samples
                 ent = torch.distributions.Bernoulli(logits=logits).entropy().sum()
                 s_logps, s_rs, s_gc, s_gb, s_ok = [], [], [], [], []
@@ -568,9 +610,11 @@ def main() -> None:
     print(f"[RLfin] held raw={final_held['raw']:.3f} cond="
           f"{None if final_held['conditional'] is None else round(final_held['conditional'],3)} "
           f"energy={final_held['mean_energy_feasible_j']}  (final-update policy, pre keep-best)")
-    print(f"[RL   ] held raw={rl_held['raw']:.3f} cond="
-          f"{None if rl_held['conditional'] is None else round(rl_held['conditional'],3)} "
-          f"energy={rl_held['mean_energy_feasible_j']}  (keep-best)")
+    print(f"[RL   ] held raw={rl_held['raw']:.3f} wit_recall="
+          f"{None if rl_held['witness_recall'] is None else round(rl_held['witness_recall'],3)} "
+          f"wit_disc={rl_held['witness_discovered']}/{rl_held['unknown_total']} "
+          f"energy={rl_held['mean_energy_feasible_j']}  (keep-best; wit_recall=success on "
+          f"witness_feasible held, wit_disc=witnesses discovered on unknown held)")
     print(f"[time] {time.time() - t0:.1f}s")
 
     result = {"config": vars(args), "ceiling": ceiling,

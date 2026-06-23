@@ -3182,3 +3182,48 @@ DECISION: KEEP. 5 R2b tests + the existing relay/adapter/physics suite green (31
 NEXT (single hypothesis): R3 -- make tri-state truly control TRAINING/eval/witness: remove the
   trunk's `if not feasible_exists: continue` filter, use witness_feasible/certified_infeasible/
   unknown, unknown enters exploration (not a certified violation), split-isolated witness memory.
+
+================================================================================
+R3 (2026-06-23): tri-state solvability controls training. KEEP (mechanism; impact A/B pending).
+================================================================================
+HYPOTHESIS (one mechanism): the trunk must stop SKIPPING `unknown` scenes via the binary
+  feasible_exists filter (D8/#8). Under tri-state, witness_feasible AND unknown both enter training
+  (unknown -> exploration; the dense reward gives a gradient toward higher c and the policy may
+  DISCOVER a witness, U->W); only a PROVEN certified_infeasible is excluded (none exist -- a finite
+  search yields only W/U, #11). Held metric reframed: witness recall + witness discovery.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_tristate_training.py, 7 tests):
+  - NEW src/marl_topology/training/tristate_training.py (gate-exempt): solvability_status_for_label
+    (feasible_exists -> witness_feasible/unknown, honours explicit status; never certified_infeasible),
+    trainable_under_tristate (witness_feasible always; unknown by DEFAULT, excluded only by ablation;
+    certified_infeasible never), assert_split_isolation (train/val/held disjoint -- Spec 5.3).
+  - trunk: load_pool stamps tri-state status into every label (back-compat for old shards); BOTH
+    filter sites (ema/rloo + graph-mappo) now use trainable_under_tristate; eval_held adds
+    witness_recall (==old conditional, success on witness_feasible held) + witness_discovered (U->W
+    on unknown held) [conditional kept as alias]; --include-unsolvable DEPRECATED -> superseded by
+    tri-state, new --exclude-unknown ablation reproduces the old feasible-only training; main() asserts
+    fit/val/held item-level isolation (keyed on item identity, NOT shard-local scenario_id) + logs the
+    [tri-state] activation line.
+
+MECHANISM ACTIVATION (smoke): `[tri-state] train pool 6: 5 witness_feasible + 1 unknown -> 6 enter
+  training (exclude_unknown=False)` -- the unknown scene now ENTERS training (was skipped). With
+  --exclude-unknown: `-> 5 enter` (ablation reproduces the old behaviour). Held metric:
+  `[RL] wit_recall=... wit_disc=k/U`. smoke exit 0.
+
+ISOLATION FIX (caught in smoke): the first isolation guard keyed on scenario_id and FALSE-POSITIVED
+  -- `stage31_proc_00000_feasible_sparse` appears in multiple shards as DIFFERENT geometries (the proc
+  name is shard-local, not a leak). Re-keyed on pool-item identity (fit/val/held are disjoint slices;
+  training reads only train_s) -- the true Spec-5.3 guarantee.
+
+DECISION: KEEP the mechanism (D8 correctness mandate). 7 R3 tests; full suite 595 passed / 0 failed
+  (was 588; zero new failures); smoke exit 0 both default + ablation; dev loop ~86s.
+  IMPACT A/B (workflow step 11) -- does routing unknown into training help/hurt held witness recall?
+  CAVEAT: the op shards (3001-3024) are PRE-corrected-env-math (the trunk loads stored labels/configs;
+  R2a/R2b changed only generation DEFAULTS, not these pre-built shards). So an A/B here characterizes
+  the mechanism on the CURRENT pipeline, not the corrected-env-math headline -- a corrected A/B needs
+  a dataset REBUILD (the heavy/owner-gated recalibration step, broader than R3). Running a bounded
+  directional A/B (3 seeds) as a sanity/characterization signal; full corrected ≥5-seed A/B deferred
+  to the rebuild.
+NEXT (single hypothesis): R4 -- real phase-specific PBFT accounting (distinct pre-prepare/prepare/
+  commit message plans; validators vote, clients relay-only; quorum-completion latency on real phase
+  maps; energy = protocol+relay+retrans+MAC-control+policy-comm+reconfig+view-change).
