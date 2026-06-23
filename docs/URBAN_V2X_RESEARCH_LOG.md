@@ -3224,6 +3224,34 @@ DECISION: KEEP the mechanism (D8 correctness mandate). 7 R3 tests; full suite 59
   a dataset REBUILD (the heavy/owner-gated recalibration step, broader than R3). Running a bounded
   directional A/B (3 seeds) as a sanity/characterization signal; full corrected ≥5-seed A/B deferred
   to the rebuild.
+R3 DIRECTIONAL A/B RESULT (task bo0eimqez; 8 shards, 40 updates, dense b=0 cold-start, ema, 3 seeds;
+  include-unknown DEFAULT vs --exclude-unknown). CAVEAT: PRE-corrected-env-math shards, 3 seeds,
+  short cold-start -> DIRECTIONAL, NOT a headline.
+    seed | include wit_recall | exclude wit_recall
+     0   |       0.227        |      0.273
+     1   |       0.591        |      0.818
+     2   |       0.000 (COLLAPSE) |  0.864
+    mean |       0.273        |      0.652
+  Also raw: include 0.198 vs exclude 0.479; witness DISCOVERY: include 1 vs exclude 3 (total over
+  held unknown). Including unknown is WORSE on ALL metrics on all 3 seeds (seed-2 fully collapsed:
+  raw=0, no feasible topology produced).
+  ROOT-CAUSE HYPOTHESIS: the dense reward r=(c-tau) is ALWAYS NEGATIVE on unknown scenes (c<tau by
+  definition of unknown), so putting them in the full dense PG treats them as soft VIOLATIONS -- which
+  directly contradicts §R3 work-item 3 ("unknown 不直接当 certified violation"). The persistent negative
+  pull (and/or the ema baseline disruption from +50% scenes) destabilizes the shared policy. (The OLD
+  --include-unsolvable help text warned of exactly this: "the consensus constraint is UNSATISFIABLE
+  there ... destabilizes".)
+  DECISION ON R3: KEEP the tri-state MECHANISM (correct + D8-aligned: unknown is retained in the
+  dataset, evaluated, and discoverable -- NOT deleted; metric=witness recall+discovery; isolation;
+  --exclude-unknown ablation). FLAG the directive's default-include as a REVISE-CANDIDATE: it is
+  directionally harmful here. NOT unilaterally flipping the default on caveated evidence (old env-math,
+  3 seeds, possible cold-start instability) -- that would override the owner's explicit work-item 1+3.
+  The CORRECT fix per work-item 3 (R3b, gated on the corrected dataset for validation): unknown scenes
+  enter EXPLORATION with a DISCOVERY-rewarding signal (reward c>=tau discovery; do NOT apply the
+  destabilizing negative dense penalty / do not treat as a violation), not the full dense PG. The
+  definitive default decision needs the corrected-env-math dataset REBUILD + >=5 seeds. This does not
+  block R4-R7 (they are independent of the training default). Surfaced to the owner via the log + memory.
+
 NEXT (single hypothesis): R4 -- real phase-specific PBFT accounting (distinct pre-prepare/prepare/
   commit message plans; validators vote, clients relay-only; quorum-completion latency on real phase
   maps; energy = protocol+relay+retrans+MAC-control+policy-comm+reconfig+view-change).
