@@ -1,0 +1,10 @@
+{
+  "tier": "smoke",
+  "headline_eligible": false,
+  "purpose": "fast import + exit-0 verification; a smoke result is NEVER a research conclusion (v2 plan exit condition, D4)",
+  "updates": 3,
+  "scene_count": 6,
+  "val_scene_count": 2,
+  "seeds": [0],
+  "samples_per_scene": 1
+}

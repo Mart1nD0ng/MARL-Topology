@@ -1,0 +1,10 @@
+{
+  "tier": "pilot",
+  "headline_eligible": false,
+  "purpose": "single-seed mechanism-activation confirmation (does the mechanism truly fire?); NOT a headline (D6 pilot, v2 plan workflow step 7)",
+  "updates": 40,
+  "scene_count": 36,
+  "val_scene_count": 12,
+  "seeds": [0],
+  "samples_per_scene": 1
+}

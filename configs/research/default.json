@@ -1,0 +1,10 @@
+{
+  "tier": "research",
+  "headline_eligible": true,
+  "purpose": "paired multi-seed A/B for a reportable headline; >=5 independent seeds + CI (D4), keep-best on VAL only",
+  "updates": 120,
+  "scene_count": 144,
+  "val_scene_count": 36,
+  "seeds": [0, 1, 2, 3, 4],
+  "samples_per_scene": 1
+}

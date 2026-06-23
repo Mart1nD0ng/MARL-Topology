@@ -60,9 +60,12 @@ identity is *efficient global credit in training + strict local execution in dep
 
 `scripts/train/train_decentralized_rl.py` — the **single-step critic-free REINFORCE +
 RLOO** trunk over `MessagePassingGraphEdgeScorer` edge logits, decoded by
-`local_mutual_assemble` (`policies/decentralized_mutual_acceptance.py`), reward = Ng–Harada
-potential `(c − τ)` on the closed-form quorum-tail `c` (`protocol/quorum_tail.py`) + a
-Lagrangian budget dual, `τ = 0.9`.
+`local_mutual_assemble` (`policies/decentralized_mutual_acceptance.py`), reward = the
+feasibility-margin `(c − τ)` on the closed-form quorum-tail `c` (`protocol/quorum_tail.py`) + a
+Lagrangian budget dual, `τ = 0.9`. (The `−τ` is a constant offset on a single-step `T=1` bandit —
+a fixed baseline that preserves the policy-gradient direction; it is **not** Ng–Harada potential-
+based shaping, which requires an MDP state-potential difference `γΦ(s′)−Φ(s)` that does not exist
+here. The earlier "Ng–Harada potential" wording was an unproven misdescription, corrected in v2 R0.)
 
 During reconstruction this remains the production entry **and a required baseline**
 (Spec §15: REINFORCE-EMA / RLOO-M≥2 are mandatory comparison baselines). The new CTDE

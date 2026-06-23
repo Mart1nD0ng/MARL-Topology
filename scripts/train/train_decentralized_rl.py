@@ -140,11 +140,14 @@ def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier"
     barrier (binary): feasible -> 1 - beta*E/E_ref; infeasible -> -lam_c*g_c - lam_b*g_b. Gives NO
         gradient until a sample crosses tau -> signal-starved when the warm-started policy is too sharp
         to explore across the feasibility boundary (iteration-9 finding: train feasibility froze).
-    dense (potential-based shaping, INVARIANT #5): r = (c - tau) - lam_b*g_b - beta*1[feasible]*E/E_ref.
-        Phi = c - tau is a TRUE potential (Ng-Harada-Russell): dense in c so EVERY sample -- even
-        infeasible -- gets a gradient toward higher consensus (a sample at c=0.88 beats one at c=0.70),
-        feasibility-ordered (r>=0 iff feasible), and it does NOT change the optimal policy, only densifies
-        the gradient toward the tau frontier. Energy stays gated to the feasible set.
+    dense (feasibility-margin reward): r = (c - tau) - lam_b*g_b - beta*1[feasible]*E/E_ref.
+        r is the consensus success probability c minus the fixed threshold tau, dense in c so EVERY
+        sample -- even infeasible -- gets a gradient toward higher consensus (a sample at c=0.88 beats
+        one at c=0.70) and is feasibility-ordered (r>=0 iff feasible). NOTE (honest framing, v2 R0): the
+        -tau term is a CONSTANT offset, not Ng-Harada-Russell potential-based shaping. This is a single-
+        step (T=1) bandit with no states/transitions, so there is no F=gamma*Phi(s')-Phi(s) shaping; the
+        constant only shifts the reward (a fixed baseline; E[grad log pi * const]=0), it does not change
+        the argmax. Energy stays gated to the feasible set.
     """
     try:
         c, energy, _lat = _evaluate(sample, edge_ids)
@@ -157,7 +160,7 @@ def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier"
     feasible = (c >= TAU) and budget_ok
     er = min(energy / e_ref, 2.0)
     if reward_mode == "dense":
-        r = (c - TAU) - lam_b * g_b - (beta * er if feasible else 0.0)   # potential-based, dense in c
+        r = (c - TAU) - lam_b * g_b - (beta * er if feasible else 0.0)   # feasibility-margin, dense in c
         if live_consensus_dual and c < TAU:
             # INNOVATION B (MACPO dense/sparse split): a SPARSE binary consensus-violation cost makes the
             # consensus dual lam_c LIVE (in plain dense it is computed+ascended but never enters the reward).
@@ -281,7 +284,7 @@ def parse_args() -> argparse.Namespace:
                    help="INNOVATION B: add a sparse binary consensus-violation cost (-lam_c on infeasible) so "
                         "the consensus dual is LIVE in dense mode (else lam_c is computed but inert)")
     p.add_argument("--reward-mode", choices=["barrier", "dense"], default="barrier",
-                   help="dense = potential-based shaping r=(c-tau) (gradient on every sample, even "
+                   help="dense = feasibility-margin reward r=(c-tau) (gradient on every sample, even "
                         "infeasible) -- needed when the binary barrier is signal-starved on a sharp policy")
     p.add_argument("--lam-c", type=float, default=2.0, help="initial consensus dual")
     p.add_argument("--lam-b", type=float, default=2.0, help="initial budget dual")

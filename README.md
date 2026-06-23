@@ -28,8 +28,8 @@ critic-free decentralized learner.
   local message passing). A leave-one-out (RLOO) baseline reduces variance. There is
   **no critic at all** → zero CTDE gap, the strongest form of the "learning must be
   truly decentralized" invariant.
-- **Reward — one principled objective, not a weighted bag.** A feasibility-first
-  potential `r = (c − τ)` (Ng–Harada shaping) where `c` is the **closed-form PBFT
+- **Reward — one principled objective, not a weighted bag.** A feasibility-margin
+  reward `r = (c − τ)` where `c` is the **closed-form PBFT
   quorum-tail consensus success probability** (`protocol/quorum_tail.py`, a
   Poisson-binomial whole-network quorum tail — no Monte Carlo). The budget constraint
   is handled by a **Lagrangian dual** updated by dual ascent (constrained-RL / RCPO),
@@ -107,5 +107,5 @@ python scripts/train/evaluate_actor_on_dataset.py \
 - **I1** fully decentralized *execution AND learning* (no global-state leakage, no central critic).
 - **I3** consensus threshold `τ ≥ 0.9`, identical in training reward and evaluation.
 - **I4** generalization: domain randomization + held-out + varying N + multi-seed with CI.
-- **I5** one principled reward: potential shaping + constrained-RL dual (no stacked weighted terms).
+- **I5** one principled reward: a feasibility-margin reward `(c − τ)` + constrained-RL dual (no stacked weighted terms).
 - **I6** closed-form whole-network consensus failure probability (Poisson-binomial quorum tail), not Monte Carlo.

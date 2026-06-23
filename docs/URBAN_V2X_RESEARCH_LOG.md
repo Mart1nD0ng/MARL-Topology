@@ -3001,3 +3001,55 @@ RESUME CHECKLIST: (1) apply the entropy cap; (2) re-run `--smoke --baseline grap
   (mechanism-activation, smoke-end-to-end); (4) full suite zero-new-fail; (5) Workflow adversarial
   review of the trunk wiring (D1 / PPO ratio / fair evaluator-call budget / no oracle in critic
   inputs); (6) paired A/B pilot graph-mappo vs ema vs rloo (sample efficiency / held RL / EV / KL).
+
+================================================================================
+R0 (2026-06-23): v2 Engineering-Plan fix gate R0 -- governance & experiment infra. KEEP.
+================================================================================
+NEW AUTHORITY: docs/MARL-Topology-{Technical-Spec,Engineering-Plan}-v2.md supersede v1 where they
+  conflict. The v2 plan reframes the remaining work as fix gates R0-R7 (re-accept Phase 0-7 before
+  Phase 8). This is the first round (R0).
+
+HYPOTHESIS (one variable): every run becomes reproducible + mechanism-auditable, and smoke/pilot
+  params are STRUCTURALLY barred from a headline, by adding config tiers + an active run manifest +
+  a mechanism-activation artifact -- with no environment/action/learning change and zero new test
+  failures.
+
+IMPLEMENTATION (failing-test-first; 16 tests RED->GREEN):
+  - configs/{smoke,pilot,research}/default.json: three operating tiers. smoke (3 updates / 6 scenes /
+    1 seed) and pilot (40 / 36 / 1 seed) are headline_eligible=false; research (120 / 144 / 5 seeds)
+    is the only headline-eligible tier.
+  - src/marl_topology/training/config_tiers.py: TIER_NAMES, validate_tier_config (schema + invariants:
+    research => headline_eligible AND >=5 seeds; smoke/pilot => NOT headline_eligible), load_tier_config,
+    and assert_headline_eligible (the guard a headline path calls -- raises HeadlineEligibilityError on
+    a smoke/pilot config). EXIT CONDITION met: smoke/pilot cannot become a headline.
+  - src/marl_topology/training/run_manifest.py: an ACTIVE RunManifest (frozen dataclass) with the 7 v2
+    fields (git_revision, environment_math_version, action_distribution_version, dataset_manifest,
+    seed, split, mechanism_activation [D6], evaluator_call_budget) + tier/arm/created_at/headline; to_dict
+    / from_dict / write / read round-trip; build_run_manifest stamps the env-math + action-dist versions
+    and validates. ARMS registry pins the 4 comparison arms (ema=1, rloo>=2, graph-mappo=1, production=1
+    evaluator-calls/scene -- the fairness budget, Spec §9.8). This is DISTINCT from the frozen Stage-5.9/
+    5.10 dry-run *design* contract (planned_not_active, forbids writing) -- that relic is untouched.
+  - DOC CORRECTNESS (work-item 4): removed the unproven "Ng-Harada potential / potential-based shaping"
+    description of r=(c-tau) from AGENTS.md, README.md (x2), and the trunk docstring/comments (x3).
+    HONEST FRAMING: r=(c-tau) is a feasibility-margin reward; the -tau is a CONSTANT offset on a single-
+    step T=1 bandit (a fixed baseline preserving the policy-gradient direction; E[grad log pi * const]=0),
+    NOT Ng-Harada-Russell potential-based shaping (there is no MDP state-potential difference
+    gamma*Phi(s')-Phi(s) -- no states/transitions exist).
+
+PHASE-6 REVISE DECISION (work-item 5; SUPERSEDES the Phase-7-5/n FIX PLAN above): the ordered
+  Plackett-Luce entropy blowup is NOT fixed by a "permutation-cap + first-step categorical-entropy
+  surrogate" -- the v2 plan EXPLICITLY FORBIDS that shortcut (v2 Plan §10, §R6 "明确禁止"; Spec §7.1).
+  The blowup is a SYMPTOM of a deeper modeling error: the ordered PL treats the k! permutations of one
+  unordered subset as distinct actions (wrong entropy/exploration signal) AND is factorial. The fix is
+  R6: REPLACE the ordered PL with the Budget-Conditioned Unordered Subset Policy (BCSP),
+  pi_i(S) ∝ 1[|S|<=b]exp(sum_{e in S} theta_e), whose exact logp/sampling/entropy come from an O(mb)
+  log-partition DP (and an O(m) independent-Bernoulli fast path when b>=m -- so the real blocker
+  m=15,b=64 is a LINEAR case, not 15!). order never enters the PPO probability. This also unblocks R7
+  (per-agent ratio + agent-normalized entropy both consume the BCSP). The decentralized_action.py
+  ordered-PL path stays until R6 lands its replacement (action_distribution_version is stamped
+  "ordered_plackett_luce_v1_REVISE_pending_bcsp" in the manifest to flag it).
+
+DECISION: KEEP. 16 targeted tests GREEN; full unit+contract suite ZERO new failures (baseline 560
+  passed/1 xfail -> unchanged + 16 new); smoke exit 0. Infra only: 0 evaluator calls, 0 env steps.
+NEXT (single hypothesis): R1 -- production effective f/q logging + fixed-B |B|<=f semantics +
+  honest-primary monotonicity counterexample + greedy-not-certified labeling (v2 §R1).
