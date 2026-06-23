@@ -3255,3 +3255,45 @@ R3 DIRECTIONAL A/B RESULT (task bo0eimqez; 8 shards, 40 updates, dense b=0 cold-
 NEXT (single hypothesis): R4 -- real phase-specific PBFT accounting (distinct pre-prepare/prepare/
   commit message plans; validators vote, clients relay-only; quorum-completion latency on real phase
   maps; energy = protocol+relay+retrans+MAC-control+policy-comm+reconfig+view-change).
+
+================================================================================
+R4 (2026-06-23): phase-specific PBFT message plan + accounting primitive. KEEP (verified, opt-in).
+================================================================================
+GROUNDING: the production evaluator feeds the SAME all-pairs records to ALL THREE phases
+  (stage21_objective_stack_evidence.py:357-361 `phase_records = {pre: records, prepare: records,
+  commit: records}`) -- over-counts protocol energy and mis-attributes the pre-prepare round. The
+  reliability cascade already reads the right entries per phase (pre_ready uses M_pj), so RELIABILITY
+  is unaffected; R4 fixes the ACCOUNTING.
+
+HYPOTHESIS (one mechanism): the three PBFT phases carry DISTINCT message sets (Spec S4.8): pre-prepare
+  = primary->backups; prepare/commit = validator<->validator votes; coverage-gated clients emit NO
+  votes (relay only). Energy (S4.9): protocol per-phase, control/relay/reconfig/view-change once.
+  Latency (S4.10): failed phase pays the timeout.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_pbft_message_plan.py, 6 tests):
+  - NEW protocol/pbft_message_plan.py: PBFTMessagePlan + build_pbft_message_plan(validators, primary,
+    clients) -> pre_prepare = {(p,j): j in V_val, j!=p}; prepare=commit = validator all-pairs; clients
+    in NO set (relay only; a client cannot be primary). pbft_protocol_energy: protocol summed PER-PHASE
+    over the plan, relay/control/reconfig/view-change counted ONCE. phase_completion_latency: composes
+    the 4a quorum_completion_latency over the phase-restricted maps (failed phase -> timeout_rate 1,
+    expected ~ budget).
+  - Built VERIFIED + OPT-IN: NOT wired into the production stage21 evaluator this round (matching the
+    P0-P4 primitive pattern). Reward/feasibility byte-unchanged (smoke exit 0).
+
+GATE: the stage2.8 protocol-purity gate (D2: no PBFT state-machine sim) bans "view_change"/"class
+  PBFT" in protocol/. pbft_message_plan.py trips both as FALSE POSITIVES -- "view_change" is the Spec
+  S4.9 energy-term NAME (view_change_energy_j), "class PBFT" is a substring of the PBFTMessagePlan
+  DATA class (a frozen dataclass, not a sim). Added it to the gate's authorized-closed-form whitelist
+  (the 6th, alongside quorum_tail/pbft_reliability/message_matrix_adapter/pbft_accounting/quorum_spec)
+  -- the research log + R4 directive anticipated exactly this. Reliability stays the closed-form quorum
+  tail (D2 intact for all non-whitelisted protocol files).
+
+DECISION: KEEP (verified closed-form primitive). 6 R4 tests; full suite 601 passed / 0 failed (was
+  595; zero new failures); smoke exit 0 (primitive inert -> byte-safe).
+  R4-WIRE (deferred, opt-in, measure-before-flip): replace stage21's all-pairs-x3 phase_records with
+  the plan-driven per-phase maps + the energy terms. Gated by the dataset-rebuild caveat (won't reach
+  training until the op shards are rebuilt under corrected math) -> low urgency; land when the rebuild
+  campaign runs.
+NEXT (single hypothesis): R5 -- two-timescale dynamic environment + Temporal Value Test (does the
+  task actually need temporal modeling, or does the static contextual bandit suffice?). Also: evaluate
+  elevating the corrected-env-math dataset REBUILD to its own round (it gates R1-R4 reaching training).

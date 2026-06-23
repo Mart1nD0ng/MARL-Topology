@@ -38,6 +38,10 @@ def test_stage_2_8_protocol_review_does_not_add_forbidden_protocol_code() -> Non
             "pbft_accounting.py",
             # Phase 1 (spec-driven reconstruction): the authorized closed-form safe-quorum spec.
             "quorum_spec.py",
+            # Phase 4 (R4): the authorized closed-form phase-specific message plan + accounting.
+            # It is NOT a state-machine sim -- "view_change" appears only as the Spec S4.9 energy-
+            # term name (view_change_energy_j); reliability stays the closed-form quorum tail (D2).
+            "pbft_message_plan.py",
         }:
             continue
         text = path.read_text(encoding="utf-8")
