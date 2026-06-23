@@ -3376,3 +3376,22 @@ NEXT (single hypothesis): R7 -- Graph-MAPPO completed: wire BCSP into the trunk 
   ρ_{s,i}=exp(logπ_i^new − logπ_i^old), NOT joint; BCSP normalized entropy bonus); critic train-forward
   NOT under no_grad + optimizer step changes critic params (actor unchanged); actor/critic batching;
   CUDA; critic optimizer/checkpoint/resume; corrected real-shard smoke exit 0.
+
+R6 ADVERSARIAL-VERIFY RESULT (Workflow wr924fz32, 3 lenses: partition-dp / sampling / entropy-map-grad).
+  SAMPLING lens: ZERO issues -- empirical freq == pi (chi-square p 0.19/0.55/0.98, both DP + Bernoulli
+  paths), |S|<=b always, P(K=r) matches to 1e-16, the backward-sampling index mapping has NO off-by-one
+  (per-edge conditional matches brute force to 4.4e-16), deterministic under a fixed generator. PARTITION
+  + ENTROPY/MAP/GRAD lenses: everything verified to MACHINE PRECISION (logZ vs brute-force 2^m to 7e-15;
+  entropy vs -sum p log p to 7e-15; the DIFFERENTIABLE entropy gradient vs finite-difference of the brute
+  entropy matches + is NaN-free; mu_e == brute-force P(e in S); MAP == argmax == deployed decoder, 0/2000
+  mismatches; large-|theta| +/-50 stable) EXCEPT one shared MAJOR finding:
+  - b=0 BUG: at budget b=0 (m>=1) subset_entropy / inclusion_marginals / normalized_entropy RAISED
+    RuntimeError -- the b<m DP at b=0 (cap=1) never adds a theta term, so logZ is a graph-disconnected
+    constant and autograd.grad fails. Forward logZ=0 was correct; only the autograd path crashed. MAJOR
+    not BLOCKER (all production node budgets >=1: rsu=64, vehicle=2, pedestrian=1, default=2), but a valid
+    boundary input + isolated-node/future-kind footgun.
+  FIX (R6 follow-up): short-circuit min(b,m)==0 -> H = theta.sum()*0.0 (theta-connected zero, zero grad),
+  mu = zeros_like(theta) (only the empty subset is legal). + regression test
+  test_bcsp_budget_zero_is_the_empty_subset_and_differentiable (entropy/marginals/logp == 0, backward at
+  b=0 gives zero grad, no crash). 12 BCSP tests; suite 621 passed / 0 failed; smoke exit 0. No other
+  refutation -> BCSP math CONFIRMED correct.

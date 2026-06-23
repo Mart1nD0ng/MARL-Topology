@@ -101,6 +101,8 @@ def subset_logp(theta: Tensor, subset_indices, budget: int) -> Tensor:
 
 def inclusion_marginals(theta: Tensor, budget: int) -> Tensor:
     """``mu_e = P(e in S) = d log Z / d theta_e`` (the per-edge inclusion marginal), via autograd."""
+    if min(int(budget), int(theta.shape[-1])) == 0:
+        return torch.zeros_like(theta)  # only the empty subset is legal -> no edge is ever included
     t = theta.detach().clone().requires_grad_(True)
     (mu,) = torch.autograd.grad(log_partition(t, budget), t)
     return mu.detach()
@@ -112,6 +114,11 @@ def subset_entropy(theta: Tensor, budget: int) -> Tensor:
     Differentiable w.r.t. ``theta`` (``create_graph`` retains the marginal graph) so it can serve as
     the PPO entropy bonus; returns a detached scalar when ``theta`` carries no grad.
     """
+    if min(int(budget), int(theta.shape[-1])) == 0:
+        # only the empty subset is legal (b=0 or m=0) -> H = 0 deterministically. Return a
+        # theta-connected zero (zero gradient) so the entropy bonus stays differentiable; the b<m DP
+        # would otherwise yield a graph-disconnected constant logZ and crash autograd.grad.
+        return theta.sum() * 0.0
     if theta.requires_grad:
         logZ = log_partition(theta, budget)
         (mu,) = torch.autograd.grad(logZ, theta, create_graph=True)

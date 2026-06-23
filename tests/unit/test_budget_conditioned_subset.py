@@ -150,6 +150,23 @@ def test_no_permutations_in_production_action_path() -> None:
     assert "itertools.permutations" not in text and "permutations(" not in text
 
 
+def test_bcsp_budget_zero_is_the_empty_subset_and_differentiable() -> None:
+    # b=0 (a node with no radio budget) -> only the empty subset is legal -> H=0, mu=0, logp(empty)=0.
+    # Regression for the adversarial-verify finding (the b<m DP gave a graph-disconnected logZ that
+    # crashed autograd.grad in subset_entropy / inclusion_marginals / normalized_entropy).
+    from marl_topology.training.budget_conditioned_subset import inclusion_marginals
+    theta = torch.tensor([0.5, -1.0, 2.0], dtype=torch.float64)
+    assert float(log_partition(theta, 0)) == pytest.approx(0.0)
+    assert float(subset_entropy(theta, 0)) == pytest.approx(0.0)
+    assert float(normalized_entropy(theta, 0)) == pytest.approx(0.0)
+    assert torch.allclose(inclusion_marginals(theta, 0), torch.zeros_like(theta))
+    assert float(subset_logp(theta, [], 0)) == pytest.approx(0.0)
+    # the entropy bonus must stay differentiable at b=0 (zero gradient, no crash)
+    t = theta.clone().requires_grad_(True)
+    subset_entropy(t, 0).backward()
+    assert t.grad is not None and torch.allclose(t.grad, torch.zeros_like(t))
+
+
 def test_cuda_device_path_if_available() -> None:
     if not torch.cuda.is_available():
         pytest.skip("no CUDA device")
