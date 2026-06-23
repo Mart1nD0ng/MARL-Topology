@@ -67,6 +67,9 @@ from marl_topology.training.decentralized_distillation import (  # noqa: E402
     local_mutual_assemble,
 )
 from marl_topology.data.row_context_builder import build_row_contexts  # noqa: E402
+from marl_topology.training.decentralized_action import (  # noqa: E402
+    sample_decentralized_action,
+)
 
 OP_SHARDS = [str(ROOT / "result_save" / "campaign" / "data" / "op" / f"_op_shard_{s}.pkl")
              for s in range(3001, 3025)]
@@ -165,43 +168,25 @@ def mutual_acceptance_sample(logits, sample, temperature):
     """STOCHASTIC, fully-decentralized, budget-respecting topology sample whose deterministic
     (temperature->0) limit is EXACTLY local_mutual_assemble -> train == deploy.
 
-    Per node: among its incident edges with logit >= 0 (the same gate the deployed decoder uses),
-    sample up to b (= radio budget) edges WITHOUT replacement via Plackett-Luce / Gumbel-top-b over
-    softmax(logit/temperature). An edge activates iff BOTH endpoints sampled it (mutual acceptance).
-    Returns (active_edge_ids, logp) where logp = sum over nodes of the Plackett-Luce log-prob of the
-    node's sampled ordered acceptance set (the per-agent action) -- the REINFORCE score function.
-    Grad flows through logp via the per-node softmax scores. Budget-feasible by construction.
+    Thin wrapper over the Phase-6 per-agent action API
+    (``marl_topology.training.decentralized_action.sample_decentralized_action``): each node
+    samples up to its radio budget among its incident edges with logit >= 0 via Plackett-Luce /
+    Gumbel-top-b over softmax(logit/temperature); an edge activates iff BOTH endpoints sampled it.
+    Returns (active_edge_ids, logp) with logp = sum over nodes of the per-agent PL log-prob -- the
+    REINFORCE score function. Using the shared API fixes the historical NaN-gumbel bug (the inline
+    `-log(-log(U).clamp_min(1e-12))` clamped the negative inner log to a constant -> NaN -> the
+    sampler collapsed to a fixed order with no exploration).
     """
     context = sample["context"]
     edge_ids = sample["edge_ids"]
     budgets = dict(node_budgets_for_scene(context.evaluator.scene))
-    ends = {e.edge_id: (e.node_u, e.node_v) for e in context.graph.edges}
-    incident = defaultdict(list)              # node -> [global edge index]
-    for i, eid in enumerate(edge_ids):
-        a, b = ends[eid]
-        incident[a].append(i)
-        incident[b].append(i)
-    accept = defaultdict(set)                  # node -> {global edge index accepted}
-    logp = logits.new_zeros(())
-    for node, idxs in incident.items():
-        b = budgets.get(node, 0)
-        if b <= 0:
-            continue
-        gated = [i for i in idxs if float(logits[i]) >= 0.0]   # same logit>=0 gate as deploy
-        if not gated:
-            continue
-        k = min(b, len(gated))
-        z = torch.stack([logits[i] for i in gated]) / temperature     # [m], grad on
-        gumbel = -torch.log(-torch.log(torch.rand_like(z).clamp_min(1e-12)).clamp_min(1e-12))
-        order = torch.argsort((z + gumbel).detach(), descending=True)[:k].tolist()  # PL sample order
-        chosen = torch.zeros_like(z, dtype=torch.bool)
-        for pos in order:
-            logp = logp + (z[pos] - torch.logsumexp(z[~chosen], dim=0))  # PL step over remaining
-            chosen[pos] = True
-            accept[node].add(gated[pos])
-    active = [eid for i, eid in enumerate(edge_ids)
-              if i in accept[ends[eid][0]] and i in accept[ends[eid][1]]]
-    return active, logp
+    edges = {e.edge_id: (e.node_u, e.node_v) for e in context.graph.edges}
+    action = sample_decentralized_action(
+        logits, edge_ids, edges=edges, budgets=budgets,
+        temperature=temperature, compute_entropy=False,
+    )
+    active = [edge_ids[i] for i in action.active_edge_indices]
+    return active, action.joint_logp
 
 
 def gauss_perturb_sample(logits, sample, sigma):
