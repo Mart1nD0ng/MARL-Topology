@@ -84,6 +84,30 @@ def _gated_incident(logits, idxs) -> list:
     return [i for i in idxs if float(logits[i]) >= 0.0]
 
 
+def recompute_logp(logits: Tensor, gated_edge_indices, accepted_order, temperature: float) -> Tensor:
+    """Differentiable Plackett-Luce log-prob of a RECORDED ordered acceptance set over a FROZEN
+    gated candidate set, given fresh logits.
+
+    This is the re-scorer behind the PPO importance ratio: it re-scores the recorded
+    ``accepted_order`` over the ``gated_edge_indices`` frozen at sample time, rather than
+    re-deriving the ``logit >= 0`` gate (which drifts as logits move across PPO inner epochs and
+    would spuriously break ratio == 1 at epoch 0). ``sample_decentralized_action`` scores its own
+    sampled order through this same function, so the sampler's ``logp`` and the ratio's
+    ``logp_new`` are identical by construction. Summed over a scene's per-agent actions this is the
+    joint log-prob.
+    """
+    gated = list(gated_edge_indices)
+    position = {g: p for p, g in enumerate(gated)}
+    z = torch.stack([logits[i] for i in gated]) / temperature
+    logp = z.new_zeros(())
+    chosen = torch.zeros(len(gated), dtype=torch.bool)
+    for g in accepted_order:
+        p = position[g]
+        logp = logp + (z[p] - torch.logsumexp(z[~chosen], dim=0))
+        chosen[p] = True
+    return logp
+
+
 def sample_decentralized_action(
     logits: Tensor,
     edge_ids,
@@ -124,16 +148,14 @@ def sample_decentralized_action(
         u = torch.rand_like(z).clamp(min=1e-12, max=1.0 - 1e-12)
         gumbel = -torch.log(-torch.log(u))
         order = torch.argsort((z + gumbel).detach(), descending=True)[:k].tolist()
-        chosen = torch.zeros_like(z, dtype=torch.bool)
-        logp = logits.new_zeros(())
-        accepted_order: list[int] = []
-        for pos in order:
-            logp = logp + (z[pos] - torch.logsumexp(z[~chosen], dim=0))
-            chosen[pos] = True
-            accepted_order.append(gated[pos])
+        accepted_order = tuple(gated[pos] for pos in order)
+        # Score the sampled order through the shared re-scorer so the sampler's logp and the PPO
+        # importance ratio's logp_new (which re-scores the recorded order over this same frozen
+        # gated set) are identical by construction.
+        logp = recompute_logp(logits, tuple(gated), accepted_order, temperature)
         entropy = _ordered_topk_entropy(z, k) if compute_entropy else logits.new_zeros(())
         per_agent.append(
-            PerAgentAction(node, tuple(gated), tuple(accepted_order), logp, entropy, budget)
+            PerAgentAction(node, tuple(gated), accepted_order, logp, entropy, budget)
         )
         accept[node] = set(accepted_order)
         joint_logp = joint_logp + logp
