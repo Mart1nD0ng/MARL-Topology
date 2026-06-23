@@ -2862,3 +2862,29 @@ DECISION: KEEP -- the honest in-range corrected headline is established. README/
   updated to this result; legacy N=24 numbers marked retired. NEXT: owner go/no-go on (A) the
   out-of-range N=24 campaign (cost-optimize fixed_set first), (B) retire the stale gates to
   unlock the CTDE model phases 7-9, or (C) push + checkpoint.
+
+================================================================================
+ITER (2026-06-23) — CTDE GATE UNLOCK (owner fork B): retire 287 stale gates + lift banned-literal src gates
+--------------------------------------------------------------------------------
+HYPOTHESIS: the banned-literal src/** gates + 287 stale stage-contract tests are the sole
+  blocker to the CTDE model phases (7-9); they can be retired WITHOUT losing any correct
+  physics/protocol/deployment-decentralization invariant.
+METHOD: 24-agent fan-out audit (workflow ctde-gate-retirement-audit) classified all 68 failing
+  contract files (RETIRE_FILE / KEEP_FILE / MIXED) + inventoried the banned-literal scanners
+  with safe-lift instructions; produced a conservative plan flagging 7 real-invariant risks.
+  Executed in 3 commits with spot-verification + a mechanism probe.
+RESULT (a852c1f, 22edaf0):
+  - Preserved 3 real invariants the audit found buried in stale files: tau-drift D3 (re-pinned
+    to a literal 0.9), stage2_7 link-regime physics-purity, stage2_8 protocol-layer D2.
+  - Lifted the 3 canonical deployment-purity gates (stage8/stage9/stage8_0) to exempt
+    models/+training/ (CTDE training subtrees) while keeping protocol/policies/data/evaluation
+    scanned; closed the class Critic(/Actor( coverage gap on stage9.
+  - Deleted 38 stale-lineage contract files, trimmed 26 mixed files, retired the redundant
+    stage5_x process banned-literal gates; fixed 4 residual stale failures (stage3_6 deleted-doc
+    paths; result_save scaffold now allows .gitkeep + *.md per .gitignore policy).
+  - VERIFIED: tests/unit+contract 289 fail -> 0 fail (530 pass). A models/ probe with every
+    banned token (import torch / class MAPPO/COMA/Critic( / optimizer.step / train_loop /
+    torch.save / checkpoint_path) trips ZERO gates; deployed paths stay purity-scanned.
+DECISION: KEEP -- Phases 7-9 unblocked, deployment-decentralization (D1) preserved at the layer
+  level, every real protocol/physics UNIT test survives. NEXT: Phase 6 (decentralized actor
+  action API) -> Phase 7 (Graph-MAPPO, first legal CTDE baseline), failing-test-first.

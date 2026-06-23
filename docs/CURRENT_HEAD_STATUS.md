@@ -128,7 +128,19 @@ centralized graph critic") and "defer to the two specs on conflict".
 
 ---
 
-## 5. Frozen-gate trap inventory (forward blocker — must be lifted before Phase 7)
+## 5. Frozen-gate trap inventory — ✅ LIFTED 2026-06-23 (Phases 7–9 unblocked)
+
+> **Resolved (commits `a852c1f`, `22edaf0`).** The banned-literal `src/**` gates are now
+> **scoped to the deployed paths**: the three canonical scans (`test_stage8_*`,
+> `test_stage9_0_*`, `test_stage8_0_*`) EXEMPT `models/` and `training/`, so a centralized
+> critic + Graph-MAPPO/COMA/PPO + optimizers/checkpoints are addable there, while
+> `protocol/`/`policies/`/`data/`/`evaluation/` stay scanned (D1, layer-level). The 287 stale
+> stage-contract process gates were retired (38 files deleted, 26 trimmed to their real tests;
+> every protocol/physics UNIT test survives). Suite: **289 failed → 0 failed (530 passed)**; a
+> `models/` probe carrying every banned token trips zero gates. The three real invariants the
+> audit flagged buried in stale files were preserved (tau-drift D3 re-pinned to a literal;
+> stage2_7 link-regime physics-purity; stage2_8 protocol-layer D2 no-state-machine). The
+> original (now-historical) inventory:
 
 The repo is gate-driven; several frozen contract gates scan `src/marl_topology/**.py`
 for **banned literals** and will reject the very modules the plan requires:
@@ -291,3 +303,38 @@ else unknown) + `solvability_from_finite_search` (a finite search yields only W 
 + split-isolated `WitnessMemory` (`merge_from` refuses test→train, S5.3). 11 tests. Production
 `feasible_exists` untouched; the relabel + the proven optimistic UB (S5.2) are part of the
 batched recalibration. Suite 289 fail / **549 pass** / 1 xfail, zero new failures.
+
+---
+
+## 11. CTDE gate unlock (owner-approved 2026-06-23) — Phases 7–9 unblocked
+
+Owner chose fork **(B)**: retire the 287 stale contract gates + lift the banned-literal
+`src/**` gates so the spec's target architecture (Graph-MAPPO → Counterfactual PPO → SCQ +
+centralized graph critic) can be built. Executed in three verified commits after a 24-agent
+fan-out audit (`logs/` + the workflow transcript) classified all 68 failing contract files and
+inventoried the banned-literal scanners.
+
+- **1/3 `a852c1f` — preserve real invariants + fix the false positive.** Three genuine
+  invariants the audit found buried in otherwise-stale files were kept: tau-drift (D3) re-pinned
+  to a literal `CANONICAL_TAU_REQUIREMENT_MIN = 0.9` (the `TAU_DECISION_RECORD.md` lineage doc
+  was retired); the stage2_7 link-regime physics-purity guard (deferred physics stays out of the
+  active source, channel/ carved out); the stage2_8 protocol-layer D2 guard (`protocol/` stays
+  closed-form — no PBFT state-machine / training). `data/row_context_builder.py` docstring
+  reworded ("MAPPO trunk" → "multi-agent trunk") to clear the uppercase-`MAPPO` false positive
+  that was tripping ~6 gates from `data/` (not covered by the models/training exemption).
+- **2/3 `22edaf0` — lift gates + retire lineage.** The three canonical deployment-purity scans
+  (`test_stage8_*`, `test_stage9_0_*`, `test_stage8_0_*`) now exempt the `models/`+`training/`
+  subtrees from their banned-terms loop (matching the prior torch-import exemption), with
+  `class Critic(`/`class Actor(` added to stage9 to close a coverage gap. 38 pure stale-lineage
+  contract files deleted, 26 mixed files trimmed to their real tests, the redundant
+  stage5_3-5_8/5_0i/5_1/5_2 process banned-literal gates retired. 4 residual stale failures
+  fixed (stage3_6 surrogate scan drops deleted-doc paths; 3 `result_save` scaffold asserts now
+  allow `.gitkeep` + `*.md` per `.gitignore:!result_save/*.md`).
+
+**Result:** `tests/unit` + `tests/contract` = **530 passed / 0 failed** (was 289 failed). A probe
+module under `models/` carrying every banned token (`import torch`, `class MAPPO`/`COMA`/
+`Critic(`, `optimizer.step`, `train_loop`, `torch.save`, `checkpoint_path`) trips **zero** gates,
+while the deployed paths (`protocol/`/`policies/`/`data/`/`evaluation/`) stay purity-scanned — D1
+enforced at the layer level. Phases 7–9 are open. **Next:** Phase 6 (decentralized actor action
+API: per-agent directed bid/logp/real entropy) → Phase 7 (Graph-MAPPO, the first legal CTDE
+baseline). Failing-test-first.

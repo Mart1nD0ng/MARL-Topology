@@ -72,12 +72,18 @@ second long-lived parallel one.
 
 ## Gate discipline (this repo is gate-driven)
 
-- Frozen contract gates scan `src/marl_topology/**.py` for banned literals (`MAPPO`,
-  `COMA`, `Transformer`, `optimizer`, `class Critic(`, `class Actor(`, `def reward`, …).
-  These encode the retired critic-free identity and **block Phases 7–9**; they are
-  retired in a staged way as each subsystem is re-implemented (see
-  `docs/CURRENT_HEAD_STATUS.md` §5). Do not silently weaken a *correct* physics/protocol
-  test to go green.
+- The deployment-purity gates scan `src/marl_topology/**.py` for banned literals (`MAPPO`,
+  `COMA`, `Transformer`, `optimizer`, `class Critic(`, `class Actor(`, `def reward`,
+  `train_loop`, `torch.save`, …). As of 2026-06-23 these are **scoped to the deployed
+  paths**: the `models/` and `training/` subtrees are EXEMPT, so a centralized graph
+  critic + Graph-MAPPO/COMA/PPO + optimizers/checkpoints live there legally (CTDE,
+  Phases 7–13), while `protocol/`, `policies/`, `data/`, `evaluation/` stay scanned. This
+  enforces D1 (centralized training, fully decentralized execution) at the layer level.
+  The three canonical scans are `test_stage8_*`, `test_stage9_0_*`, `test_stage8_0_*`;
+  the 287 stale stage-contract *process* gates (asserting on deleted lineage docs) were
+  retired the same day. Phases 7–9 are **unblocked**. Do not silently weaken a *correct*
+  physics/protocol/deployment-decentralization test to go green; if you add CTDE code,
+  it belongs under `models/`/`training/`, never in a deployed path.
 - Write diagnostics to `logs/` (gitignored, ungoverned). `result_save/` is allowlist-
   gated and gitignored (only `*.md` reports are tracked).
 
