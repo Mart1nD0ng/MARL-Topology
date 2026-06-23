@@ -46,14 +46,26 @@ Warm-start (BC from a frozen artifact) is the default; `--cold-start` runs from 
 init. `keep-best` on a held-out-from-train VAL split guarantees RL is never reported
 below the BC start.
 
-## Headline result
+## Headline result (under the corrected environment math)
 
-A **cold-start, oracle-free** decentralized learner **beats the centralized
-Simulated-Annealing oracle at out-of-range scale (N = 24)**: held-out raw feasibility
-~0.769–0.808 vs the SA-teacher ceiling 0.577, with a 4-seed CI95 of **[+0.067, +0.279]**
-on `raw_mean − 0.577` — i.e. the lower bound is above zero. This is decisive evidence
-that the decentralized learner generalizes past the scale its centralized teacher was
-built for. See `docs/URBAN_V2X_RESEARCH_LOG.md`.
+> ⚠️ The project's environment math was reconstructed (P0–P4: safe PBFT quorum, fixed
+> Byzantine fault set, single-correct route/relay, tri-state solvability, timeout-aware
+> latency) and the production dataset re-built under it. The **earlier** "beats the SA
+> oracle by +0.177 at out-of-range N = 24" claim was produced under the **pre-recalibration
+> (incorrect) math** — unsafe quorum + incoherent remove-largest fault model + degenerate
+> latency + double-counted relay — and is **retired** (`retired_due_to_protocol_metric_change`).
+
+Under the **corrected** math, an oracle-free **cold-start decentralized learner is
+statistically indistinguishable from the centralized Simulated-Annealing oracle in-range**
+(N ∈ {8, 12, 16}): a 5-seed held-out comparison gives RL keep-best **0.624** vs SA ceiling
+**0.655**, margin **−0.031, 95% CI [−0.086, +0.024]** (the final-update policy sits essentially
+at the oracle: **+0.007, [−0.021, +0.036]**) — both CIs span 0. The learner **matches** the
+near-optimal centralized oracle in-range; it neither significantly beats nor trails.
+
+Whether a learned policy **generalizes past the oracle's build scale out-of-range (N = 24)**
+under the corrected math — the legacy claim's actual setting — is the **open question**, gated
+on a `fixed_set` cost optimization + a heavy N = 24 build. See `docs/URBAN_V2X_RESEARCH_LOG.md`
+and `docs/CURRENT_HEAD_STATUS.md`.
 
 ## Quick start
 

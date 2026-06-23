@@ -2828,3 +2828,37 @@ CAVEAT (#16-adjacent): PRELIMINARY -- ONE shard (36 scenes, 15 held), margins qu
 DECISION: KEEP (honest in-range corrected baseline established). The decentralized learner is
   competitive with the centralized oracle in-range under correct math. NEXT: refine on the
   4-shard pool; then owner go/no-go on the out-of-range N=24 (needs fixed_set cost optimization).
+
+================================================================================
+RECALIBRATION step 2e-FINAL (2026-06-23): in-range corrected 5-seed headline (144 scenes).
+================================================================================
+SETUP: 4 corrected in-range shards (9101-9104: 144 scenes N in {8,12,16}, full production
+  env-math; 99/144 teacher-feasible ~0.69). 5 cold-start dense runs (split-seed 0..4, updates
+  120, val-scenes 12). held = 58 scenes/seed (vs the 36-scene prelim's 15) -> a robust estimate.
+RESULT (RL keep-best / SA ceiling / margin):
+  s0 0.586/0.603/-0.017  s1 0.655/0.638/+0.017  s2 0.638/0.724/-0.086  s3 0.569/0.638/-0.069  s4 0.672/0.672/+0.000
+  RL keep-best raw : mean 0.6240  95%CI [0.569, 0.679]
+  SA ceiling       : mean 0.6550  95%CI [0.598, 0.712]
+  MARGIN keep-best : mean -0.0310  95%CI [-0.0863, +0.0243]   (includes 0; 2/5 seeds >= 0)
+  MARGIN RLfin     : mean +0.0072  95%CI [-0.0214, +0.0358]   (includes 0; 4/5 seeds >= 0)
+  keep-best vs RLfin gap +0.038 (small VAL=12 -> the VAL-selected keep-best is slightly
+  conservative on held; the final-update policy sits essentially AT the oracle).
+
+CONCLUSION (honest, corrected-math in-range): the oracle-free cold-start DECENTRALIZED learner
+  is STATISTICALLY INDISTINGUISHABLE from the centralized SA oracle IN-RANGE -- both margin CIs
+  span 0; RLfin is essentially exactly at the oracle (+0.007 [-0.021,+0.036]). It MATCHES the
+  oracle; it does NOT significantly beat or trail. Consistent with the preliminary, CI tighter.
+  Conditional reliability ~0.88-0.97 (the deployed policy reaches tau on the solvable held scenes).
+
+POSITIONING: the legacy headline ("oracle-free cold-start beats the SA oracle, +0.177 at N=24")
+  was an OUT-OF-RANGE (N=24) claim under the INCORRECT (pre-recalibration) environment math --
+  unsafe quorum + incoherent remove-largest fault model + degenerate latency + double-counted
+  relay. It is RETIRED (retired_due_to_protocol_metric_change). Under corrected math, the IN-RANGE
+  comparison is a MATCH. The out-of-range N=24 comparison (does a learned policy generalize past
+  the SA's build scale under correct math?) is the open question -- gated on the fixed_set O(n^4)
+  cost optimization + a heavy N=24 build.
+
+DECISION: KEEP -- the honest in-range corrected headline is established. README/AGENTS headline
+  updated to this result; legacy N=24 numbers marked retired. NEXT: owner go/no-go on (A) the
+  out-of-range N=24 campaign (cost-optimize fixed_set first), (B) retire the stale gates to
+  unlock the CTDE model phases 7-9, or (C) push + checkpoint.

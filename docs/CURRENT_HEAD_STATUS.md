@@ -270,6 +270,17 @@ collapse was the τ-cap bug (since fixed) + relay_hops=1, not the model. Recomme
 config: `fault_model="fixed_set", one_hop_relay=True, relay_hops=2`. Next: flip the default,
 wire the timeout latency + tri-state labels, migrate absolute-number tests, multi-seed headline.
 
+**Recalibration COMPLETE (2026-06-23).** All corrected env-math is wired into the production
+regime (2a reliability/relay, 2b timeout latency, 2c tri-state labels), the pipeline validated
+end-to-end, and a corrected in-range 5-seed headline established on a 144-scene rebuilt dataset:
+RL keep-best **0.624** vs SA ceiling **0.655**, **margin −0.031, CI95 [−0.086, +0.024]**
+(final-update +0.007 [−0.021, +0.036]) — both CIs span 0 → the oracle-free cold-start
+decentralized learner **matches the SA oracle in-range** under correct math (neither beats nor
+trails). The legacy "+0.177 at N=24" is **retired** (`retired_due_to_protocol_metric_change`);
+it was out-of-range under the incorrect math. The corrected **out-of-range N=24** comparison is
+the open question (gated on a `fixed_set` O(n⁴) cost optimization + a heavy build). README +
+AGENTS headlines updated to this honest result.
+
 ---
 
 **Phase-3 update — tri-state solvability (opt-in).** Confirmed the binary `feasible_exists`

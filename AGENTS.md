@@ -103,11 +103,15 @@ python -m pytest tests/unit -q
 
 The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 
-## Headline result (current baseline to beat, not regress)
+## Headline result (under the corrected environment math)
 
-Cold-start, oracle-free decentralized learning beats the SA oracle at out-of-range scale
-N = 24 (5-seed margin **+0.177, CI95 [+0.104, +0.249]**, on `raw_mean − ceiling`). This
-is the **critic-free baseline** the CTDE method must match or beat under an equal
-evaluator-call budget. If a change moves it, say so honestly in the research log. Note
-the ceiling here is a finite SA search, which per D5 is a baseline, not an
-infeasibility proof.
+The legacy "+0.177 beat at out-of-range N = 24" is **retired** — it was produced under the
+pre-recalibration (incorrect) env-math. Under the **corrected** math (P0–P4 + recalibration,
+2026-06-23), an oracle-free cold-start decentralized learner is **statistically
+indistinguishable from the SA oracle in-range** (N ∈ {8,12,16}): 5-seed RL keep-best 0.624
+vs SA ceiling 0.655, margin **−0.031, CI95 [−0.086, +0.024]** (final-update +0.007
+[−0.021, +0.036]) — both CIs span 0, it MATCHES the oracle. The out-of-range N = 24
+comparison under correct math is the open question (gated on a `fixed_set` cost optimization
++ a heavy build). This in-range parity is the baseline the CTDE method must match or beat
+under an equal evaluator-call budget. The ceiling is a finite SA search — per D5 a baseline,
+not an infeasibility proof.
