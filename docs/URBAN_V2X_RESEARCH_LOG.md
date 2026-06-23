@@ -2904,3 +2904,19 @@ RESULT: training/decentralized_action.py + 10 tests, all green; full suite 540 p
 DECISION: KEEP the API. NEXT: swap the main rollout onto this API (fixes the trunk gumbel bug) with
   a smoke + a paired pilot to measure the exploration-fix effect; then Phase 7 Graph-MAPPO
   (centralized graph-temporal critic + PPO-clip + GAE, critic/actor encoders separate).
+
+================================================================================
+ITER (2026-06-23) — PHASE 6 (2/n): trunk swapped onto fixed action API; exploration-fix pilot
+--------------------------------------------------------------------------------
+HYPOTHESIS: swapping the trunk's main rollout onto the fixed sample_decentralized_action (correct
+  Gumbel) restores exploration and improves the learner vs the buggy NaN-gumbel sampler.
+METHOD: paired pilot, shard 9101, cold-start, 80 updates, seed 0, split-seed 7, val 12. A = trunk
+  at HEAD (buggy gumbel); B = trunk swapped onto the fixed API. Same data/seed/config.
+RESULT (commit this iter):
+  - A (buggy): VAL frozen 0.583 (no exploration); held RL keep-best 0.267 / RLfin 0.400 / cond 0.5.
+  - B (fixed): VAL climbs 0.417->0.583->0.667->0.750; held RL keep-best 0.533 / RLfin 0.533 / cond 1.0.
+  - The fix DOUBLES held RL and reaches the SA ceiling (0.533) on this shard; exploration alive.
+  - Suite 540 pass / 0 fail; smoke exit 0. Logs: logs/pilotA_buggy_gumbel.log, logs/pilotB_fixed_gumbel.log.
+DECISION: KEEP the swap. The in-range 5-seed headline (0.624 vs 0.655, margin -0.031) was under the
+  buggy sampler -> now a LOWER BOUND. A corrected 5-seed re-run is warranted (single shard/seed here);
+  owner-gated (it may close or flip the margin). NEXT: owner decision (re-run headline now vs Phase 7).
