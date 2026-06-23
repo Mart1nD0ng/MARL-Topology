@@ -2920,3 +2920,18 @@ RESULT (commit this iter):
 DECISION: KEEP the swap. The in-range 5-seed headline (0.624 vs 0.655, margin -0.031) was under the
   buggy sampler -> now a LOWER BOUND. A corrected 5-seed re-run is warranted (single shard/seed here);
   owner-gated (it may close or flip the margin). NEXT: owner decision (re-run headline now vs Phase 7).
+
+================================================================================
+ITER (2026-06-23) — corrected in-range 5-seed headline at the OLD temp=3.0 (the temp confound)
+--------------------------------------------------------------------------------
+HYPOTHESIS: re-running the in-range 5-seed headline with ONLY the sampler fixed (same temp=3.0
+  recipe) shows the exploration fix's effect on the headline.
+RESULT: RL keep-best mean 0.603 [0.529,0.678]; SA ceiling 0.655; margin keep-best -0.052
+  [-0.104,+0.001]; RLfin margin -0.062 [-0.081,-0.043]. Per-seed RL: 0.500/0.638/0.638/0.603/0.638.
+  vs the BUGGY headline (0.624, margin -0.031): NEUTRAL-to-slightly-WORSE.
+DIAGNOSIS (confound): the old recipe's --temp 3.0 was INERT under the bug (NaN gumbel ignored
+  temperature -> deterministic gated-order selection), so "same recipe, sampler fixed" is not a
+  clean A/B -- with the fix, temp 3.0 is now ACTIVE and over-explores early. The pilot's real gain
+  (0.267 -> 0.533 on 1 shard) was at temp 1.0. So the temp must be re-tuned for the fixed sampler.
+DECISION: do NOT update the stated headline on the temp-3.0 run. Launch the temp-tuned corrected
+  headline (--temp 1.0 --temp-end 0.1, else identical) as the proper corrected protocol; judge that.
