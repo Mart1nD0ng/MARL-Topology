@@ -3522,3 +3522,29 @@ budget-neutral. Next: adversarial-verify 8b (Q correct / counterfactual unbiased
 non-degenerate / D1 no-leak / budget fair), then the credit/sample-efficiency A/B vs Graph-MAPPO.
 CAVEAT (unchanged): the corrected HEADLINE (8b vs R7 at equal budget) is gated on the dataset rebuild;
 8b validates the MECHANISM, not the headline.
+
+8b ADVERSARIAL-VERIFY RESULT (Workflow wanlsswhu, 3 lenses) -> NO correctness refutation. UNBIASEDNESS
+lens: ZERO issues -- an INDEPENDENT brute-force enumerator (true pi_i by direct summation, not
+subset_logp; non-linear Q) confirms the MC baseline is unbiased (|MC-exact| ~ 1/sqrt(K), no systematic
+sign, 1.62 SE at 40 seeds x 40k); S_i-INDEPENDENCE exact to the bit (changing only the realized S_i
+leaves b_i unchanged); mutual_active_indices byte-matches an independent decoder on 2000 random maps
+(0 mismatches, incl. isolated nodes / empty subsets / budget 0); S_-i held fixed (0/600 non-incident
+edges moved); isolated/budget=0 -> advantage 0 (correct). D1+BUDGET lens: ZERO blockers/majors --
+purity holds (the 8b symbols import only training->training), and the budget is PROVEN equal by
+instrumenting the single evaluator entry point: ema=72, graph-mappo=72, graph-mappo --counterfactual
+--k-cf 8 = 72 evaluator calls (the K_cf Q evals are critic forwards, ZERO evaluator calls); eval uses
+the torch-free local_mutual_assemble decoder, not the Q critic (train==deploy); no oracle/teacher in
+the Q inputs. CREDIT+INTEGRATION lens: ZERO blockers/majors -- A_i non-degenerate (distinct per agent;
+0 only for isolated nodes), the trunk uses per_agent_adv (NOT r-V), the non-cf path is BYTE-IDENTICAL
+to R7 (unified diff additive; same R/kl/clip/EV traces), A_i detached (no actor->critic grad), the Q
+critic regresses forward_q(s, S_actual), per-agent ratio + BCSP entropy unchanged.
+  TWO NON-BLOCKING FINDINGS (addressed, commit follow-up): (nit) the explicit-name leakage gate
+  (test_graph_mappo_no_deployment_leakage) wasn't extended for the 8b symbols (caught by the torch gate,
+  but stale) -> added counterfactual_credit/counterfactual_advantages/critic_q_value/forward_q to the
+  banned tuple (verified absent from all deployed paths). (minor) the checkpoint didn't persist
+  critic_sees_action, so a --resume that forgets --counterfactual crashed with a cryptic shape error ->
+  the ckpt now stores critic_sees_action and resume RAISES A CLEAR SystemExit on a V-vs-Q mismatch
+  (manually verified: resume w/o --counterfactual -> exit 1 + explanatory message; resume w/
+  --counterfactual -> [done]); pinned by test_resume_rejects_critic_architecture_mismatch. NO refutation
+  of 8b's correctness -> COMA counterfactual credit CONFIRMED (unbiased, S_i-independent, budget-neutral,
+  D1-clean, non-degenerate per-agent credit).

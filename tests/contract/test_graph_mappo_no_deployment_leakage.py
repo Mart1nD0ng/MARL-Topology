@@ -23,7 +23,9 @@ def test_no_deployed_module_imports_the_critic_or_update():
     for sub in ("protocol", "policies", "data", "evaluation"):
         deployed += list((SRC / sub).rglob("*.py"))
     deployed += list(SRC.glob("*.py"))  # package root
-    banned = ("centralized_graph_critic", "graph_mappo", "CentralizedGraphCritic")
+    banned = ("centralized_graph_critic", "graph_mappo", "CentralizedGraphCritic",
+              # Phase 8b: the action-conditioned Q critic + COMA counterfactual credit are training-only
+              "counterfactual_credit", "counterfactual_advantages", "critic_q_value", "forward_q")
     offenders = {}
     for path in deployed:
         text = path.read_text(encoding="utf-8")

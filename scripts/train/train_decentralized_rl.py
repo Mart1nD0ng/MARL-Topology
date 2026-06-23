@@ -487,6 +487,13 @@ def main() -> None:
         baseline, lam_c, lam_b = ck["baseline"], ck["lam_c"], ck["lam_b"]
         history, start_upd = ck["history"], ck["update"] + 1
         if critic is not None and "critic" in ck:  # R7: resume the centralized critic + its optimizer
+            saved_csa = ck.get("critic_sees_action", False)   # 8b: the ckpt's critic was V or Q
+            if saved_csa != critic.critic_sees_action:
+                raise SystemExit(
+                    f"[resume] checkpoint critic_sees_action={saved_csa} but this run is "
+                    f"{'--counterfactual' if args.counterfactual else 'plain graph-mappo'} "
+                    f"(critic_sees_action={critic.critic_sees_action}); the Q vs V critic architecture "
+                    f"differs -- relaunch {'WITH' if saved_csa else 'WITHOUT'} --counterfactual to resume.")
             critic.load_state_dict(ck["critic"]); opt_c.load_state_dict(ck["opt_c"])
             critic_history = ck.get("critic_history", critic_history)
         print(f"[resume] from update {ck['update']} -> {start_upd}/{args.updates} (best VAL {best_val:.3f})",
@@ -674,6 +681,7 @@ def main() -> None:
                     ckpt["critic"] = critic.state_dict()
                     ckpt["opt_c"] = opt_c.state_dict()
                     ckpt["critic_history"] = critic_history
+                    ckpt["critic_sees_action"] = critic.critic_sees_action  # 8b: V vs Q critic arch
                 torch.save(ckpt, ckpt_path)
                 print(f"[ckpt] update {upd} saved (best VAL {best_val:.3f})", flush=True)
 

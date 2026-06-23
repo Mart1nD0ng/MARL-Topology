@@ -12,7 +12,12 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
+import subprocess
+import sys
+from pathlib import Path
 
+import pytest
 import torch
 
 from marl_topology.training.budget_conditioned_subset import subset_logp
@@ -156,3 +161,23 @@ def test_small_game_counterfactual_baseline_is_unbiased() -> None:
         edge_mean=torch.zeros(2, dtype=torch.float64), edge_std=torch.ones(2, dtype=torch.float64),
         generator=torch.Generator().manual_seed(2024))
     assert abs(cf.baselines["A"] - exact) < 0.02   # MC COMA baseline == exact expectation (unbiased)
+
+
+@pytest.mark.slow
+def test_resume_rejects_critic_architecture_mismatch(tmp_path) -> None:
+    # 8b adversarial-verify follow-up: a --resume that forgets --counterfactual must fail with a CLEAR
+    # message (the Q critic's edge_dim+1 encoder != the V critic's), not a cryptic shape RuntimeError.
+    root = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(root / "src")}
+    script = str(root / "scripts" / "train" / "train_decentralized_rl.py")
+    base = [sys.executable, script, "--smoke", "--cold-start", "--baseline", "graph-mappo",
+            "--ckpt-every", "1", "--out-dir", str(tmp_path)]
+    run1 = subprocess.run(base + ["--counterfactual"], capture_output=True, text=True,
+                          timeout=240, env=env, cwd=str(root))
+    assert run1.returncode == 0, run1.stdout[-1500:] + run1.stderr[-1500:]
+    # resume WITHOUT --counterfactual -> the guard must trip (non-zero exit + the explanatory message)
+    run2 = subprocess.run(base + ["--resume"], capture_output=True, text=True,
+                          timeout=240, env=env, cwd=str(root))
+    out = run2.stdout + run2.stderr
+    assert run2.returncode != 0
+    assert "critic_sees_action" in out and "--counterfactual" in out
