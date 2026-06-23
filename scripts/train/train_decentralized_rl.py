@@ -68,7 +68,14 @@ from marl_topology.training.decentralized_distillation import (  # noqa: E402
 )
 from marl_topology.data.row_context_builder import build_row_contexts  # noqa: E402
 from marl_topology.training.decentralized_action import (  # noqa: E402
+    recompute_entropy,
+    recompute_logp,
     sample_decentralized_action,
+)
+from marl_topology.models.centralized_graph_critic import CentralizedGraphCritic  # noqa: E402
+from marl_topology.training.graph_mappo import (  # noqa: E402
+    explained_variance,
+    ppo_clip_actor_loss,
 )
 
 OP_SHARDS = [str(ROOT / "result_save" / "campaign" / "data" / "op" / f"_op_shard_{s}.pkl")
@@ -207,6 +214,16 @@ def gauss_perturb_sample(logits, sample, sigma):
 
 
 @torch.no_grad()
+def forward_value(critic, sample, mean, std):
+    """Centralized critic value V(scene) from the SAME standardized node/edge features the actor
+    sees (graph_payload), masks all-ones (one real scene). No oracle/teacher label is fed -> no
+    leakage. Returns a scalar tensor (grad on when the critic is in train mode)."""
+    nf = ((sample["nf"] - mean[0]) / std[0]).unsqueeze(0)
+    ef = ((sample["ef"] - mean[1]) / std[1]).unsqueeze(0)
+    return critic(nf, ef, sample["ei"].unsqueeze(0),
+                  torch.ones(1, sample["nf"].shape[0]), torch.ones(1, sample["ef"].shape[0]))[0]
+
+
 def eval_held(actor, samples, mean, std):
     """Deterministic decentralized eval (local_mutual_assemble): raw / conditional + mean energy,
     latency, edge-count over the FEASIBLE decoded topologies (DoD low-energy/low-latency signal)."""
@@ -293,6 +310,19 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--resume", action="store_true",
                    help="resume from out-dir/_ckpt.pt if present (continue training across restarts)")
     p.add_argument("--smoke", action="store_true", help="tiny fast end-to-end check")
+    # --- Phase 7 Graph-MAPPO arm ---
+    p.add_argument("--baseline", choices=["ema", "rloo", "graph-mappo"], default="ema",
+                   help="advantage baseline. ema (default, byte-identical to the historical trunk: "
+                        "K=1 per-scene EMA) | rloo (K>=2 leave-one-out, requires --samples-per-scene>=2) "
+                        "| graph-mappo (a centralized graph value critic + PPO-clip update, CTDE).")
+    p.add_argument("--clip-epsilon", type=float, default=0.2, help="PPO clip epsilon (graph-mappo)")
+    p.add_argument("--ppo-epochs", type=int, default=4, help="PPO inner epochs per update (graph-mappo)")
+    p.add_argument("--target-kl", type=float, default=0.01,
+                   help="early-stop the PPO inner loop when approx_kl > 1.5*target_kl (graph-mappo)")
+    p.add_argument("--critic-coef", type=float, default=0.5, help="critic loss weight (graph-mappo)")
+    p.add_argument("--critic-lr", type=float, default=1e-3, help="centralized critic learning rate")
+    p.add_argument("--critic-hidden", type=int, default=64, help="critic hidden width")
+    p.add_argument("--critic-rounds", type=int, default=4, help="critic message-passing rounds")
     return p.parse_args()
 
 
@@ -303,6 +333,9 @@ def main() -> None:
         args.updates = 3
         args.val_scenes = 6
         args.eval_every = 1
+    if args.baseline == "rloo" and args.samples_per_scene < 2:
+        raise SystemExit("[graph-mappo] --baseline rloo requires --samples-per-scene >= 2 "
+                         "(RLOO needs M>=2 rollouts for the leave-one-out baseline)")
     torch.manual_seed(args.seed)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -348,6 +381,15 @@ def main() -> None:
     e_ref = [_ref_energy(s) for s in train_s]
     baseline = [0.0] * len(train_s)
     opt = torch.optim.AdamW(actor.parameters(), lr=args.lr, weight_decay=1e-4)
+    # Phase 7 Graph-MAPPO: a centralized graph value critic + its own optimizer (training-only;
+    # constructed only on this arm, never reachable from the deployed actor -> D1).
+    critic = opt_c = None
+    critic_history: list = []
+    if args.baseline == "graph-mappo":
+        critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden, rounds=args.critic_rounds)
+        opt_c = torch.optim.AdamW(critic.parameters(), lr=args.critic_lr, weight_decay=1e-4)
+        print(f"[graph-mappo] centralized critic: hidden={args.critic_hidden} rounds={args.critic_rounds} "
+              f"clip={args.clip_epsilon} ppo_epochs={args.ppo_epochs} critic_lr={args.critic_lr}")
     lam_c, lam_b = args.lam_c, args.lam_b
     ws_val = eval_held(actor, val_s, mean, std)["raw"]            # warm-start VAL = keep-best floor
     best_val, best_state = ws_val, {k: v.detach().clone() for k, v in actor.state_dict().items()}
@@ -378,49 +420,113 @@ def main() -> None:
         logps, advs, ents = [], [], []
         rwds, gcs, gbs, feas = [], [], [], []
         K = max(1, args.samples_per_scene)
-        for i in order:
-            s = train_s[i]
-            if not args.include_unsolvable and not bool(s["label"]["feasible_exists"]):
-                continue   # no feasible topology exists -> nothing learnable; excluded from PG + dual
-            logits = forward_logits(actor, s, mean, std)              # [E], grad on; reused for K samples
-            ent = torch.distributions.Bernoulli(logits=logits).entropy().sum()
-            s_logps, s_rs, s_gc, s_gb, s_ok = [], [], [], [], []
-            for _k in range(K):
-                if args.action_space == "gauss":
-                    topo, logp = gauss_perturb_sample(logits, s, temp_now)      # sigma=temp_now (annealed)
-                elif args.action_space == "mutual":
-                    topo, logp = mutual_acceptance_sample(logits, s, temp_now)  # train -> deploy (annealed)
-                else:
-                    dist = torch.distributions.Bernoulli(logits=logits)
-                    action = dist.sample()
-                    logp = dist.log_prob(action).sum()
-                    topo = [eid for j, eid in enumerate(s["edge_ids"]) if action[j] > 0.5]
+        if args.baseline == "graph-mappo":
+            # ---- collect ONE rollout per solvable scene (1 evaluator call/scene == EMA budget) ----
+            batch = []
+            for i in order:
+                s = train_s[i]
+                if not args.include_unsolvable and not bool(s["label"]["feasible_exists"]):
+                    continue
+                edges = {e.edge_id: (e.node_u, e.node_v) for e in s["context"].graph.edges}
+                budgets = dict(node_budgets_for_scene(s["context"].evaluator.scene))
+                with torch.no_grad():
+                    logits0 = forward_logits(actor, s, mean, std)
+                    act = sample_decentralized_action(logits0, s["edge_ids"], edges=edges,
+                                                      budgets=budgets, temperature=temp_now,
+                                                      compute_entropy=False)
+                    v0 = float(forward_value(critic, s, mean, std))
+                topo = [s["edge_ids"][j] for j in act.active_edge_indices]
                 r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
                                             args.live_consensus_dual)
-                s_logps.append(logp); s_rs.append(r); s_gc.append(g_c); s_gb.append(g_b); s_ok.append(ok)
-            if K > 1:
-                tot = sum(s_rs)
-                for k in range(K):
-                    b_k = (tot - s_rs[k]) / (K - 1)            # RLOO leave-one-out baseline (low variance)
-                    advs.append(s_rs[k] - b_k); logps.append(s_logps[k])
-            else:
-                adv = s_rs[0] - baseline[i]                    # single-sample EMA-baseline fallback
-                baseline[i] = (1 - args.baseline_ema) * baseline[i] + args.baseline_ema * s_rs[0]
-                advs.append(adv); logps.append(s_logps[0])
-            ents.append(ent)
-            rwds.append(fmean(s_rs)); gcs.append(fmean(s_gc)); gbs.append(fmean(s_gb))
-            feas.append(fmean([float(x) for x in s_ok]))
-        if not logps:                                               # no solvable scenes this update
-            continue
-        adv_t = torch.tensor(advs)
-        if args.normalize_adv:                                       # OFF by default: normalization
-            adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + 1e-6)    # un-learns the warm start
-        logp_t = torch.stack(logps)
-        ent_t = torch.stack(ents)
-        loss = -(adv_t.detach() * logp_t).mean() - args.entropy_coef * ent_t.mean()
-        opt.zero_grad(); loss.backward()
-        torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
-        opt.step()
+                per_agent = [(pa.gated_edge_indices, pa.accepted_order)
+                             for pa in act.per_agent if pa.accepted_order]
+                batch.append({"s": s, "per_agent": per_agent, "logp_old": float(act.joint_logp),
+                              "r": r, "V": v0})
+                rwds.append(r); gcs.append(g_c); gbs.append(g_b); feas.append(float(ok))
+            if not batch:
+                continue
+            adv_all = torch.tensor([b["r"] - b["V"] for b in batch])  # single-step A = r - V (GAE at T=1)
+            if args.normalize_adv:
+                adv_all = (adv_all - adv_all.mean()) / (adv_all.std() + 1e-6)
+            logp_old_t = torch.tensor([b["logp_old"] for b in batch])
+            # ---- PPO-clip inner epochs on the actor: re-score the frozen order over the frozen gate ----
+            last_kl, last_clip = 0.0, 0.0
+            for _epoch in range(args.ppo_epochs):
+                lp_new, en_new = [], []
+                for b in batch:
+                    logits = forward_logits(actor, b["s"], mean, std)
+                    lp = logits.new_zeros(()); en = logits.new_zeros(())
+                    for gated, order_ in b["per_agent"]:
+                        lp = lp + recompute_logp(logits, gated, order_, temp_now)
+                        en = en + recompute_entropy(logits, gated, len(order_), temp_now)
+                    lp_new.append(lp); en_new.append(en)
+                ppo_loss, info = ppo_clip_actor_loss(torch.stack(lp_new), logp_old_t,
+                                                     adv_all.detach(), clip_eps=args.clip_epsilon)
+                loss = ppo_loss - args.entropy_coef * torch.stack(en_new).mean()  # exact PL entropy bonus
+                opt.zero_grad(); loss.backward()
+                torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+                opt.step()
+                last_kl, last_clip = float(info["approx_kl"]), float(info["clip_fraction"])
+                if last_kl > args.target_kl * 1.5:                  # early-stop the inner loop
+                    break
+            # ---- critic regression V(scene) -> reward (its OWN optimizer; never touches the actor) ----
+            r_t = torch.tensor([float(b["r"]) for b in batch])
+            for _ in range(args.ppo_epochs):
+                v_pred = torch.stack([forward_value(critic, b["s"], mean, std) for b in batch])
+                v_loss = args.critic_coef * (r_t - v_pred).pow(2).mean()
+                opt_c.zero_grad(); v_loss.backward()
+                torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
+                opt_c.step()
+            ev = explained_variance([b["r"] for b in batch], [b["V"] for b in batch])
+            critic_history.append({"update": upd, "explained_variance": ev, "approx_kl": last_kl,
+                                   "clip_fraction": last_clip, "n_scenes": len(batch),
+                                   "evaluator_calls": len(batch),       # 1 _evaluate/scene == EMA budget
+                                   "evaluator_calls_per_scene": 1,      # fair A/B vs ema (rloo spends K)
+                                   "critic_value_mean": fmean([b["V"] for b in batch])})
+        else:
+            for i in order:
+                s = train_s[i]
+                if not args.include_unsolvable and not bool(s["label"]["feasible_exists"]):
+                    continue   # no feasible topology exists -> nothing learnable; excluded from PG + dual
+                logits = forward_logits(actor, s, mean, std)              # [E], grad on; reused for K samples
+                ent = torch.distributions.Bernoulli(logits=logits).entropy().sum()
+                s_logps, s_rs, s_gc, s_gb, s_ok = [], [], [], [], []
+                for _k in range(K):
+                    if args.action_space == "gauss":
+                        topo, logp = gauss_perturb_sample(logits, s, temp_now)      # sigma=temp_now (annealed)
+                    elif args.action_space == "mutual":
+                        topo, logp = mutual_acceptance_sample(logits, s, temp_now)  # train -> deploy (annealed)
+                    else:
+                        dist = torch.distributions.Bernoulli(logits=logits)
+                        action = dist.sample()
+                        logp = dist.log_prob(action).sum()
+                        topo = [eid for j, eid in enumerate(s["edge_ids"]) if action[j] > 0.5]
+                    r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
+                                                args.live_consensus_dual)
+                    s_logps.append(logp); s_rs.append(r); s_gc.append(g_c); s_gb.append(g_b); s_ok.append(ok)
+                if K > 1:
+                    tot = sum(s_rs)
+                    for k in range(K):
+                        b_k = (tot - s_rs[k]) / (K - 1)            # RLOO leave-one-out baseline (low variance)
+                        advs.append(s_rs[k] - b_k); logps.append(s_logps[k])
+                else:
+                    adv = s_rs[0] - baseline[i]                    # single-sample EMA-baseline fallback
+                    baseline[i] = (1 - args.baseline_ema) * baseline[i] + args.baseline_ema * s_rs[0]
+                    advs.append(adv); logps.append(s_logps[0])
+                ents.append(ent)
+                rwds.append(fmean(s_rs)); gcs.append(fmean(s_gc)); gbs.append(fmean(s_gb))
+                feas.append(fmean([float(x) for x in s_ok]))
+            if not logps:                                               # no solvable scenes this update
+                continue
+            adv_t = torch.tensor(advs)
+            if args.normalize_adv:                                       # OFF by default: normalization
+                adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + 1e-6)    # un-learns the warm start
+            logp_t = torch.stack(logps)
+            ent_t = torch.stack(ents)
+            loss = -(adv_t.detach() * logp_t).mean() - args.entropy_coef * ent_t.mean()
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+            opt.step()
         # dual ascent on the mean constraint violations (constrained-RL)
         mean_gc, mean_gb = fmean(gcs), fmean(gbs)
         lam_c = min(args.lam_max, max(0.0, lam_c + args.dual_lr * mean_gc))
@@ -435,6 +541,10 @@ def main() -> None:
             print(f"[upd {upd:3d}] temp={temp_now:.2f} train R={fmean(rwds):+.3f} feas={fmean(feas):.3f} "
                   f"g_c={mean_gc:.3f} g_b={mean_gb:.3f} lam_c={lam_c:.2f} lam_b={lam_b:.2f} "
                   f"| VAL raw={ve['raw']:.3f} (best {best_val:.3f})")
+            if args.baseline == "graph-mappo" and critic_history:
+                cm = critic_history[-1]
+                print(f"           [critic] EV={cm['explained_variance']:+.3f} approx_kl={cm['approx_kl']:.4f} "
+                      f"clip_frac={cm['clip_fraction']:.3f} eval_calls/scene={cm['evaluator_calls']}")
             history.append({"update": upd, "train_reward": fmean(rwds), "train_feasible": fmean(feas),
                             "mean_g_c": mean_gc, "mean_g_b": mean_gb, "lam_c": lam_c, "lam_b": lam_b,
                             "val_raw": ve["raw"]})
@@ -467,8 +577,20 @@ def main() -> None:
                                          else rl_held["conditional"] - bc_held["conditional"])}}
     (out_dir / ("smoke_result.json" if args.smoke else "rl_result.json")).write_text(
         json.dumps(result, indent=2, default=str), encoding="utf-8")
-    torch.save({"actors": [{"state": actor.state_dict(), "mean": mean, "std": std}]},
-               out_dir / ("_smoke_artifacts.pt" if args.smoke else "_rl_artifacts.pt"))
+    artifacts = {"actors": [{"state": actor.state_dict(), "mean": mean, "std": std}]}
+    if args.baseline == "graph-mappo":
+        # the centralized critic + its optimizer are TRAINING artifacts only (D1: never deployed)
+        artifacts["critic"] = critic.state_dict()
+        artifacts["opt_c"] = opt_c.state_dict()
+        final = critic_history[-1] if critic_history else {}
+        (out_dir / "critic_metrics.json").write_text(
+            json.dumps({"final": final, "history": critic_history,
+                        "explained_variance": final.get("explained_variance"),
+                        "approx_kl": final.get("approx_kl"),
+                        "clip_fraction": final.get("clip_fraction"),
+                        "evaluator_calls_per_scene": final.get("evaluator_calls_per_scene")}, indent=2, default=str),
+            encoding="utf-8")
+    torch.save(artifacts, out_dir / ("_smoke_artifacts.pt" if args.smoke else "_rl_artifacts.pt"))
     print(f"[done] wrote {out_dir}")
 
 

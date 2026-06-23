@@ -2956,3 +2956,48 @@ CONCLUSION (honest): the NaN-gumbel sampler fix is a genuine CORRECTNESS fix (it
 DECISION: KEEP the sampler fix (correctness). Update the headline number 0.624 -> ~0.610 + note it
   is now under the corrected sampler; conclusion unchanged. The real lever for beating the baseline
   is the Graph-MAPPO method (Phase 7), not the sampler. Continue Phase 7.
+
+================================================================================
+ITER (2026-06-23) — PHASE 7 (5/n) trunk graph-mappo arm: WIP, PAUSED on an entropy-blowup blocker
+--------------------------------------------------------------------------------
+STATUS: loop PAUSED by owner mid-slice. The Phase 7 --baseline graph-mappo trunk arm is implemented
+  and UNIT-green, but the graph-mappo training path HANGS at runtime on real op-point scenes. Owner
+  asked to pause + record before fixing.
+
+WIP (committed this iter as a clearly-blocked checkpoint; default --baseline ema is byte-identical
+  and unaffected):
+  - scripts/train/train_decentralized_rl.py: --baseline {ema,rloo,graph-mappo} (default ema), the
+    PPO-clip graph-mappo branch (collect 1 rollout/scene -> PPO inner epochs re-scoring the frozen
+    order over the frozen gate via recompute_logp -> exact-PL entropy bonus via recompute_entropy ->
+    separate critic regression L_v=(r-V)^2 -> EV/approx_kl/clip_fraction to critic_metrics.json),
+    CentralizedGraphCritic + its AdamW, the rloo>=2 fail-fast (D6), critic in the artifacts dict.
+  - src/marl_topology/training/decentralized_action.py: recompute_entropy() (entropy-bonus twin of
+    recompute_logp over the frozen gate).
+  - tests/contract/test_graph_mappo_no_deployment_leakage.py (D1: no deployed module imports the
+    critic; the stage8_0/9_0/8 deployment-purity gates still pass with it present).
+  - 30 targeted unit/contract tests GREEN (ema smoke exit 0; rloo fail-fast fires).
+
+BLOCKER (computation blowup -> hang): the per-agent entropy `_ordered_topk_entropy(z, k)` (in
+  decentralized_action.py, committed in Phase 6 b28febe) enumerates perm(m, k) ORDERINGS. On the
+  small synthetic test graphs (m=2, k=2) this is trivial, so all unit tests pass. But on real
+  op-point scenes a node's gated incident degree reaches m=15 AND the radio budget reaches 64, so
+  k=min(64,15)=15 and perm(15,15)=15! ≈ 1.3e12 permutations PER entropy call. The graph-mappo arm
+  calls it per node x per scene x per PPO epoch -> the smoke (`--smoke --baseline graph-mappo`)
+  HANGS (the ema/rloo arms never call the PL entropy, so they were unaffected and this stayed hidden
+  until the graph-mappo arm exercised it). Confirmed: worst enumeration on shard 9101 = 15!
+  (degree 15, budget 64, k 15).
+
+FIX PLAN (NOT yet applied -- pending owner direction):
+  Cap `_ordered_topk_entropy(z, k, max_perms=~2000)`: keep the EXACT enumeration when
+  math.perm(m,k) <= max_perms (preserves the action-API tests' exactness on small graphs), else
+  return a tractable first-step categorical-entropy surrogate `-sum(softmax(z)*log softmax(z))`
+  (O(m), differentiable, EXACT for k=1, a principled lower bound for k>1 -- a valid exploration
+  regularizer). This makes the graph-mappo entropy bonus tractable on real scenes without changing
+  the small-graph exact behavior. (Alternative considered: a sequential/DP exact entropy -- still
+  exponential in the worst case; rejected as over-engineering for a bonus term.)
+
+RESUME CHECKLIST: (1) apply the entropy cap; (2) re-run `--smoke --baseline graph-mappo` (exit 0 +
+  critic_metrics.json) + ema smoke (still exit 0); (3) write the remaining failing tests
+  (mechanism-activation, smoke-end-to-end); (4) full suite zero-new-fail; (5) Workflow adversarial
+  review of the trunk wiring (D1 / PPO ratio / fair evaluator-call budget / no oracle in critic
+  inputs); (6) paired A/B pilot graph-mappo vs ema vs rloo (sample efficiency / held RL / EV / KL).

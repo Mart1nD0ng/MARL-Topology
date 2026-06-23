@@ -9,6 +9,7 @@ Plackett-Luce log-prob produced by the sampler.
 import torch
 
 from marl_topology.training.decentralized_action import (
+    recompute_entropy,
     recompute_logp,
     sample_decentralized_action,
 )
@@ -33,6 +34,21 @@ def test_recompute_logp_matches_per_agent_and_joint():
         rejoint = rejoint + lp
     assert scored >= 1
     assert torch.allclose(rejoint, act.joint_logp, atol=1e-10)
+
+
+def test_recompute_entropy_matches_per_agent_and_joint():
+    logits = torch.tensor([0.5, 0.2, 0.8], dtype=torch.float64)
+    temp = 1.1
+    torch.manual_seed(0)
+    act = sample_decentralized_action(logits, EID, edges=EDGES, budgets={"A": 2, "B": 2, "C": 2}, temperature=temp)
+    rejoint = torch.zeros((), dtype=torch.float64)
+    for pa in act.per_agent:
+        if not pa.accepted_order:
+            continue
+        ent = recompute_entropy(logits, pa.gated_edge_indices, len(pa.accepted_order), temp)
+        assert torch.allclose(ent, pa.entropy, atol=1e-10)
+        rejoint = rejoint + ent
+    assert torch.allclose(rejoint, act.joint_entropy, atol=1e-10)
 
 
 def test_recompute_logp_is_differentiable():

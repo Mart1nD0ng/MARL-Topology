@@ -108,6 +108,20 @@ def recompute_logp(logits: Tensor, gated_edge_indices, accepted_order, temperatu
     return logp
 
 
+def recompute_entropy(logits: Tensor, gated_edge_indices, k: int, temperature: float) -> Tensor:
+    """Exact Plackett-Luce action entropy over a FROZEN gated set on fresh logits -- the
+    entropy-bonus twin of :func:`recompute_logp`. ``k`` is the number of edges accepted
+    (``min(budget, len(gated))`` at sample time). Summed over a scene's per-agent actions this is
+    the joint policy entropy the PPO entropy bonus consumes; it is consistent with the ratio because
+    both score over the SAME frozen gated set.
+    """
+    gated = list(gated_edge_indices)
+    if not gated or k <= 0:
+        return logits.new_zeros(())
+    z = torch.stack([logits[i] for i in gated]) / temperature
+    return _ordered_topk_entropy(z, k)
+
+
 def sample_decentralized_action(
     logits: Tensor,
     edge_ids,
