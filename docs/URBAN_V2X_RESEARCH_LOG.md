@@ -3341,3 +3341,38 @@ NEXT (single hypothesis): R6 -- BCSP replaces the ordered Plackett-Luce action (
   hang blocker): O(mb) log-partition DP, exact subset logp/sampling/entropy, b>=m O(m) Bernoulli fast
   path, MAP == local top-b positive-logit decoder, order does NOT enter the PPO probability. FORBIDDEN:
   permutations / degree cap / budget cap / fixed candidate top-K / first-step entropy surrogate.
+
+================================================================================
+R6 (2026-06-23): BCSP unordered subset policy replaces the ordered Plackett-Luce. KEEP.
+================================================================================
+HYPOTHESIS (one mechanism): the node action is an UNORDERED budget-capped subset, pi_i(S) ∝
+  1[|S|<=b]exp(Σ_{e in S}θ_e). The ordered PL wrongly counted the k! permutations of one subset as
+  distinct actions (wrong entropy: ~log(m!) at k=m vs the true 0) AND enumerated perm(m,k) (factorial
+  -> the m=15,b=64 trunk hang). BCSP gives exact logp/sampling/entropy in O(mb) (O(m) when b>=m).
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_budget_conditioned_subset.py, 11 tests):
+  - NEW training/budget_conditioned_subset.py: log_partition (GROWING-row O(mb) DP, b<m; sum-softplus
+    O(m) fast path, b>=m), subset_logp = Σθ_e − logZ (order-IRRELEVANT), subset_entropy = logZ − Σθ_e
+    μ_e (μ_e=∂logZ/∂θ_e, autograd create_graph -> DIFFERENTIABLE), normalized_entropy (H/log|A_i|),
+    map_subset (top-b positive θ == deployed decoder), sample_subset (cardinality then backward, exact),
+    inclusion_marginals.
+  - KEY NUMERICAL FIX: the full-floor-row DP made logaddexp(-inf,-inf) cells whose SECOND derivative
+    (the entropy bonus needs d/dθ of μ) is NaN. Rewrote log_partition as a GROWING row (only ever-
+    reachable finite cells -> logaddexp never sees two floors) -> entropy gradcheck clean. The floor
+    table is kept only for SAMPLING (no_grad, -inf harmless).
+  - The ordered-PL decentralized_action.py is RETAINED until R7 wires BCSP into the trunk (the manifest
+    action_distribution_version flips to bcsp then). Pure math primitive: reward byte-unchanged (smoke 0).
+
+VERIFICATION (independent truth, not wrapper-consistency): brute-force 2^m logp+entropy match (|diff|
+  <1e-9); b>=m == independent Bernoulli closed form; MAP == deterministic_decentralized_action via
+  mutual acceptance; MC sample freq ≈ pi (40k draws); float64 gradcheck on logp AND entropy; m=15,b=64
+  runs in ms (50 passes <1s -- the blocker is LINEAR, |A|=2^15 all-subsets-legal, NOT 15!); m=128,b=64
+  polynomial. + an adversarial-verify Workflow (3 lenses: DP / sampling / entropy-MAP-grad) launched.
+
+DECISION: KEEP. 11 R6 tests; full suite 620 passed / 0 failed (was 609; zero new failures); smoke
+  exit 0. The original trunk-hang is resolved at the math level (the real op-point m=15,b=64 is the
+  O(m) fast path). Adversarial-verify results -> a follow-up note.
+NEXT (single hypothesis): R7 -- Graph-MAPPO completed: wire BCSP into the trunk (per-agent ratio
+  ρ_{s,i}=exp(logπ_i^new − logπ_i^old), NOT joint; BCSP normalized entropy bonus); critic train-forward
+  NOT under no_grad + optimizer step changes critic params (actor unchanged); actor/critic batching;
+  CUDA; critic optimizer/checkpoint/resume; corrected real-shard smoke exit 0.
