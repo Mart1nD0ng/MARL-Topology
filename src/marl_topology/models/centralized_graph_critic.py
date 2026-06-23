@@ -27,8 +27,10 @@ CENTRALIZED_GRAPH_CRITIC_MODEL_ID = "centralized_graph_value_critic_v1"
 
 
 def _scatter_add(values: torch.Tensor, index: torch.Tensor, num_nodes: int) -> torch.Tensor:
-    # local copy of the message-passing primitive so the critic carries no reference to the actor
-    out = torch.zeros((values.shape[0], num_nodes, values.shape[-1]), dtype=values.dtype)
+    # local copy of the message-passing primitive so the critic carries no reference to the actor.
+    # device-preserving (R7/Spec 8.6: CUDA-correct) -- out is created on the values' device.
+    out = torch.zeros((values.shape[0], num_nodes, values.shape[-1]),
+                      dtype=values.dtype, device=values.device)
     out.scatter_add_(1, index.unsqueeze(-1).expand(-1, -1, values.shape[-1]), values)
     return out
 

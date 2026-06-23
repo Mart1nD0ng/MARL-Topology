@@ -181,6 +181,84 @@ def sample_decentralized_action(
     return DecentralizedAction(tuple(per_agent), active, joint_logp, joint_entropy)
 
 
+@dataclass(frozen=True)
+class BCSPPerAgentAction:
+    """One node's BCSP (unordered budget-capped subset) action over ALL its incident edges (no gate)."""
+
+    node_id: object
+    incident_edge_indices: tuple[int, ...]   # global edge indices incident to the node
+    accepted_local_indices: tuple[int, ...]  # indices INTO incident_edge_indices (the sampled subset)
+    logp: Tensor                             # BCSP subset log-prob (per agent -- never summed to a joint)
+    entropy: Tensor                          # BCSP normalized entropy (agent-normalized)
+    budget: int
+
+
+@dataclass(frozen=True)
+class BCSPDecentralizedAction:
+    per_agent: tuple[BCSPPerAgentAction, ...]
+    active_edge_indices: tuple[int, ...]     # edges active after mutual acceptance
+
+
+def sample_decentralized_bcsp_action(
+    logits: Tensor,
+    edge_ids,
+    *,
+    edges,
+    budgets,
+    temperature: float,
+    generator=None,
+    compute_entropy: bool = True,
+) -> BCSPDecentralizedAction:
+    """Sample a fully-decentralized joint action with the **BCSP** per-agent policy (R6/R7).
+
+    Each node samples an UNORDERED budget-capped subset of its incident edges via
+    ``budget_conditioned_subset`` (no logit gate -- the budget cap + ``exp(theta)`` define the
+    support; the deterministic MAP recovers the deployed top-b positive decoder). An undirected edge
+    activates iff BOTH endpoints accept it. The per-agent ``logp``/``entropy`` are kept SEPARATE (the
+    PPO ratio is per-agent, Spec S9.2 -- never a joint sum). Replaces the ordered Plackett-Luce
+    ``sample_decentralized_action`` (whose entropy was factorial -- the trunk hang)."""
+    from .budget_conditioned_subset import normalized_entropy, sample_subset, subset_logp
+
+    incident = incident_index(edge_ids, edges)
+    per_agent: list[BCSPPerAgentAction] = []
+    accept: dict = {}
+    for node, idxs in incident.items():
+        budget = int(budgets.get(node, 0))
+        idxs_t = tuple(idxs)
+        if not idxs_t:
+            per_agent.append(BCSPPerAgentAction(node, (), (), logits.new_zeros(()), logits.new_zeros(()), budget))
+            accept[node] = set()
+            continue
+        theta = torch.stack([logits[i] for i in idxs_t]) / temperature
+        accepted_local = tuple(sample_subset(theta.detach(), budget, generator=generator))
+        logp = subset_logp(theta, accepted_local, budget)
+        entropy = normalized_entropy(theta, budget) if compute_entropy else logits.new_zeros(())
+        per_agent.append(BCSPPerAgentAction(node, idxs_t, accepted_local, logp, entropy, budget))
+        accept[node] = {idxs_t[j] for j in accepted_local}
+    active = tuple(
+        i for i, eid in enumerate(edge_ids)
+        if i in accept.get(edges[eid][0], ()) and i in accept.get(edges[eid][1], ())
+    )
+    return BCSPDecentralizedAction(tuple(per_agent), active)
+
+
+def recompute_bcsp_logp(logits, incident_edge_indices, accepted_local_indices, temperature, budget) -> Tensor:
+    """Differentiable BCSP subset log-prob of a RECORDED subset under fresh logits -- the PPO
+    per-agent ratio's ``logp_new`` (consistent with the sampler's ``logp`` by construction)."""
+    from .budget_conditioned_subset import subset_logp
+
+    theta = torch.stack([logits[i] for i in incident_edge_indices]) / temperature
+    return subset_logp(theta, accepted_local_indices, budget)
+
+
+def recompute_bcsp_entropy(logits, incident_edge_indices, temperature, budget) -> Tensor:
+    """Differentiable BCSP normalized entropy under fresh logits -- the agent-normalized entropy bonus."""
+    from .budget_conditioned_subset import normalized_entropy
+
+    theta = torch.stack([logits[i] for i in incident_edge_indices]) / temperature
+    return normalized_entropy(theta, budget)
+
+
 def deterministic_decentralized_action(logits, edge_ids, *, edges, budgets) -> tuple:
     """The temperature -> 0 limit: each node accepts its top-``budget`` incident edges with logit
     >= 0 (ties broken by edge id, like the deployed decoder); an edge is active iff both endpoints

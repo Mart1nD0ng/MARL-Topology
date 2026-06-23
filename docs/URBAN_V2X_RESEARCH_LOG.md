@@ -3395,3 +3395,41 @@ R6 ADVERSARIAL-VERIFY RESULT (Workflow wr924fz32, 3 lenses: partition-dp / sampl
   test_bcsp_budget_zero_is_the_empty_subset_and_differentiable (entropy/marginals/logp == 0, backward at
   b=0 gives zero grad, no crash). 12 BCSP tests; suite 621 passed / 0 failed; smoke exit 0. No other
   refutation -> BCSP math CONFIRMED correct.
+
+================================================================================
+R7 (2026-06-23): Graph-MAPPO completed -- BCSP wired into the trunk + critic fixed. KEEP.
+================================================================================
+This is the FINAL fix gate: R7 done => R0-R7 all pass => Phase 0-7 re-accepted.
+
+GROUNDING (3 real bugs in the trunk graph-mappo arm): (1) it sampled/scored via the ordered
+Plackett-Luce (recompute_entropy == the factorial HANG). (2) lp_new was the SUM of per-agent logps ->
+ppo_clip_actor_loss formed the FORBIDDEN JOINT ratio. (3) forward_value was @torch.no_grad() -> the
+critic TRAIN forward built no graph, so opt_c.step() NEVER moved the critic (it never trained).
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_graph_mappo_r7.py, 9 tests):
+  - BCSP wired: sample_decentralized_bcsp_action + recompute_bcsp_logp/entropy (decentralized_action.py)
+    replace the ordered-PL in the trunk arm. Per-agent BCSP over ALL incident edges (no gate); the MAP
+    is the deployed decoder.
+  - PER-AGENT ratio (Spec 9.2): the PPO loop FLATTENS (scene, agent) -> ppo_clip_actor_loss gets one
+    element per agent with the scene's A_s repeated; rho_{s,i}=exp(logp_new_i - logp_old_i). NOT joint.
+  - entropy bonus = BCSP normalized_entropy (agent-normalized, Spec 7.9).
+  - critic grad fix (Spec 8.4): graph_mappo.critic_scene_value (grad-on; the rollout caller wraps no_grad,
+    the update caller does not). forward_value no longer @no_grad. VERIFIED the critic now trains:
+    V_mean +0.28 -> -2.03 -> -2.09 tracks the reward ~-2 (it was frozen before).
+  - critic checkpoint/resume (Spec 8.6): the ckpt now saves/restores critic + opt_c + critic_history.
+  - CUDA device fix: CentralizedGraphCritic._scatter_add created CPU zeros -> device mismatch on CUDA;
+    now device=values.device (caught by test_graph_mappo_cuda_if_available on this CUDA host).
+  - EV metric robustness: explained_variance returned a meaningless -5.6e27 when Var(r) is tiny-but-
+    nonzero (near-constant smoke rewards); threshold var_r<1e-8 -> 0.0 sentinel (the metric is undefined
+    at ~0 reward variance; the critic was FINE -- this was not a collapse).
+
+MECHANISM ACTIVATION: the graph-mappo real-shard smoke (the ex-HANG case) now exits 0 in ~10s (BCSP
+makes m=15,b=64 linear); critic trains; per-agent ratio (ratio==1 at epoch 0, approx_kl/clip_fraction
+evolve). 9 R7 tests; full suite 630 passed / 0 failed (was 621; zero new failures); BOTH smokes exit 0.
+
+DECISION: KEEP. R7 complete -> the R0-R7 total acceptance gate is satisfied. CAVEAT (unchanged): the
+EMA/RLOO/Graph-MAPPO corrected-headline A/B is gated on the dataset REBUILD (op shards are pre-
+corrected-env-math); R7 validated the MECHANISM (runnable, correct critic, per-agent ratio, no hang),
+not the corrected headline. Next: adversarial-verify R7, then ask the owner (R0-R7 done): (A) dataset
+REBUILD under corrected math so R1-R4 reach training + run the corrected headline; (B) Phase 8
+Graph-Counterfactual PPO; (C) other.

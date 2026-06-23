@@ -16,6 +16,32 @@ import torch
 from torch import Tensor
 
 
+def critic_scene_value(
+    critic,
+    node_features: Tensor,
+    edge_features: Tensor,
+    edge_index: Tensor,
+    *,
+    node_mean: Tensor,
+    node_std: Tensor,
+    edge_mean: Tensor,
+    edge_std: Tensor,
+) -> Tensor:
+    """``V(scene)`` from the standardized node/edge features (one real scene -> all-ones masks).
+
+    Spec S8.4: the critic TRAIN forward must keep its gradient -- so this helper is NOT wrapped in
+    ``no_grad``. The UPDATE caller invokes it directly (grad on, ``optimizer.step()`` then moves the
+    critic); the ROLLOUT caller wraps it in ``with torch.no_grad()`` for the detached baseline value.
+    No oracle/teacher label is fed -> the critic never leaks into the deployed actor (D1).
+    Device-preserving (masks created on the features' device).
+    """
+    nf = ((node_features - node_mean) / node_std).unsqueeze(0)
+    ef = ((edge_features - edge_mean) / edge_std).unsqueeze(0)
+    node_mask = torch.ones(1, node_features.shape[0], device=node_features.device)
+    edge_mask = torch.ones(1, edge_features.shape[0], device=edge_features.device)
+    return critic(nf, ef, edge_index.unsqueeze(0), node_mask, edge_mask)[0]
+
+
 def graph_mappo_advantage(reward: float, value: Tensor) -> Tensor:
     """Single-step advantage ``A = reward - V(scene).detach()``. The value is detached so the
     actor's PPO gradient never flows into the critic through the advantage (the critic is trained
@@ -29,12 +55,15 @@ def ppo_clip_actor_loss(
     advantage: Tensor,
     clip_eps: float = 0.2,
 ) -> tuple[Tensor, dict]:
-    """PPO clipped surrogate on the per-scene joint log-prob.
+    """PPO clipped surrogate. ELEMENT-WISE in its inputs: ``ratio = exp(logp_new - logp_old)`` per
+    element, loss ``-mean(min(ratio*A, clip(ratio)*A))``.
 
-    ``ratio = exp(logp_new - logp_old)``; the loss is ``-mean(min(ratio*A, clip(ratio)*A))``.
-    Returns ``(loss, info)`` with the per-sample ratio, the clip fraction, and Schulman's
-    approximate KL. At inner epoch 0 (``logp_new == logp_old``) ``ratio == 1`` so the loss reduces
-    to ``-mean(A)`` and ``approx_kl == 0``.
+    Feed PER-AGENT-flattened arrays (one element per ``(scene, agent)`` pair, with the scene's
+    advantage repeated across its agents) to get the Spec-S9.2 PER-AGENT ratio ``rho_{s,i}`` -- NOT a
+    joint ratio (summing per-agent logps into a per-scene scalar first would give the forbidden joint
+    ratio whose variance explodes with the agent count). Returns ``(loss, info)`` with the per-element
+    ratio, clip fraction, and Schulman's approximate KL. At inner epoch 0 (``logp_new == logp_old``)
+    ``ratio == 1`` so the loss reduces to ``-mean(A)`` and ``approx_kl == 0``.
     """
     ratio = torch.exp(logp_new - logp_old)
     unclipped = ratio * advantage
@@ -65,7 +94,10 @@ def explained_variance(rewards, values) -> float:
 
     ``== 1`` when the critic is perfect, ``== 0`` when it only predicts the mean (no better than
     the EMA baseline), ``< 0`` when anti-correlated (a collapse alarm). Returns a ``0.0`` sentinel
-    (not NaN) when ``Var(reward) == 0`` (the low-reward-variance warm-started case).
+    (not NaN, not a spurious huge magnitude) when ``Var(reward)`` is ~0: EV = 1 - Var(r-V)/Var(r) is
+    UNDEFINED at zero reward variance, and a tiny-but-nonzero ``Var(r)`` (near-constant rewards, e.g.
+    a low-temperature smoke) divided into a normal ``Var(r-V)`` yields a meaningless huge-negative EV.
+    The threshold guards that degeneracy -- it is the metric being undefined, NOT a critic collapse.
     """
     r = [float(x) for x in rewards]
     v = [float(x) for x in values]
@@ -74,7 +106,7 @@ def explained_variance(rewards, values) -> float:
         return 0.0
     mean_r = sum(r) / n
     var_r = sum((x - mean_r) ** 2 for x in r) / n
-    if var_r == 0.0:
+    if var_r < 1e-8:  # reward variance ~ 0 -> EV is undefined (see docstring)
         return 0.0
     resid = [ri - vi for ri, vi in zip(r, v)]
     mean_e = sum(resid) / n

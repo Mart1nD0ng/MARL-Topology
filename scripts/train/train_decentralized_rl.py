@@ -68,12 +68,14 @@ from marl_topology.training.decentralized_distillation import (  # noqa: E402
 )
 from marl_topology.data.row_context_builder import build_row_contexts  # noqa: E402
 from marl_topology.training.decentralized_action import (  # noqa: E402
-    recompute_entropy,
-    recompute_logp,
+    recompute_bcsp_entropy,
+    recompute_bcsp_logp,
     sample_decentralized_action,
+    sample_decentralized_bcsp_action,
 )
 from marl_topology.models.centralized_graph_critic import CentralizedGraphCritic  # noqa: E402
 from marl_topology.training.graph_mappo import (  # noqa: E402
+    critic_scene_value,
     explained_variance,
     ppo_clip_actor_loss,
 )
@@ -226,15 +228,16 @@ def gauss_perturb_sample(logits, sample, sigma):
     return topo, logp
 
 
-@torch.no_grad()
 def forward_value(critic, sample, mean, std):
-    """Centralized critic value V(scene) from the SAME standardized node/edge features the actor
-    sees (graph_payload), masks all-ones (one real scene). No oracle/teacher label is fed -> no
-    leakage. Returns a scalar tensor (grad on when the critic is in train mode)."""
-    nf = ((sample["nf"] - mean[0]) / std[0]).unsqueeze(0)
-    ef = ((sample["ef"] - mean[1]) / std[1]).unsqueeze(0)
-    return critic(nf, ef, sample["ei"].unsqueeze(0),
-                  torch.ones(1, sample["nf"].shape[0]), torch.ones(1, sample["ef"].shape[0]))[0]
+    """Centralized critic value V(scene) from the SAME standardized node/edge features the actor sees
+    (graph_payload), all-ones masks (one real scene). No oracle/teacher label is fed -> no leakage (D1).
+
+    R7 / Spec S8.4: this is NOT wrapped in no_grad -- the critic TRAIN forward must keep its gradient
+    so opt_c.step() actually moves the critic. The ROLLOUT caller wraps it in `with torch.no_grad()`
+    for the detached baseline value; the UPDATE caller calls it directly (grad on). (The prior
+    @torch.no_grad() decorator silently froze the critic -- its loss had no grad_fn.)"""
+    return critic_scene_value(critic, sample["nf"], sample["ef"], sample["ei"],
+                              node_mean=mean[0], node_std=std[0], edge_mean=mean[1], edge_std=std[1])
 
 
 def eval_held(actor, samples, mean, std):
@@ -451,6 +454,9 @@ def main() -> None:
         mean, std = ck["mean"], ck["std"]
         baseline, lam_c, lam_b = ck["baseline"], ck["lam_c"], ck["lam_b"]
         history, start_upd = ck["history"], ck["update"] + 1
+        if critic is not None and "critic" in ck:  # R7: resume the centralized critic + its optimizer
+            critic.load_state_dict(ck["critic"]); opt_c.load_state_dict(ck["opt_c"])
+            critic_history = ck.get("critic_history", critic_history)
         print(f"[resume] from update {ck['update']} -> {start_upd}/{args.updates} (best VAL {best_val:.3f})",
               flush=True)
 
@@ -475,38 +481,44 @@ def main() -> None:
                 budgets = dict(node_budgets_for_scene(s["context"].evaluator.scene))
                 with torch.no_grad():
                     logits0 = forward_logits(actor, s, mean, std)
-                    act = sample_decentralized_action(logits0, s["edge_ids"], edges=edges,
-                                                      budgets=budgets, temperature=temp_now,
-                                                      compute_entropy=False)
-                    v0 = float(forward_value(critic, s, mean, std))
+                    act = sample_decentralized_bcsp_action(logits0, s["edge_ids"], edges=edges,
+                                                           budgets=budgets, temperature=temp_now,
+                                                           compute_entropy=False)
+                    v0 = float(forward_value(critic, s, mean, std))   # rollout baseline (no_grad)
                 topo = [s["edge_ids"][j] for j in act.active_edge_indices]
                 r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
                                             args.live_consensus_dual)
-                per_agent = [(pa.gated_edge_indices, pa.accepted_order)
-                             for pa in act.per_agent if pa.accepted_order]
-                batch.append({"s": s, "per_agent": per_agent, "logp_old": float(act.joint_logp),
-                              "r": r, "V": v0})
+                # PER-AGENT records for the per-agent PPO ratio (Spec S9.2 -- NOT a joint sum). Each
+                # agent with >=1 incident edge contributes (incident, accepted-subset, budget, logp_old).
+                per_agent = [(pa.incident_edge_indices, pa.accepted_local_indices, pa.budget, float(pa.logp))
+                             for pa in act.per_agent if pa.incident_edge_indices]
+                batch.append({"s": s, "per_agent": per_agent, "r": r, "V": v0})
                 rwds.append(r); gcs.append(g_c); gbs.append(g_b); feas.append(float(ok))
             if not batch:
                 continue
             adv_all = torch.tensor([b["r"] - b["V"] for b in batch])  # single-step A = r - V (GAE at T=1)
             if args.normalize_adv:
                 adv_all = (adv_all - adv_all.mean()) / (adv_all.std() + 1e-6)
-            logp_old_t = torch.tensor([b["logp_old"] for b in batch])
-            # ---- PPO-clip inner epochs on the actor: re-score the frozen order over the frozen gate ----
+            # ---- PPO-clip inner epochs on the actor: PER-AGENT ratio (Spec S9.2 -- NOT a joint sum).
+            #      Flatten (scene, agent): each agent re-scores its recorded BCSP subset under fresh
+            #      logits; the scene's single-step advantage A_s is shared across its agents. The old
+            #      logps + the per-agent advantages are fixed across epochs (recorded at rollout). ----
+            logp_old_flat = torch.tensor([lo for b in batch for (_inc, _acc, _bud, lo) in b["per_agent"]])
+            adv_flat = torch.tensor([float(adv_all[bi]) for bi, b in enumerate(batch)
+                                     for _ in b["per_agent"]])
             last_kl, last_clip = 0.0, 0.0
             for _epoch in range(args.ppo_epochs):
                 lp_new, en_new = [], []
                 for b in batch:
                     logits = forward_logits(actor, b["s"], mean, std)
-                    lp = logits.new_zeros(()); en = logits.new_zeros(())
-                    for gated, order_ in b["per_agent"]:
-                        lp = lp + recompute_logp(logits, gated, order_, temp_now)
-                        en = en + recompute_entropy(logits, gated, len(order_), temp_now)
-                    lp_new.append(lp); en_new.append(en)
-                ppo_loss, info = ppo_clip_actor_loss(torch.stack(lp_new), logp_old_t,
-                                                     adv_all.detach(), clip_eps=args.clip_epsilon)
-                loss = ppo_loss - args.entropy_coef * torch.stack(en_new).mean()  # exact PL entropy bonus
+                    for (incident, accepted, bud, _lo) in b["per_agent"]:
+                        lp_new.append(recompute_bcsp_logp(logits, incident, accepted, temp_now, bud))
+                        en_new.append(recompute_bcsp_entropy(logits, incident, temp_now, bud))
+                if not lp_new:
+                    break
+                ppo_loss, info = ppo_clip_actor_loss(torch.stack(lp_new), logp_old_flat,
+                                                     adv_flat.detach(), clip_eps=args.clip_epsilon)
+                loss = ppo_loss - args.entropy_coef * torch.stack(en_new).mean()  # BCSP normalized-entropy bonus
                 opt.zero_grad(); loss.backward()
                 torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
                 opt.step()
@@ -594,10 +606,15 @@ def main() -> None:
                             "mean_g_c": mean_gc, "mean_g_b": mean_gb, "lam_c": lam_c, "lam_b": lam_b,
                             "val_raw": ve["raw"]})
             if args.ckpt_every and upd % args.ckpt_every == 0:
-                torch.save({"actor": actor.state_dict(), "opt": opt.state_dict(),
-                            "best_state": best_state, "best_val": best_val, "mean": mean, "std": std,
-                            "baseline": baseline, "lam_c": lam_c, "lam_b": lam_b,
-                            "history": history, "update": upd}, ckpt_path)
+                ckpt = {"actor": actor.state_dict(), "opt": opt.state_dict(),
+                        "best_state": best_state, "best_val": best_val, "mean": mean, "std": std,
+                        "baseline": baseline, "lam_c": lam_c, "lam_b": lam_b,
+                        "history": history, "update": upd}
+                if critic is not None:  # R7: the centralized critic + its optimizer resume too (Spec 8.6)
+                    ckpt["critic"] = critic.state_dict()
+                    ckpt["opt_c"] = opt_c.state_dict()
+                    ckpt["critic_history"] = critic_history
+                torch.save(ckpt, ckpt_path)
                 print(f"[ckpt] update {upd} saved (best VAL {best_val:.3f})", flush=True)
 
     final_held = eval_held(actor, held_s, mean, std)   # FINAL-update policy (before keep-best revert)
