@@ -3456,3 +3456,35 @@ R7 ADVERSARIAL-VERIFY RESULT (Workflow wkgsay4tx, 3 lenses). PER-AGENT-RATIO len
   real runs (observed var_r O(0.1-1); a 2-shard run gave a clean EV=-0.039), so the sentinel is correct
   for the real case; documented as a known robustness nit (no correctness change). NO refutation of R7's
   correctness -> Graph-MAPPO mechanism CONFIRMED (per-agent ratio, trained critic, D1-clean, fair budget).
+
+================================================================================
+PHASE 8a (2026-06-24): action-conditioned Q critic Q(s, S). KEEP.
+================================================================================
+Owner chose Phase 8 (Graph-Counterfactual PPO) at the R0-R7 milestone. Phase 8 = upgrade the shared
+scene advantage A_s=R_s-V(s) to a per-agent COMA counterfactual credit A_i (Spec 9.4). Split 8a (the
+Q-critic substrate) -> 8b (the counterfactual credit).
+
+HYPOTHESIS (8a): the centralized critic built with critic_sees_action=True is a usable action-
+conditioned Q(s,S) -- the realized joint action (the mutual-decoder active-edge one-hot) genuinely
+moves Q, Q trains to the reward, and the action one-hot is a DETACHED conditioning input (no gradient
+into the action), so 8b can re-evaluate Q on counterfactual subsets for FREE (a critic forward, no
+evaluator call -> the 1/scene budget is preserved).
+
+CHANGE (single): training/graph_mappo.py +critic_q_value(critic, nf, ef, ei, active_edge_onehot, ...)
+-- the action-conditioned twin of critic_scene_value, passing the active-edge one-hot (cast + detached
+inside the critic) with the SAME standardized-feature / grad (Spec 8.4) / device contract. The action-
+conditioning MECHANISM (edge_in = edge_dim + 1, the detached one-hot concat) already existed in
+models/centralized_graph_critic.py from the CTDE rebuild; 8a exposes it + pins its behavior.
+
+TESTS (tests/unit/test_q_critic_8a.py, 5; fail without the helper = ImportError): critic_sees_action
+changes Q (|Q(zeros)-Q(ones)|>1e-4 AND |Q(zeros)-Q(some)|>1e-4 -- non-vacuous, else the COMA baseline
+would be degenerate); Q trains + tracks the reward (params move, |Q-target|<0.3 after 40 steps); the
+critic step leaves the actor byte-unchanged; the action one-hot is detached (onehot.grad is None/zero
+after q.backward()); the V critic (critic_sees_action=False) stays finite. Full suite 636 passed / 0
+failed (was 631; zero new failures).
+
+DECISION: KEEP. The Q-critic substrate is verified. Next: 8b -- per agent i, sample K_cf counterfactual
+subsets S~pi_i (BCSP, independent of the actual S_i given o_i,S_{-i}), fix S_{-i}, re-decode via the
+mutual decoder, evaluate Q(s,S~,S_{-i}) [critic forward, free], baseline b_i=mean, per-agent advantage
+A_i^E=Q(s,S)-b_i replaces the shared A_s in the per-agent PPO loss. CAVEAT (unchanged): the corrected
+headline is gated on the dataset rebuild; 8a/8b validate the MECHANISM.

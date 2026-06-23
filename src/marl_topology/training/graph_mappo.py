@@ -42,6 +42,33 @@ def critic_scene_value(
     return critic(nf, ef, edge_index.unsqueeze(0), node_mask, edge_mask)[0]
 
 
+def critic_q_value(
+    critic,
+    node_features: Tensor,
+    edge_features: Tensor,
+    edge_index: Tensor,
+    active_edge_onehot: Tensor,
+    *,
+    node_mean: Tensor,
+    node_std: Tensor,
+    edge_mean: Tensor,
+    edge_std: Tensor,
+) -> Tensor:
+    """Action-conditioned ``Q(s, S)`` (Phase 8, Spec S8.3/S9.4): the centralized critic conditioned on
+    the REALIZED joint action -- the mutual-decoder active-edge one-hot over the candidate edges. The
+    one-hot is a DETACHED conditioning input (the critic gradient never flows back into the action),
+    so a per-agent COMA counterfactual re-evaluates ``Q`` on alternative subsets for FREE (a critic
+    forward, no evaluator call). Requires ``critic.critic_sees_action`` True. Same standardized-feature,
+    grad (Spec S8.4), and device contract as :func:`critic_scene_value`.
+    """
+    nf = ((node_features - node_mean) / node_std).unsqueeze(0)
+    ef = ((edge_features - edge_mean) / edge_std).unsqueeze(0)
+    node_mask = torch.ones(1, node_features.shape[0], device=node_features.device)
+    edge_mask = torch.ones(1, edge_features.shape[0], device=edge_features.device)
+    onehot = active_edge_onehot.to(edge_features.dtype).unsqueeze(0)  # [1, E]
+    return critic(nf, ef, edge_index.unsqueeze(0), node_mask, edge_mask, active_edge_onehot=onehot)[0]
+
+
 def graph_mappo_advantage(reward: float, value: Tensor) -> Tensor:
     """Single-step advantage ``A = reward - V(scene).detach()``. The value is detached so the
     actor's PPO gradient never flows into the critic through the advantage (the critic is trained
