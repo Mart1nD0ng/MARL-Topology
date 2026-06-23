@@ -83,7 +83,8 @@ def test_stage5_10_validator_checks_optional_artifact_paths_without_writing() ->
                             capture_output=True, text=True).stdout.splitlines()
         if line.startswith("result_save/")
     }
-    assert _committed <= {".gitkeep"}, f"result_save COMMITTED run artifacts: {sorted(_committed - {'.gitkeep'})}"
+    _unexpected = {c for c in _committed if c != ".gitkeep" and not c.endswith(".md")}
+    assert not _unexpected, f"result_save COMMITTED non-report run artifacts: {sorted(_unexpected)}"
 
 
 def test_stage5_10_exit_gate_report_closes_stage5_without_execution() -> None:

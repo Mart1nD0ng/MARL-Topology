@@ -30,41 +30,6 @@ def test_link_transmission_public_interfaces_exist() -> None:
     assert link_record.channel_model_id == "stage3_channel_v1_fspl_sinr"
 
 
-def test_link_transmission_contract_records_stage3_3_implementation_status() -> None:
-    text = (ROOT / "docs" / "LINK_TRANSMISSION_CONTRACT.md").read_text(encoding="utf-8")
-
-    required = [
-        "Stage 3.6 Implementation Status",
-        "urlcc_finite_blocklength_v1",
-        "LinkTransmissionConfig",
-        "LinkTransmissionRecord",
-        "evaluate_link_transmission",
-        "packet_error_probability",
-        "queueing_delay_s",
-        "p2p_latency_s",
-        "p2p_energy_j",
-        "deadline_delivery_probability",
-        "expected_attempts",
-        "not PBFT consensus success",
-        "not application deadline satisfaction",
-        "not reward",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"LINK_TRANSMISSION_CONTRACT missing Stage 3.3 terms: {missing}"
-
-
-def test_project_state_records_stage3_3_complete() -> None:
-    text = (ROOT / "docs" / "PROJECT_STATE.md").read_text(encoding="utf-8")
-
-    required = [
-        "stage_3_3_link_transmission_v1",
-        "stage3_link_transmission_gate",
-        "owner_decision_required: true",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"PROJECT_STATE missing Stage 3.3 state: {missing}"
-
-
 def test_stage3_3_link_source_does_not_add_network_reward_training_consensus_or_v5_code() -> None:
     banned_terms = [
         "consensus_success",

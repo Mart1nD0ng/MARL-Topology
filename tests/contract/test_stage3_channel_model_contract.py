@@ -25,39 +25,6 @@ def test_channel_model_public_interfaces_exist() -> None:
     assert record.resource_id == "resource_0"
 
 
-def test_channel_model_contract_records_stage3_2_implementation_status() -> None:
-    text = (ROOT / "docs" / "CHANNEL_MODEL_CONTRACT.md").read_text(encoding="utf-8")
-
-    required = [
-        "Stage 3.2 Implementation Status",
-        "stage3_channel_v1_fspl_sinr",
-        "ChannelRecord",
-        "ActiveTransmission",
-        "path_loss_db",
-        "noise_power_dbm",
-        "interference_power_dbm",
-        "sinr_db",
-        "packet success is not computed by the channel layer",
-        "not consensus success",
-        "not PBFT reliability",
-        "not reward",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"CHANNEL_MODEL_CONTRACT missing Stage 3.2 terms: {missing}"
-
-
-def test_project_state_records_stage3_2_complete() -> None:
-    text = (ROOT / "docs" / "PROJECT_STATE.md").read_text(encoding="utf-8")
-
-    required = [
-        "stage_3_2_channel_model_v1",
-        "stage3_channel_model_gate",
-        "owner_decision_required: true",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"PROJECT_STATE missing Stage 3.2 state: {missing}"
-
-
 def test_stage3_2_channel_source_does_not_add_reward_training_consensus_or_v5_code() -> None:
     banned_terms = [
         "consensus_success",

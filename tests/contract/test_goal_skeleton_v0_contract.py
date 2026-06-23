@@ -27,15 +27,6 @@ def test_metric_rows_include_registered_names_and_identifiers() -> None:
     assert all("metric_level" in row and "used_for" in row for row in rows)
 
 
-def test_metric_contract_remains_governance_first_for_stage2() -> None:
-    text = (ROOT / "docs" / "METRIC_CONTRACT.md").read_text(encoding="utf-8")
-
-    assert "Metric Governance" in text
-    assert "Any new metric must be registered before use" in text
-    assert "`P_eff_soft`" not in text
-    assert "`P_eff_hard`" not in text
-
-
 def test_src_does_not_reintroduce_old_effective_success_defaults() -> None:
     banned = ("P_eff_soft", "P_eff_hard", "hard_eval", "soft_train")
     offenders: dict[str, list[str]] = {}

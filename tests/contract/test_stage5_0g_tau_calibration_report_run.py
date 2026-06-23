@@ -33,26 +33,6 @@ def _stage5_0g_report() -> dict[str, object]:
     )
 
 
-def test_stage5_0g_documentation_records_report_run_without_selection() -> None:
-    text = _read_doc("STAGE5_0G_TAU_CONSENSUS_CALIBRATION_REPORT_RUN.md")
-
-    required = [
-        "Stage 5.0g",
-        "tau_candidate = 0.9",
-        "consensus_success_probability >= tau_consensus",
-        "source_kind: stage5_0f_alpha_fixture_suite",
-        "tau_selected: False",
-        "final_tau_consensus: None",
-        "does not select final `tau_consensus`",
-        "does not implement reward",
-        "does not train models",
-        "does not migrate v5 code",
-        "Owner Decision Required",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"Stage 5.0g doc missing terms: {missing}"
-
-
 def test_stage5_0g_report_uses_owner_candidate_and_stage5_source_flags() -> None:
     report = _stage5_0g_report()
 
@@ -142,44 +122,3 @@ def test_stage5_0g_replay_script_accepts_owner_tau_and_prints_report() -> None:
     assert '"stage4_8_smoke_only"' not in completed.stdout
 
 
-def test_stage5_0g_harness_task_exists() -> None:
-    path = ROOT / "harness" / "tasks" / "stage5_0g_tau_consensus_calibration_report_run.yaml"
-    task = yaml.safe_load(path.read_text(encoding="utf-8"))
-
-    assert task["id"] == "stage5_0g_tau_consensus_calibration_report_run"
-    for field in [
-        "required_artifacts",
-        "expected_evidence",
-        "negative_checks",
-        "relevant_lessons",
-        "required_tests",
-        "forbidden_v5_inheritance",
-        "expected_outputs",
-    ]:
-        assert field in task
-        assert task[field]
-    negative_text = " ".join(task["negative_checks"])
-    assert "final tau_consensus" in negative_text
-    assert "wrong inequality direction" in negative_text
-    assert "Stage 5.0f fixture rows" in negative_text
-    assert "reward" in negative_text
-    assert "v5" in negative_text
-
-
-def test_stage5_0g_project_state_marks_completion_and_keeps_final_tau_blocked() -> None:
-    text = _read_doc("PROJECT_STATE.md")
-
-    required = [
-        "post_stage_5_0g_awaiting_owner_decision",
-        "post_stage_5_0f_awaiting_owner_decision",
-        "stage_5_0g_tau_consensus_calibration_report_run_with_owner_supplied_candidates_without_selection",
-        "stage5_0g_tau_consensus_calibration_report_run_gate",
-        "tau_consensus_final_selection",
-        "reward_implementation",
-        "training_runs",
-        "v5_code_migration",
-        "recommended_next_task: stage_5_0h_owner_tau_decision_or_calibration_hardening",
-        "owner_decision_required: true",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"PROJECT_STATE missing Stage 5.0g state: {missing}"

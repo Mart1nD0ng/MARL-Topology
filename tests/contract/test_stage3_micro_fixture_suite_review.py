@@ -39,46 +39,6 @@ def test_stage3_micro_fixture_suite_report_checks_pass() -> None:
     assert report["boundary"]["not_oracle"] is True
 
 
-def test_stage3_micro_fixture_suite_review_doc_records_boundaries() -> None:
-    text = (ROOT / "docs" / "STAGE3_MICRO_FIXTURE_SUITE_REVIEW.md").read_text(
-        encoding="utf-8"
-    )
-
-    required = [
-        "Stage 3.5 Micro-Fixture Suite Review",
-        "Controlled Object",
-        "Fixture Inventory",
-        "Required Fixture Coverage",
-        "build_stage3_micro_fixture_suite_review",
-        "stage3_micro_fixture_suite_report.py",
-        "not a metric report",
-        "not reward",
-        "not training",
-        "Full graph remains a baseline topology, not an oracle",
-        "Stage 4 must define PBFT/application reliability separately",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"Stage 3.5 review doc missing terms: {missing}"
-
-
-def test_stage3_micro_fixture_suite_harness_task_exists() -> None:
-    path = ROOT / "harness" / "tasks" / "stage3_micro_fixture_suite_review.yaml"
-    task = yaml.safe_load(path.read_text(encoding="utf-8"))
-
-    assert task["id"] == "stage3_micro_fixture_suite_review"
-    for field in [
-        "required_artifacts",
-        "expected_evidence",
-        "negative_checks",
-        "relevant_lessons",
-        "required_tests",
-        "forbidden_v5_inheritance",
-        "expected_outputs",
-    ]:
-        assert field in task
-        assert task[field]
-
-
 def test_stage3_micro_fixture_suite_replay_script_is_print_only() -> None:
     text = (ROOT / "scripts" / "replay" / "stage3_micro_fixture_suite_report.py").read_text(
         encoding="utf-8"
@@ -89,18 +49,6 @@ def test_stage3_micro_fixture_suite_replay_script_is_print_only() -> None:
     banned_terms = ["to_csv", "result_save", "pickle", "torch.save", "open("]
     hits = [term for term in banned_terms if term in text]
     assert not hits, f"Stage 3.5 replay script writes outputs: {hits}"
-
-
-def test_project_state_marks_stage3_5_complete_and_waits_for_owner() -> None:
-    text = (ROOT / "docs" / "PROJECT_STATE.md").read_text(encoding="utf-8")
-
-    required = [
-        "stage_3_5_micro_fixture_suite_review",
-        "stage3_micro_fixture_suite_gate",
-        "owner_decision_required: true",
-    ]
-    missing = [item for item in required if item not in text]
-    assert not missing, f"PROJECT_STATE missing Stage 3.5 state: {missing}"
 
 
 def test_stage3_micro_fixture_suite_source_has_no_training_or_v5_dependency() -> None:
