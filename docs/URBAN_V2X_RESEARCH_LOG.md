@@ -3297,3 +3297,47 @@ DECISION: KEEP (verified closed-form primitive). 6 R4 tests; full suite 601 pass
 NEXT (single hypothesis): R5 -- two-timescale dynamic environment + Temporal Value Test (does the
   task actually need temporal modeling, or does the static contextual bandit suffice?). Also: evaluate
   elevating the corrected-env-math dataset REBUILD to its own round (it gates R1-R4 reaching training).
+
+================================================================================
+R5 (2026-06-23): two-timescale dynamic env + Temporal Value Test. KEEP (env primitive + DECISION).
+================================================================================
+HYPOTHESIS (one mechanism): build an OPT-IN two-timescale dynamic env (a macro topology decision held
+  for H_PBFT micro-rounds; per-step reward = static per-frame objective held over the interval MINUS
+  the reconfiguration cost of switching, Spec S3.5) and run the Temporal Value Test Δ_H = J_myopic −
+  J_horizon (Spec S3.6) to DECIDE whether the task needs temporal modeling.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_two_timescale_env.py, 8 tests):
+  - NEW training/two_timescale_env.py (gate-exempt, OPT-IN): TwoTimescaleTopologyEnv (reset/step/fork/
+    trajectory_cost; immutable DynamicEnvState -> fork is copy-by-construction, no leakage), ReconfigCost
+    ((e_edge+l_edge)*|E_t △ E_{t-1}|), temporal_value_test (myopic = per-frame argmin; horizon = exact
+    DP minimizing the discounted total INCLUDING reconfiguration). T=1 reduces EXACTLY to the static
+    single-step objective. Reward/feasibility byte-unchanged (smoke exit 0); suite unchanged.
+
+DECISION EXPERIMENT (Temporal Value Test sweep over reconfig r/edge x hold-interval H, 2-frame
+  alternating-optima trajectory; exact, no RNG):
+    r/edge | H=1   H=2   H=4   H=8   H=16
+      0.0  |  0     0     0     0     0
+      1.0  |  1     0     0     0     0
+      2.0  |  3     2     0     0     0
+      4.0  |  7     6     4     0     0
+      8.0  | 15    14    12     8     0
+  EXACT RELATION: Δ_H = max(0, 2r − H). Temporal modeling matters (Δ_H>0) ONLY when reconfiguration
+  cost per switch exceeds the holding-interval-amortized cost of using a suboptimal topology.
+
+DECISION (R5 output): in the REALISTIC regime -- a topology HELD for many PBFT micro-rounds (large
+  H_PBFT) -- reconfiguration AMORTIZES and Δ_H -> 0, so the STATIC contextual bandit remains the main
+  task; the dynamic env is a verified EXTENSION available if the operating regime shifts to short hold
+  intervals + expensive reconfiguration. This MATCHES the spec's own guidance (S3.6: keep the single-
+  step bandit as a strong baseline; only adopt temporal if Δ_H>0). => R7's Graph-MAPPO stays single-
+  step (A_s = R_s − V(s)); a temporal critic/actor (R11) is deferred unless a real-trajectory Temporal
+  Value Test (gated on the trajectory dataset + the corrected rebuild) shows Δ_H>0 at realistic H_PBFT.
+  CAVEAT: this is a synthetic-trajectory structural result; the Δ_H = max(0,2r−H) RELATION is robust
+  (fundamental amortization), but the realized r,H from the physics need the real-trajectory test.
+
+DECISION: KEEP (verified env primitive + a decisive architectural finding: static suffices at
+  realistic H_PBFT). 8 R5 tests; full suite 609 passed / 0 failed (was 601; zero new failures); smoke
+  exit 0 (opt-in -> byte-safe).
+NEXT (single hypothesis): R6 -- BCSP replaces the ordered Plackett-Luce action (the original trunk-
+  hang blocker): O(mb) log-partition DP, exact subset logp/sampling/entropy, b>=m O(m) Bernoulli fast
+  path, MAP == local top-b positive-logit decoder, order does NOT enter the PPO probability. FORBIDDEN:
+  permutations / degree cap / budget cap / fixed candidate top-K / first-step entropy surrogate.
