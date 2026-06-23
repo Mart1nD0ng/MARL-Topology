@@ -19,10 +19,15 @@ is local (restricted to the honest sub-committee ``H = V \\ B``). A parity test 
 ``f = 0`` against the existing cascade.
 
 The worst case is searched over **all** sizes ``0 <= |B| <= f``, NOT only ``|B| = f``.
-Under the honest-primary conditional average (this module's ``C(x; B)``) monotonicity
-in ``B`` FAILS (Spec S4.7.1): adding a *weak* primary to ``B`` removes it from the
-average denominator and can RAISE ``C_honest(B)``, so the minimum need not lie at the
-largest set. Exact enumeration is therefore ``sum_{r=0}^{f} C(n, r)`` fault sets; for
+Two distinct facts (do not conflate them): (i) as a function of the SET ``B``, ``C(x; B)``
+is NOT monotone (Spec S4.7.1) -- adding a *weak* primary to ``B`` drops it from the honest-
+average denominator and can RAISE ``C_honest(B)`` (e.g. ``C({}) = 0.847 < C({weak}) = 0.884``),
+so the argmin set is not guaranteed to have size ``f``; that is why all sizes are enumerated.
+(ii) Separately, the size-wise minimum ``min_{|B|=r} C`` happens to be non-increasing in ``r``
+for this cascade (extend the size-``r-1`` argmin by the strongest remaining primary: it drops an
+above-average term AND shrinks every quorum tail), so the *certified value* coincides with the
+old ``|B|=f``-only value -- but the code does NOT rely on (ii); enumerating all sizes is correct
+regardless. Exact enumeration is therefore ``sum_{r=0}^{f} C(n, r)`` fault sets; for
 small ``f`` this is the certified reference (``is_certified`` is true only for an exact
 hard-min). A ``softmin`` is available for training smoothness (not a certificate). A
 budget guard fails loud when the enumeration is too large; ``greedy`` is then an

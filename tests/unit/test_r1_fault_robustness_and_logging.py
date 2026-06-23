@@ -142,6 +142,22 @@ def test_production_effective_f_q_are_logged() -> None:
     assert fa["is_certified"] is False
 
 
+def test_production_effective_f_clamp_engages_and_is_logged() -> None:
+    # configured f=3 at N=8 must be CLAMPED to effective f = (8-1)//3 = 2 (PBFT n >= 3f+1),
+    # and the discrepancy must be VISIBLE in the log -- not the trivial configured==effective case.
+    spec, graph, canonical = _scene(8)
+    over = Stage21ObjectiveStackEvaluator(
+        scene=spec.scene, graph=graph,
+        config=dataclasses.replace(canonical.config, fault_tolerance=3),
+    )
+    fa = over.evaluate(set(graph.edge_ids)).metrics["fault_accounting"]
+    n = fa["validator_count"]
+    assert fa["configured_fault_tolerance"] == 3
+    assert fa["effective_fault_tolerance"] == (n - 1) // 3      # the clamp actually bit
+    assert fa["effective_fault_tolerance"] < fa["configured_fault_tolerance"]
+    assert fa["quorum"] == (n + fa["effective_fault_tolerance"]) // 2 + 1
+
+
 def test_production_fixed_set_is_certified_and_logs_worst_case() -> None:
     spec, graph, canonical = _scene(8)
     fixed = Stage21ObjectiveStackEvaluator(
