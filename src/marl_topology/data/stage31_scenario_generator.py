@@ -78,8 +78,10 @@ class PhysicsRegime:
     orthogonal_resources: bool = False
     # relay_hops > 1: consensus messages may be relayed through up to this many links (via
     # RSU / intermediate nodes) instead of needing a direct link -- enables global PBFT under
-    # urban NLOS where direct connectivity is fragmented. Default 1 = single-hop (unchanged).
-    relay_hops: int = 1
+    # urban NLOS where direct connectivity is fragmented. R2 (v2 Spec S4.2): the production
+    # default is 2 -- the corrected single-relay-layer semantics (paired with one_hop_relay=True).
+    # relay_hops=1 with one_hop_relay collapses reachability (measured feas 0.667 -> 0.000).
+    relay_hops: int = 2
     # scheduled_mac: partition the selected links into SINR-feasible spatial-reuse TDMA slots
     # (the realistic MAC abstraction) instead of the worst-case all-shared spectrum. Co-slot
     # links interfere (validated), cross-slot links are orthogonal, and slot count adds latency.
@@ -117,8 +119,12 @@ class PhysicsRegime:
     #   single fixed Byzantine set C_robust = min_{|B|<=f} C(x;B), Spec S4.7).
     fault_model: str = "remove_largest"
     # one_hop_relay: build the PBFT matrix from DIRECT links only so relay_hops is the single
-    #   multi-hop layer (Spec S4.2). MUST be paired with relay_hops >= 2 to keep reachability.
-    one_hop_relay: bool = False
+    #   multi-hop layer (Spec S4.2 -- the ONE correct route/relay semantics, no double-counting).
+    #   R2: this is now the production DEFAULT (True); paired with relay_hops>=2. The legacy
+    #   double-counting mode (the evaluator's BFS-route probs relayed AGAIN) is opt-in: set
+    #   one_hop_relay=False explicitly to byte-reproduce a pre-R2 dataset. Measured feasibility-
+    #   neutral vs legacy at relay_hops=2 (0.667, same W/U/I bins) -> no tau-gradient re-tune.
+    one_hop_relay: bool = True
     # timeout_aware_latency: quorum-completion timeout-aware latency (Spec S4.10) instead of the
     #   degenerate max-all-pairs; a failed topology pays the phase budget.
     timeout_aware_latency: bool = False
@@ -611,6 +617,15 @@ def best_feasible_topology(
     }
 
 
+# Below this validator count the FIXED heuristic candidate pool is complete enough that the
+# relay-aware SA search adds NO feasibility (measured at N<=8: feas 0.667 with and without the
+# search, at ~77x the per-scene cost). At or above it, sparse relay/scheduled backbones the pool
+# misses may exist, so the search teacher is enabled. Re-measure when large-N (>=10) production
+# is activated. (A scheduled MAC fires the teacher at ANY N -- its slot constraints make the
+# heuristic pool incomplete regardless of size.)
+RELAY_SEARCH_TEACHER_MIN_NODES = 10
+
+
 def relay_aware_search_kwargs(
     regime: PhysicsRegime,
     graph: CandidateGraph,
@@ -629,7 +644,10 @@ def relay_aware_search_kwargs(
     ``sa_iters`` / ``restarts`` bound the SA cost: the family-binning measurement uses a
     LIGHT budget (it only needs to detect feasibility), while the behaviour-cloning teacher
     uses a heavier budget (its topology is the actual training target)."""
-    if regime.relay_hops > 1 or regime.scheduled_mac:
+    relay_needs_search = (
+        regime.relay_hops > 1 and len(graph.node_ids) >= RELAY_SEARCH_TEACHER_MIN_NODES
+    )
+    if relay_needs_search or regime.scheduled_mac:
         return {
             "search_edge_ids": graph.edge_ids,
             "search_rng": random.Random(f"search:{scenario_id}"),

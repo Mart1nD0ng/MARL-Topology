@@ -3103,3 +3103,46 @@ DECISION: KEEP. 5 R1 tests + 12 existing fixed-B tests GREEN; full unit+contract
   surrogate; hard_min eval path unaffected).
 NEXT (single hypothesis): R2 -- make corrected one_hop_relay the production DEFAULT (flip legacy to
   explicit-opt-in) + latency-aware relay deadline propagation (v2 §R2).
+
+================================================================================
+R2a (2026-06-23): corrected one-hop relay as the PRODUCTION DEFAULT. KEEP.
+================================================================================
+GROUNDING: the production PhysicsRegime + Stage21ObjectiveStackConfig defaults were STILL legacy
+  (relay_hops=1, one_hop_relay=False) -- so CURRENT_HEAD_STATUS.md §10 "recalibration wired into the
+  production regime" was contradicted by the code (the corrected env-math was implemented but OFF by
+  default; the d65a71d "flip" the memory recalled was reverted or lived elsewhere).
+
+HYPOTHESIS (one mechanism): making the corrected single-relay-layer semantics (one_hop_relay=True,
+  paired relay_hops=2) the production DEFAULT is feasibility-NEUTRAL (tau-gradient preserved, no
+  rebuild) + removes the silent double-multi-hop bug, with legacy double-count as explicit opt-in.
+
+MEASURE-BEFORE-FLIP (30 real scenes, seed 31): legacy(one_hop=F,relay=1) feas 0.667 (20/10/0 W/U/I)
+  == corrected(one_hop=T,relay=2) feas 0.667 (20/10/0) == relay=3 0.667. one_hop=T,relay=1 -> 0.000
+  (collapse, confirms the pairing). FEASIBILITY-NEUTRAL at relay_hops>=2 -> no tau re-tune.
+
+IMPLEMENTATION:
+  - PhysicsRegime + Stage21ObjectiveStackConfig: one_hop_relay default False->True, relay_hops 1->2.
+    The legacy double-count is now reachable ONLY via explicit one_hop_relay=False (byte-reproduce a
+    pre-R2 dataset). build_pbft_message_matrices_from_network_records stays a literal primitive
+    (defaults unchanged; production policy lives in the config).
+  - test_route_relay_semantics: removed the stale "deferred to recalibration" xfail; legacy
+    double-count is now an explicit-opt-in test; added test_production_config_defaults_to_corrected_relay.
+
+COST REGRESSION CAUGHT + FIXED (the key finding): flipping relay_hops 1->2 triggered the SA search
+  teacher (relay_aware_search_kwargs fires on relay_hops>1) on EVERY scene -> full suite 85s -> 47 MIN
+  (~33x). MEASURED: the SA teacher adds ZERO feasibility at the production scale (N<=8: feas 0.667
+  WITH and WITHOUT it) at ~77x per-scene cost (2947 -> 38 ms/scene). Its real job is label
+  completeness, which only bites where the fixed heuristic candidate pool can miss a sparse
+  relay/scheduled backbone -- a large-N / scheduled-MAC phenomenon. FIX: node-count gate
+  (RELAY_SEARCH_TEACHER_MIN_NODES=10) so relay_hops>1 alone fires the teacher only at N>=10;
+  scheduled_mac still fires at any N (UNCHANGED). Restored 50 ms/scene (== legacy 51), feas 0.667.
+  Honest cost management (R1-style small-N-cheap / large-N-search), NOT a forbidden shortcut (no
+  degree/budget/candidate cap; the action space is untouched). Re-measure the threshold when large-N
+  production is activated.
+
+DECISION: KEEP. Full unit+contract suite 583 passed / 0 failed / 0 xfail (was 582p/1xfail; the
+  removed xfail became passing corrected-default tests; zero new failures); smoke exit 0 (6.9s); dev
+  loop back to ~86s (not 47 min); feasibility byte-neutral.
+NEXT (single hypothesis): R2b -- latency-aware relay deadline propagation (_multi_hop_reach tracks
+  delivery only, not cumulative latency along the relayed path; a relayed path exceeding the phase
+  deadline must NOT contribute) + same-path latency/energy semantics + reference/vectorized parity.

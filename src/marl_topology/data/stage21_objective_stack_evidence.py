@@ -105,8 +105,9 @@ class Stage21ObjectiveStackConfig:
     orthogonal_resources: bool = True
     # relay_hops > 1 enables multi-hop relaying in consensus: a validator's message reaches
     # peers it has no direct (LOS) link to, via relays through RSU / intermediate nodes. The
-    # missing ingredient for global PBFT under urban NLOS. Default 1 = single-hop (unchanged).
-    relay_hops: int = 1
+    # missing ingredient for global PBFT under urban NLOS. R2 (Spec S4.2): production default 2
+    # (the corrected single-relay-layer pair with one_hop_relay=True).
+    relay_hops: int = 2
     # scheduled_mac replaces the binary all-orthogonal / all-shared spectrum model with a
     # spatial-reuse TDMA (STDMA) schedule: the selected links are partitioned into a few
     # SINR-feasible time slots (conflict-graph + SINR-validated packing). Co-slot links share a
@@ -141,8 +142,9 @@ class Stage21ObjectiveStackConfig:
     #   single fixed Byzantine set C_robust = min_{|B|<=f} C(x;B), Spec S4.7).
     fault_model: str = "remove_largest"
     # one_hop_relay: when True the PBFT matrix is built from DIRECT links only, so relay_hops is
-    #   the single multi-hop layer (Spec S4.2). Pair with relay_hops > 1 to keep reachability.
-    one_hop_relay: bool = False
+    #   the single multi-hop layer (Spec S4.2 -- no double-counting). R2: production DEFAULT True
+    #   (paired with relay_hops>=2). Legacy double-count mode is opt-in: set False explicitly.
+    one_hop_relay: bool = True
     # timeout_aware_latency: when True the "latency" metric is the quorum-completion timeout-aware
     #   consensus time E[min(T,B)] (Spec S4.10) summed over the three phases -- a FAILED topology
     #   pays the full phase budget -- instead of the degenerate min(max_all_pairs, budget).

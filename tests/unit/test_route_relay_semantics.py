@@ -7,11 +7,15 @@ a relay DP of at most ``relay_hops`` links (max-product). The canonical regressi
     relay_hops = 1:  P(A -> C) = 0   (no DIRECT link)
     relay_hops = 2:  P(A -> C) > 0   (one relay hop through B)
 
-The production path violates this: the evaluator routes every ordered pair via a BFS
+The legacy primitive path double-counts: the evaluator routes every ordered pair via a BFS
 shortest path, so ``record.network_delivery_probability`` is ALREADY an end-to-end
 multi-hop probability; ``_multi_hop_reach`` then relays it AGAIN at ``relay_hops > 1``
-(double counting, hard-constraint #10). These tests pin the correct relay DP, the known
-default-mode bug (xfail, deferred to the recalibration), and the opt-in one-hop fix.
+(double counting, hard-constraint #10). R2 (v2 Spec S4.2): the corrected one-hop-relay
+semantics are now the PRODUCTION DEFAULT (``PhysicsRegime`` / ``Stage21ObjectiveStackConfig``
+default ``one_hop_relay=True, relay_hops=2``, measured feasibility-neutral). The legacy
+double-count remains available only as an explicit opt-in (``one_hop_relay=False``) for
+byte-reproducing pre-R2 datasets. These tests pin the relay DP, the corrected default, and
+the explicit-legacy primitive behaviour.
 """
 
 from __future__ import annotations
@@ -99,18 +103,6 @@ def _abc_records():
 _BUDGETS = PBFTPhaseBudgets(pre_prepare_budget_s=1.0, prepare_budget_s=1.0, commit_budget_s=1.0)
 
 
-@pytest.mark.xfail(reason="Phase 2: production feeds multi-hop route records, so the default "
-                          "mode double-counts; the one-hop fix is opt-in and its activation is "
-                          "deferred to the scenario recalibration.", strict=True)
-def test_default_mode_violates_abc_regression_known_bug() -> None:
-    matrices = build_pbft_message_matrices_from_network_records(
-        ("A", "B", "C"), {"pre_prepare": _abc_records(), "prepare": _abc_records(), "commit": _abc_records()},
-        _BUDGETS, relay_hops=1,
-    )
-    # Spec S4.2: with relay_hops=1 there is no DIRECT A-C link, so P(A->C) must be 0.
-    assert ("A", "C") not in matrices.pre_prepare_matrix
-
-
 def test_one_hop_relay_satisfies_abc_regression() -> None:
     # relay_hops=1 -> direct only -> no A-C.
     m1 = build_pbft_message_matrices_from_network_records(
@@ -127,10 +119,26 @@ def test_one_hop_relay_satisfies_abc_regression() -> None:
     assert m2.pre_prepare_matrix[("A", "C")] == pytest.approx(0.9 * 0.8)
 
 
-def test_default_mode_is_byte_unchanged() -> None:
-    # Production default (one_hop_relay=False) keeps the current behavior exactly.
+def test_legacy_double_count_is_opt_in_only() -> None:
+    # The legacy double-count (the BFS-route record's end-to-end prob, relayed again) is reachable
+    # ONLY by explicitly requesting one_hop_relay=False -- it is no longer any production default.
     m = build_pbft_message_matrices_from_network_records(
         ("A", "B", "C"), {"pre_prepare": _abc_records(), "prepare": _abc_records(), "commit": _abc_records()},
-        _BUDGETS, relay_hops=1,
+        _BUDGETS, relay_hops=1, one_hop_relay=False,
     )
     assert m.pre_prepare_matrix[("A", "C")] == pytest.approx(0.72)  # the route record's multi-hop value
+
+
+def test_production_config_defaults_to_corrected_relay() -> None:
+    # R2: the corrected single-relay-layer semantics are the PRODUCTION DEFAULT, not opt-in.
+    from marl_topology.data.stage21_objective_stack_evidence import Stage21ObjectiveStackConfig
+    from marl_topology.data.stage31_scenario_generator import PhysicsRegime
+
+    regime = PhysicsRegime()
+    assert regime.one_hop_relay is True
+    assert regime.relay_hops >= 2  # paired so reachability does not collapse
+
+    # the objective-stack config default likewise carries the corrected pair
+    fields = {f.name: f.default for f in __import__("dataclasses").fields(Stage21ObjectiveStackConfig)}
+    assert fields["one_hop_relay"] is True
+    assert fields["relay_hops"] >= 2
