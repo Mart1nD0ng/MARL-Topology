@@ -2794,3 +2794,37 @@ COST: ~20 s/scene build (urban + scheduled_mac + fixed_set 2x); 28 s for 40 trai
 DECISION: KEEP (pipeline validated). The recalibration's contained work is DONE and proven.
   NEXT is the heavy deliverable: full corrected dataset rebuild + multi-seed N=24 held-out
   headline -- presented to the owner for go/no-go before committing the multi-hour compute.
+
+================================================================================
+RECALIBRATION step 2e (2026-06-23): in-range corrected 5-seed headline (PRELIMINARY).
+================================================================================
+SETUP: 1 corrected in-range shard (seed 9101: 36 scenes N in {8,12,16}, urban 4-RSU 20 dBm,
+  fixed_set + one_hop_relay relay3 + timeout latency; 25/36 teacher-feasible). 5 cold-start
+  dense-reward runs (split-seed 0..4; updates 120, samples-per-scene 8, beta=0); held metric is
+  keep-best (selected on VAL, never on held -- compliant). SA ceiling = the held teacher-feasible
+  rate. Each run ~215 s (32 cores + vectorized cache). Pool per run: fit 13 / val 8 / held 15.
+
+RESULT (per-seed RL keep-best raw / SA ceiling / margin):
+  s0: 0.533 / 0.533 / +0.000   s1: 0.733 / 0.733 / +0.000   s2: 0.733 / 0.733 / +0.000
+  s3: 0.600 / 0.667 / -0.067   s4: 0.667 / 0.600 / +0.067
+  RL keep-best raw : mean 0.6532  95%CI [0.545, 0.761]
+  SA ceiling       : mean 0.6532
+  MARGIN (RL-ceil) : mean +0.0000  95%CI [-0.0588, +0.0588]  (4/5 seeds >= 0; 1/5 > 0)
+  (RLfin final-update margin: mean +0.040, 95%CI [-0.005, +0.086] -- borderline, grazes 0.)
+  conditional reliability high (most seeds cond=1.0; the deployed policy reaches tau on the
+  solvable held scenes).
+
+FINDING: under the CORRECTED environment math, the oracle-free cold-start DECENTRALIZED learner
+  MATCHES the centralized SA oracle IN-RANGE (margin 0.000, CI includes 0) -- it neither
+  significantly beats nor trails. This is honest + expected: the SA oracle is near-optimal at the
+  training scales, so a "beat the oracle" result can only come OUT-OF-RANGE (N=24), where a
+  learned policy generalizes past the fixed search's build scale (that was the legacy headline's
+  claim; re-testing it under corrected math is the deferred heavy N=24 build).
+
+CAVEAT (#16-adjacent): PRELIMINARY -- ONE shard (36 scenes, 15 held), margins quantized to
+  ~0.067 steps (1/15). A 4-shard pool (~144 scenes) is building (task b0e79ltfh) to refine the
+  estimate; the headline stands but the CI will tighten.
+
+DECISION: KEEP (honest in-range corrected baseline established). The decentralized learner is
+  competitive with the centralized oracle in-range under correct math. NEXT: refine on the
+  4-shard pool; then owner go/no-go on the out-of-range N=24 (needs fixed_set cost optimization).
