@@ -3433,3 +3433,26 @@ corrected-env-math); R7 validated the MECHANISM (runnable, correct critic, per-a
 not the corrected headline. Next: adversarial-verify R7, then ask the owner (R0-R7 done): (A) dataset
 REBUILD under corrected math so R1-R4 reach training + run the corrected headline; (B) Phase 8
 Graph-Counterfactual PPO; (C) other.
+
+R7 ADVERSARIAL-VERIFY RESULT (Workflow wkgsay4tx, 3 lenses). PER-AGENT-RATIO lens: ZERO issues --
+  confirmed per-agent (not joint: flattened length = sum of per-scene agent counts, NOT scene count),
+  ratio==1 + approx_kl==0 at epoch 0, sampler/scorer logp consistency EXACT, A=r-V.detach() (no actor
+  ->critic gradient). CRITIC-TRAINS-FAIRNESS lens: ZERO blockers/majors -- the critic GENUINELY trains
+  (72 grad-on update forwards + 18 no_grad rollout forwards over a smoke; 48/48 params moved; V_mean
+  +0.28->-2.03->-2.09 tracks the reward), actor byte-unchanged by the critic step, NO oracle/teacher in
+  critic inputs (only standardized physical features; the reward is the regression TARGET not an input),
+  FAIR budget (graph-mappo 1 _evaluate/scene == EMA; RLOO M=2 -> 2; PPO inner epochs add none),
+  checkpoint/resume restores critic(60 tensors)+opt_c(60 Adam states)+critic_history and a --resume run
+  exits 0. D1-DEPLOY-PURITY lens: ZERO blockers/majors -- no critic/graph_mappo leak into any deployed
+  path (the symbols import only into the trunk's graph-mappo branch), all 4 purity gates pass, the
+  deployed actor carries no critic/global-state/argsort/solver dependency, A detaches V.
+  TWO NON-BLOCKING FINDINGS (addressed): (minor) map_subset breaks ties by LOCAL index while the deployed
+  local_mutual_assemble breaks by edge_id -> 195/4000 set mismatches ONLY on exact-tied logits (0/8000
+  on distinct logits); measure-zero on continuous GNN logits AND the deploy path uses local_mutual_
+  assemble directly (not map_subset). FIXED: documented the tie convention in map_subset + added
+  test_bcsp_map_matches_local_decoder_fuzz_distinct_logits (300 random scenes, 0 mismatches) pinning the
+  train==deploy identity up to the measure-zero tie set. (nit) explained_variance's var_r<1e-8 sentinel
+  is a knife-edge: a degenerate var_r in [1e-8,1e-4) could still give a huge-negative EV -- never hit on
+  real runs (observed var_r O(0.1-1); a 2-shard run gave a clean EV=-0.039), so the sentinel is correct
+  for the real case; documented as a known robustness nit (no correctness change). NO refutation of R7's
+  correctness -> Graph-MAPPO mechanism CONFIRMED (per-agent ratio, trained critic, D1-clean, fair budget).

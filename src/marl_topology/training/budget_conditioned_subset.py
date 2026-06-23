@@ -141,8 +141,12 @@ def normalized_entropy(theta: Tensor, budget: int) -> Tensor:
 
 
 def map_subset(theta: Tensor, budget: int) -> list[int]:
-    """``argmax_{|S| <= b} sum_{e in S} theta_e`` = the positive-``theta`` edges, top ``b`` (ties by
-    index). EXACTLY the deployed ``local_mutual_assemble`` per-node rule (logit >= 0, local top-b)."""
+    """``argmax_{|S| <= b} sum_{e in S} theta_e`` = the positive-``theta`` edges, top ``b``. The deployed
+    ``local_mutual_assemble`` per-node rule (logit >= 0, local top-b). Matches the deployed decoder
+    EXACTLY when the per-node logits are DISTINCT; at exact ties this breaks by the LOCAL index while
+    the decoder breaks by the global edge_id, so the two can pick different tied edges (a measure-zero
+    set on continuous GNN logits, and the deploy path uses ``local_mutual_assemble`` directly, not this
+    helper -- so train==deploy holds up to that tie set)."""
     b = int(budget)
     positive = [(float(theta[i]), i) for i in range(int(theta.shape[-1])) if float(theta[i]) >= 0.0]
     positive.sort(key=lambda vi: (-vi[0], vi[1]))

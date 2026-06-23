@@ -98,6 +98,38 @@ def test_bcsp_map_matches_local_decoder() -> None:
     assert mutual == tuple(sorted(deployed))
 
 
+def test_bcsp_map_matches_local_decoder_fuzz_distinct_logits() -> None:
+    # R7 adversarial-verify follow-up: the BCSP MAP + mutual acceptance == the deployed decoder
+    # EXACTLY on DISTINCT logits (the practically-relevant regime -- ties are measure-zero on
+    # continuous GNN logits; at exact ties the tie-break key differs, see map_subset docstring).
+    import random as _random
+    from marl_topology.training.decentralized_action import deterministic_decentralized_action
+    rng = _random.Random(20260624)
+    nodes = ["A", "B", "C", "D", "E"]
+    mismatches = 0
+    for _ in range(300):
+        k = rng.randint(2, len(nodes))
+        sub = nodes[:k]
+        edges = {f"{a}{b}": (a, b) for ai, a in enumerate(sub) for b in sub[ai + 1:]
+                 if rng.random() < 0.7}
+        if not edges:
+            continue
+        edge_ids = list(edges)
+        # float64 randn -> distinct with probability 1 (no exact ties)
+        logits = torch.randn(len(edge_ids), dtype=torch.float64)
+        budgets = {n: rng.randint(0, 3) for n in sub}
+        incident = {n: [i for i, e in enumerate(edge_ids) if n in edges[e]] for n in sub}
+        accept = {}
+        for n, idxs in incident.items():
+            accept[n] = {idxs[c] for c in map_subset(logits[idxs], budgets[n])} if idxs else set()
+        mutual = tuple(sorted(i for i, e in enumerate(edge_ids)
+                              if i in accept[edges[e][0]] and i in accept[edges[e][1]]))
+        deployed = tuple(sorted(deterministic_decentralized_action(
+            logits, edge_ids, edges=edges, budgets=budgets)))
+        mismatches += (mutual != deployed)
+    assert mismatches == 0  # BCSP MAP + mutual == deployed decoder on distinct logits (train==deploy)
+
+
 def test_bcsp_sampling_frequency_matches_probability() -> None:
     theta = torch.tensor([0.6, -0.5, 1.0], dtype=torch.float64)
     probs, _logz, _ent = _brute_force(theta.tolist(), budget=2)
