@@ -2888,3 +2888,19 @@ RESULT (a852c1f, 22edaf0):
 DECISION: KEEP -- Phases 7-9 unblocked, deployment-decentralization (D1) preserved at the layer
   level, every real protocol/physics UNIT test survives. NEXT: Phase 6 (decentralized actor
   action API) -> Phase 7 (Graph-MAPPO, first legal CTDE baseline), failing-test-first.
+
+================================================================================
+ITER (2026-06-23) — PHASE 6 (1/n): decentralized per-agent action API + latent gumbel-bug catch
+--------------------------------------------------------------------------------
+HYPOTHESIS: the production mutual-acceptance action can be formalized as a per-agent stochastic
+  policy exposing action_i/logp_i/entropy_i (what MAPPO/COMA/SCQ need), with joint_logp=sum logp_i,
+  entropy = real PL entropy, and a temperature->0 limit equal to the deployed local-mutual decoder.
+RESULT: training/decentralized_action.py + 10 tests, all green; full suite 540 pass / 0 fail.
+  FINDING (bug): validating entropy against Monte-Carlo exposed a NaN-gumbel bug — the expression
+  `-log(-log(U).clamp_min(1e-12))` clamps the negative inner log to a constant -> log(negative) ->
+  NaN -> argsort collapses to a FIXED order (no exploration). Same expression is in the TRUNK's
+  mutual_acceptance_sample (line ~195): the production "stochastic" sampler has had degenerate
+  exploration. Fixed in the new module (clamp U, not -log U); MC entropy now matches analytic.
+DECISION: KEEP the API. NEXT: swap the main rollout onto this API (fixes the trunk gumbel bug) with
+  a smoke + a paired pilot to measure the exploration-fix effect; then Phase 7 Graph-MAPPO
+  (centralized graph-temporal critic + PPO-clip + GAE, critic/actor encoders separate).
