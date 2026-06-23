@@ -2380,6 +2380,13 @@ KEY DESIGN NOTE (carried to wiring): exact enumeration is C(n,f) fault sets -- c
   production training path needs a cost-managed worst-case (greedy fixed-B, or enumeration
   budget + documented fallback). NOT wired into the production evaluator this iteration ->
   the reward signal is byte-unchanged; the module is exercised only by its unit tests.
+  [R1 CORRECTION 2026-06-23: the "n=24,f=7 -> 346104" figure is NOT the production cost. The
+  production config defaults to fault_tolerance=1, clamped to effective_f = min(1, (n-1)//3),
+  so at N=24 the actual exact enumeration is sum_{r<=1} C(24,r) = 25 fault sets (and even at
+  f=7 the AUTO strategy falls back to greedy O(f*n)=168, never enumerating 346104). The
+  346104 figure only applies to an exact f=7 enumeration that the production path never runs;
+  v2 Plan R1 item 6 forbids citing it as production cost. The effective f/q is now LOGGED per
+  evaluation (metrics["fault_accounting"]), so the real cost is auditable, not inferred.]
 
 COST: 0 evaluator-model runs; pure protocol-math + tests. Unit suite 428 passed / 2 failed
   (the pre-existing stage5_10/stage6_0 manifest gates -- now red because result_save/
@@ -3053,3 +3060,46 @@ DECISION: KEEP. 16 targeted tests GREEN; full unit+contract suite ZERO new failu
   passed/1 xfail -> unchanged + 16 new); smoke exit 0. Infra only: 0 evaluator calls, 0 env steps.
 NEXT (single hypothesis): R1 -- production effective f/q logging + fixed-B |B|<=f semantics +
   honest-primary monotonicity counterexample + greedy-not-certified labeling (v2 §R1).
+
+================================================================================
+R1 (2026-06-23): v2 fix gate R1 -- PBFT fixed-B semantics + auditable f/q logging. KEEP.
+================================================================================
+GROUNDING (5-reader Workflow over the production evaluator / fixed-B primitive / quorum spec /
+  regime wiring / N=24 cost): quorum_spec.py is already correct (safe_generalized default, asserts
+  2q-n>f, q<=n-f, n>=3f+1 -- no R1 change). The gaps: (a) the production metrics logged NONE of
+  the fault/quorum accounting; (b) fault_set_robustness.enumerate_fault_sets searched only |B|=f
+  with a FALSE monotonicity docstring; (c) greedy was not labeled optimistic/non-certified;
+  (d) the research log cited C(24,7)=346k as production cost (unbacked: default f=1 at N=24).
+
+HYPOTHESIS (one variable): the production evaluator's actual n,f,q,B become traceable + honest
+  (effective f/q logged, fixed-B searched over ALL |B|<=f, greedy never certified), with NO reward
+  change under the production default (remove_largest) and zero new test failures.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_r1_fault_robustness_and_logging.py, 5 tests):
+  - fault_set_robustness.py: added enumerate_fault_sets_up_to() (ALL |B|<=f); _exact_worst_case now
+    searches every size 0..f (Spec S4.7.1: honest-primary averaging is NOT monotone in B, so the min
+    is not guaranteed at |B|=f -- proven pointwise counterexample: removing a weak primary RAISES
+    C_honest 0.847->0.884). Budget count -> sum_{r<=f} C(n,r). Greedy rewritten to track the running
+    MIN over its whole path (0..f), an OPTIMISTIC bound C(B_greedy)>=min_B C. Added is_certified field
+    (= exact AND hard_min only); enumerate_fault_sets (size-f utility) kept + docstrings de-falsified.
+  - stage21_objective_stack_evidence.py: _build_fault_accounting() + metrics["fault_accounting"] with
+    validator_count, configured/effective fault_tolerance, quorum, external_quorum, fault_strategy,
+    fault_set_count, enumeration_exact, is_certified, worst_case_fault_set. remove_largest (the default)
+    -> is_certified False (a per-receiver/per-phase heuristic, not a single coherent fixed B); fixed_set
+    exact -> is_certified True + the worst-case set logged.
+  - Corrected the N=24 cost myth inline in the log: at f=1 the exact enumeration is sum_{r<=1} C(24,r)
+    =25 (not 346104); even f=7 falls back to greedy O(168). The effective f/q is now LOGGED, not inferred.
+
+KEY MATH NOTE (honest): the all-sizes search returns the SAME hard-min number as |B|=f-only, because
+  the size-wise minimum min_{|B|=r} is provably non-increasing in r for this cascade (removing the
+  largest-reliability primaries + voter-removal only lowering quorum tails). The change is DEFENSIVE:
+  it stops ASSUMING the unproven monotonicity (Spec S4.7.1) and is correct if the model ever breaks it
+  (reconfig/relay). Cost for small f is trivial (f=1 -> n+1 sets). Production default is remove_largest,
+  so the reward signal is byte-unchanged this round.
+
+DECISION: KEEP. 5 R1 tests + 12 existing fixed-B tests GREEN; full unit+contract suite 581 passed /
+  1 xfail (zero new failures vs the 576-pass R0 baseline); smoke exit 0. Out of scope, flagged
+  (task_e090a426): softmin reliability can underflow <0 when many fault sets are ~0 (a training-only
+  surrogate; hard_min eval path unaffected).
+NEXT (single hypothesis): R2 -- make corrected one_hop_relay the production DEFAULT (flip legacy to
+  explicit-opt-in) + latency-aware relay deadline propagation (v2 §R2).

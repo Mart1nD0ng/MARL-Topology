@@ -413,10 +413,19 @@ class Stage21ObjectiveStackEvaluator:
                 )
             probability = reliability.consensus_success_probability
             per_primary = dict(reliability.per_primary_reliability)
+            reliability_result = reliability
         else:
             # No fault-tolerant quorum exists below 4 validators (PBFT n >= 3f + 1, f >= 1).
             probability = 0.0
             per_primary = {validator: 0.0 for validator in validators}
+            reliability_result = None
+        fault_accounting = _build_fault_accounting(
+            validators=tuple(validators),
+            configured_fault_tolerance=int(self.config.fault_tolerance),
+            effective_fault_tolerance=int(fault_tolerance),
+            fault_model=self.config.fault_model,
+            reliability=reliability_result,
+        )
         accounting = account_pbft_protocol_latency_energy(
             node_ids=self.graph.node_ids,
             phase_records=phase_records,
@@ -443,6 +452,7 @@ class Stage21ObjectiveStackEvaluator:
             "latency": latency_value,
             "energy": accounting.protocol_energy_j,
             "topology_diagnostics": diagnostics,
+            "fault_accounting": fault_accounting,
         }
         if self.config.coverage_gated_membership:
             metrics["membership_gated"] = True
@@ -838,6 +848,53 @@ def _restrict_matrix(
         for key, value in matrix.items()
         if key[0] in node_set and key[1] in node_set
     }
+
+
+def _build_fault_accounting(
+    *,
+    validators: tuple[str, ...],
+    configured_fault_tolerance: int,
+    effective_fault_tolerance: int,
+    fault_model: str,
+    reliability: object | None,
+) -> dict[str, object]:
+    """Auditable PBFT fault/quorum accounting for one production evaluation (Spec S4.7.2).
+
+    Records what the evaluator ACTUALLY executed: validator count, the configured vs the
+    effective (n-clamped) fault tolerance, the quorum and external quorum, the fault strategy,
+    and -- for the principled ``fixed_set`` model -- the searched fault-set count, whether the
+    enumeration was exact, whether the worst case is CERTIFIED (exact hard-min over all |B|<=f),
+    and the worst-case fault set. ``remove_largest`` is a per-receiver/per-phase heuristic, NOT a
+    single coherent fixed ``B``, so it is never certified.
+    """
+
+    accounting: dict[str, object] = {
+        "validator_count": len(validators),
+        "configured_fault_tolerance": int(configured_fault_tolerance),
+        "effective_fault_tolerance": int(effective_fault_tolerance),
+        "fault_strategy": fault_model,
+        "quorum": None,
+        "external_quorum": None,
+        "fault_set_count": None,
+        "enumeration_exact": False,
+        "is_certified": False,
+        "worst_case_fault_set": None,
+    }
+    if reliability is None:  # < 4 validators: no fault-tolerant quorum exists
+        return accounting
+    if fault_model == "fixed_set":
+        accounting.update(
+            quorum=int(reliability.quorum),
+            external_quorum=int(reliability.external_quorum),
+            fault_set_count=int(reliability.fault_set_count),
+            enumeration_exact=bool(reliability.enumeration_exact),
+            is_certified=bool(reliability.is_certified),
+            worst_case_fault_set=tuple(reliability.worst_case_fault_set),
+        )
+    else:  # remove_largest: quorum is still well-defined; the worst case is not certified
+        spec = PBFTQuorumSpec(node_count=len(validators), fault_tolerance=effective_fault_tolerance)
+        accounting.update(quorum=int(spec.quorum), external_quorum=int(spec.external_quorum))
+    return accounting
 
 
 def _consensus_completion_latency(

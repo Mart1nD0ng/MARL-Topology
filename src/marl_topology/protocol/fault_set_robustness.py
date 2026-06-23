@@ -18,9 +18,15 @@ the uniform average over the ``n`` possible primaries.
 is local (restricted to the honest sub-committee ``H = V \\ B``). A parity test pins
 ``f = 0`` against the existing cascade.
 
-Exact enumeration is ``C(n, f)`` fault sets; for small ``f`` this is the reference. A
-hard ``min`` is used for evaluation; a ``softmin`` is available for training smoothness.
-A budget guard fails loud when the enumeration is too large (no silent approximation).
+The worst case is searched over **all** sizes ``0 <= |B| <= f``, NOT only ``|B| = f``.
+Under the honest-primary conditional average (this module's ``C(x; B)``) monotonicity
+in ``B`` FAILS (Spec S4.7.1): adding a *weak* primary to ``B`` removes it from the
+average denominator and can RAISE ``C_honest(B)``, so the minimum need not lie at the
+largest set. Exact enumeration is therefore ``sum_{r=0}^{f} C(n, r)`` fault sets; for
+small ``f`` this is the certified reference (``is_certified`` is true only for an exact
+hard-min). A ``softmin`` is available for training smoothness (not a certificate). A
+budget guard fails loud when the enumeration is too large; ``greedy`` is then an
+explicitly-OPTIMISTIC approximation (``C(B_greedy) >= min_B C(B)``), never certified.
 """
 
 from __future__ import annotations
@@ -63,6 +69,9 @@ class FaultSetRobustnessResult:
     fault_tolerance: int
     quorum: int
     external_quorum: int
+    # certified == an EXACT hard-min over all |B| <= f (a true worst-case certificate).
+    # greedy (optimistic approximation) and softmin (training surrogate) are NOT certified.
+    is_certified: bool = False
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.consensus_success_probability <= 1.0:
@@ -76,10 +85,11 @@ class FaultSetRobustnessResult:
 
 
 def enumerate_fault_sets(node_ids: tuple[str, ...], fault_tolerance: int) -> tuple[frozenset, ...]:
-    """All Byzantine fault sets of size exactly ``f`` (the worst case lies at ``|B| = f``).
+    """The Byzantine fault sets of size *exactly* ``f`` (a utility).
 
-    ``C(x; B)`` is monotone non-increasing in ``B`` (adding a faulty node only removes
-    honest votes), so ``min_{|B| <= f}`` is attained at ``|B| = f``. ``f = 0`` yields the
+    NOTE: the robust worst-case search does NOT use this alone -- it searches all sizes
+    ``0..f`` via :func:`enumerate_fault_sets_up_to`, because under honest-primary averaging
+    the minimum is not guaranteed to lie at ``|B| = f`` (Spec S4.7.1). ``f = 0`` yields the
     single empty set.
     """
 
@@ -90,6 +100,25 @@ def enumerate_fault_sets(node_ids: tuple[str, ...], fault_tolerance: int) -> tup
     if fault_tolerance > len(node_ids):
         raise ValueError("fault_tolerance cannot exceed the committee size")
     return tuple(frozenset(combo) for combo in combinations(node_ids, fault_tolerance))
+
+
+def enumerate_fault_sets_up_to(node_ids: tuple[str, ...], fault_tolerance: int) -> tuple[frozenset, ...]:
+    """ALL Byzantine fault sets with ``0 <= |B| <= f`` (the set the worst case ranges over).
+
+    The robust reliability is ``min_{|B| <= f} C(x; B)``; under honest-primary averaging
+    this minimum can occur at *any* size (Spec S4.7.1), so every size 0..f is enumerated.
+    The empty set (``|B| = 0``, the no-fault case) is included.
+    """
+
+    if fault_tolerance < 0:
+        raise ValueError("fault_tolerance must be nonnegative")
+    if fault_tolerance > len(node_ids):
+        raise ValueError("fault_tolerance cannot exceed the committee size")
+    return tuple(
+        frozenset(combo)
+        for r in range(fault_tolerance + 1)
+        for combo in combinations(node_ids, r)
+    )
 
 
 def consensus_given_fault_set(
@@ -170,10 +199,15 @@ def robust_consensus_reliability(
 ) -> FaultSetRobustnessResult:
     """``C_robust = min_{|B| <= f} C(x; B)`` (or its softmin).
 
-    ``strategy``: ``exact`` enumerates all ``C(n, f)`` fault sets (raises if that exceeds
-    ``max_enumeration``); ``greedy`` builds ``B`` one node at a time (each step adds the
-    node whose inclusion most lowers ``C`` -- ``O(f * n)`` evaluations, an upper bound on
-    the true min); ``auto`` is ``exact`` when ``C(n, f) <= max_enumeration`` else ``greedy``.
+    The minimum ranges over ALL sizes ``0 <= |B| <= f`` (Spec S4.7.1: honest-primary
+    averaging is not monotone in ``B``), so exact enumeration is ``sum_{r=0}^{f} C(n, r)``
+    fault sets.
+
+    ``strategy``: ``exact`` enumerates every ``|B| <= f`` fault set (raises if that exceeds
+    ``max_enumeration``) and yields a CERTIFIED hard-min; ``greedy`` builds ``B`` one node
+    at a time and tracks the running min over the path -- ``O(f * n)`` evaluations, an
+    OPTIMISTIC approximation ``C(B_greedy) >= min_B C(B)`` that is NOT certified; ``auto`` is
+    ``exact`` when the enumeration fits ``max_enumeration`` else ``greedy``.
     """
 
     if reduction not in REDUCTIONS:
@@ -181,7 +215,7 @@ def robust_consensus_reliability(
     if strategy not in STRATEGIES:
         raise ValueError(f"strategy must be one of {STRATEGIES}")
     spec = PBFTQuorumSpec(node_count=len(node_ids), fault_tolerance=fault_tolerance, mode=quorum_mode)
-    count = comb(len(node_ids), fault_tolerance)
+    count = sum(comb(len(node_ids), r) for r in range(fault_tolerance + 1))
 
     resolved = strategy
     if strategy == STRATEGY_AUTO:
@@ -189,7 +223,7 @@ def robust_consensus_reliability(
     if resolved == STRATEGY_EXACT and count > max_enumeration:
         raise ValueError(
             "fault-set enumeration budget exceeded: "
-            f"C({len(node_ids)},{fault_tolerance})={count} > max_enumeration={max_enumeration}; "
+            f"sum_r<={fault_tolerance} C({len(node_ids)},r)={count} > max_enumeration={max_enumeration}; "
             "use strategy='auto'/'greedy' or a larger budget"
         )
 
@@ -218,6 +252,8 @@ def robust_consensus_reliability(
         fault_tolerance=fault_tolerance,
         quorum=spec.quorum,
         external_quorum=spec.external_quorum,
+        # certified iff an EXACT hard-min over all |B| <= f; greedy / softmin are not certificates.
+        is_certified=(resolved == STRATEGY_EXACT and reduction == REDUCTION_HARD_MIN),
     )
 
 
@@ -225,7 +261,7 @@ def _exact_worst_case(
     node_ids, fault_tolerance, pre_prepare_matrix, prepare_matrix, commit_matrix,
     spec, reduction, softmin_beta,
 ):
-    fault_sets = enumerate_fault_sets(node_ids, fault_tolerance)
+    fault_sets = enumerate_fault_sets_up_to(node_ids, fault_tolerance)
     values: list[float] = []
     worst_value = 2.0
     worst_set = fault_sets[0]
@@ -246,37 +282,39 @@ def _exact_worst_case(
 def _greedy_worst_case(
     node_ids, fault_tolerance, pre_prepare_matrix, prepare_matrix, commit_matrix, spec,
 ):
-    """Build B one node at a time; each step adds the node that most lowers C (O(f*n))."""
+    """Greedy path search over ``|B| <= f``: start from the empty set and at each step add the
+    node that most lowers ``C``; track the running MIN over the whole path (every prefix size
+    ``0..f``, since the honest-primary average is not monotone -- a prefix can be lower than the
+    final set). This is an OPTIMISTIC approximation: ``C(B_greedy) >= min_{|B|<=f} C`` -- it is
+    NOT a certificate (``is_certified`` is false). ``O(f*n)`` evaluations.
+    """
 
-    chosen: set = set()
-    worst_pp: dict[str, float] = {}
-    worst_value = 1.0
-    evaluations = 0
-    for _ in range(fault_tolerance):
-        step_best = 2.0
-        step_node = None
-        step_pp: dict[str, float] = {}
-        for candidate in node_ids:
-            if candidate in chosen:
-                continue
-            value, per_primary = _consensus_and_per_primary(
-                node_ids, frozenset(chosen | {candidate}),
-                pre_prepare_matrix=pre_prepare_matrix, prepare_matrix=prepare_matrix,
-                commit_matrix=commit_matrix, quorum=spec.quorum, external_quorum=spec.external_quorum,
-            )
-            evaluations += 1
-            if value < step_best:
-                step_best, step_node, step_pp = value, candidate, per_primary
-        chosen.add(step_node)
-        worst_pp, worst_value = step_pp, step_best
-    if not chosen:  # f == 0
-        worst_value, worst_pp = _consensus_and_per_primary(
-            node_ids, frozenset(),
+    def consensus(fault_set):
+        return _consensus_and_per_primary(
+            node_ids, fault_set,
             pre_prepare_matrix=pre_prepare_matrix, prepare_matrix=prepare_matrix,
             commit_matrix=commit_matrix, quorum=spec.quorum, external_quorum=spec.external_quorum,
         )
-        evaluations = 1
-    return frozenset(chosen), worst_pp, worst_value, evaluations
+
+    chosen: set = set()
+    best_value, best_pp = consensus(frozenset())  # the |B| = 0 case is part of |B| <= f
+    best_set: frozenset = frozenset()
+    evaluations = 1
+    for _ in range(fault_tolerance):
+        step_best, step_node, step_pp = 2.0, None, {}
+        for candidate in node_ids:
+            if candidate in chosen:
+                continue
+            value, per_primary = consensus(frozenset(chosen | {candidate}))
+            evaluations += 1
+            if value < step_best:
+                step_best, step_node, step_pp = value, candidate, per_primary
+        if step_node is None:
+            break
+        chosen.add(step_node)
+        if step_best < best_value:
+            best_value, best_pp, best_set = step_best, step_pp, frozenset(chosen)
+    return best_set, best_pp, best_value, evaluations
 
 
 def _honest_cascade(

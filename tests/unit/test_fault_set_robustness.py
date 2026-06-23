@@ -129,9 +129,11 @@ def test_robust_is_min_over_fault_sets() -> None:
         )
         for b in enumerate_fault_sets(NODES8, 2)
     ]
+    # the search ranges over ALL |B| <= 2; with a symmetric matrix the min lands at |B| = 2,
+    # so it equals the min over the size-2 sets, but every size 0..2 was enumerated.
     assert res.consensus_success_probability == pytest.approx(min(every))
-    assert res.fault_set_count == 28
-    assert frozenset(res.worst_case_fault_set) in set(enumerate_fault_sets(NODES8, 2))
+    assert res.fault_set_count == sum(comb(8, r) for r in range(3)) == 37
+    assert len(frozenset(res.worst_case_fault_set)) <= 2
 
 
 # --- softmin >= ... approaches hard min from below as beta grows ---
@@ -242,4 +244,5 @@ def test_exact_strategy_records_activation_metadata() -> None:
     )
     assert res.strategy == "exact"
     assert res.enumeration_exact is True
-    assert res.fault_set_count == 28
+    assert res.is_certified is True  # exact hard-min over all |B| <= f is a certificate
+    assert res.fault_set_count == sum(comb(8, r) for r in range(3)) == 37
