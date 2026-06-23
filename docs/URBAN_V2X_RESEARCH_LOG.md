@@ -3146,3 +3146,39 @@ DECISION: KEEP. Full unit+contract suite 583 passed / 0 failed / 0 xfail (was 58
 NEXT (single hypothesis): R2b -- latency-aware relay deadline propagation (_multi_hop_reach tracks
   delivery only, not cumulative latency along the relayed path; a relayed path exceeding the phase
   deadline must NOT contribute) + same-path latency/energy semantics + reference/vectorized parity.
+
+================================================================================
+R2b (2026-06-23): latency-aware relay deadline propagation. KEEP (correct, inert at scale).
+================================================================================
+HYPOTHESIS (one mechanism): a relayed PBFT message that arrives after the phase deadline must NOT
+  contribute. _multi_hop_reach maximized delivery product over <=relay_hops links but IGNORED
+  cumulative latency, so a 2-hop path whose links each pass the per-link filter but SUM past the
+  phase budget still delivered (Spec S4.2/S4.10 violation). Enforce sum(link latency) <= budget.
+
+IMPLEMENTATION (failing-test-first; tests/unit/test_relay_latency_aware.py, 5 tests):
+  - _multi_hop_reach gains optional latency_matrix + phase_budget_s -> a CONSTRAINED relay: max
+    delivery product over paths with cumulative latency <= budget, via a Pareto-label DP over
+    (delivery, latency) (_add_pareto_label). It is a constrained OPTIMUM, not max-delivery + a
+    post-hoc latency check (test_relay_prefers_feasible_lower_delivery_path pins a slow-but-high
+    path being dropped for a fast-but-lower one). latency_matrix=None reproduces the legacy
+    delivery-only relay byte-identically (_multi_hop_reach_delivery_only) -> existing relay tests
+    unchanged. Public build_pbft_message_matrices_from_network_records signature UNCHANGED (it
+    already receives phase_budgets), so the ~5 callers are untouched.
+  - _matrix_for_phase now also returns the per-link latency (of the kept max-delivery record);
+    the build function threads it + the phase budget into the relay, and sets perfect-pair (wired
+    RSU backhaul) latency to 0.0 (out-of-band). Activated in production (the relay is now
+    deadline-aware on every evaluation).
+
+PRODUCTION-SCALE MEASUREMENT (30 real scenes, seed 31): feasibility delta latency-aware vs
+  delivery-only = 0.000 (0.667 == 0.667, same 20/10 W/U). INERT at the current scale: relay paths
+  are <=2 hops and per-link latencies are tiny vs the ~10ms phase budget, so no relay path misses
+  the deadline. It is a CORRECTNESS fix that bites only when relay paths get longer/slower (larger
+  N), exactly as intended -- reward byte-neutral now.
+
+DECISION: KEEP. 5 R2b tests + the existing relay/adapter/physics suite green (31 targeted);
+  feasibility byte-neutral; smoke exit 0 (7.3s). [Same-path energy semantics + a reference/
+  vectorized parity assertion for the latency-aware relay are a thin follow-up if needed; the
+  delivery/latency now share the single relay DP path.]
+NEXT (single hypothesis): R3 -- make tri-state truly control TRAINING/eval/witness: remove the
+  trunk's `if not feasible_exists: continue` filter, use witness_feasible/certified_infeasible/
+  unknown, unknown enters exploration (not a certified violation), split-isolated witness memory.

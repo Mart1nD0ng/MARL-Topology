@@ -91,16 +91,71 @@ def _multi_hop_reach(
     node_ids: tuple[str, ...],
     direct_matrix: MessageMatrixDict,
     relay_hops: int,
+    *,
+    latency_matrix: MessageMatrixDict | None = None,
+    phase_budget_s: float | None = None,
 ) -> MessageMatrixDict:
     """End-to-end relayed reachability over the selected topology: reach[(i, j)] = the
     most-reliable path of at most ``relay_hops`` directed links from i to j (max-product of
     per-link delivery probabilities). With relay_hops=1 this is exactly the direct matrix.
 
     Relaying through RSU / intermediate nodes lets a node reach validators it has no direct
-    (LOS) link to -- the missing ingredient for global PBFT under urban NLOS. The hop cap is
-    a deadline proxy (a relayed message takes more time, so only a few hops fit a phase)."""
+    (LOS) link to -- the missing ingredient for global PBFT under urban NLOS.
+
+    R2b (Spec S4.2/S4.10) -- LATENCY-AWARE deadline propagation: when ``latency_matrix`` and
+    ``phase_budget_s`` are given, a relayed path delivers ONLY if its CUMULATIVE link latency is
+    within the phase budget (a relayed message that arrives after the deadline does not count).
+    The reachability is then the max delivery product over paths whose latency sum is feasible --
+    a constrained optimum, NOT max-delivery with a post-hoc latency check (a slow high-delivery
+    path is dropped in favour of a fast feasible one). Computed by a Pareto-label DP over
+    (delivery, latency). ``latency_matrix=None`` reproduces the legacy delivery-only relay."""
     if relay_hops <= 1:
         return dict(direct_matrix)
+    if latency_matrix is None or phase_budget_s is None:
+        return _multi_hop_reach_delivery_only(node_ids, direct_matrix, relay_hops)
+
+    # Directed adjacency of latency-feasible direct links, with (target, delivery, latency).
+    adjacency: dict[str, list[tuple[str, float, float]]] = {node: [] for node in node_ids}
+    for (source, target), prob in direct_matrix.items():
+        latency = latency_matrix.get((source, target), 0.0)
+        if prob > 0.0 and latency <= phase_budget_s:
+            adjacency[source].append((target, prob, latency))
+
+    # labels[(i, j)] = Pareto front of (delivery, latency) over i->j paths (<= relay_hops links).
+    labels: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    for source in node_ids:
+        for target, prob, latency in adjacency[source]:
+            _add_pareto_label(labels.setdefault((source, target), []), prob, latency)
+
+    # Relax up to relay_hops-1 more hops; extend every current label by one direct link.
+    for _ in range(relay_hops - 1):
+        extended = False
+        for (i, k), klabels in list(labels.items()):
+            for delivery_ik, latency_ik in list(klabels):
+                for j, delivery_kj, latency_kj in adjacency[k]:
+                    if j == i:
+                        continue
+                    cum_latency = latency_ik + latency_kj
+                    if cum_latency > phase_budget_s:
+                        continue
+                    if _add_pareto_label(
+                        labels.setdefault((i, j), []), delivery_ik * delivery_kj, cum_latency
+                    ):
+                        extended = True
+        if not extended:
+            break
+
+    return {
+        pair: max(delivery for delivery, _latency in front)
+        for pair, front in labels.items()
+        if front
+    }
+
+
+def _multi_hop_reach_delivery_only(
+    node_ids: tuple[str, ...], direct_matrix: MessageMatrixDict, relay_hops: int
+) -> MessageMatrixDict:
+    """The legacy delivery-only relay (max-product over <= relay_hops links, no latency)."""
     nodes = list(node_ids)
     index = {node: k for k, node in enumerate(nodes)}
     size = len(nodes)
@@ -128,6 +183,24 @@ def _multi_hop_reach(
         for j in range(size)
         if i != j and best[i][j] > 0.0
     }
+
+
+def _add_pareto_label(front: list[tuple[float, float]], delivery: float, latency: float) -> bool:
+    """Insert (delivery, latency) into a Pareto front maximizing delivery, minimizing latency.
+
+    Returns False (no insert) if an existing label dominates it (delivery >= and latency <=);
+    otherwise drops the labels it dominates, appends it, and returns True.
+    """
+    for existing_d, existing_l in front:
+        if existing_d >= delivery - 1e-15 and existing_l <= latency + 1e-15:
+            return False
+    front[:] = [
+        (existing_d, existing_l)
+        for existing_d, existing_l in front
+        if not (delivery >= existing_d - 1e-15 and latency <= existing_l + 1e-15)
+    ]
+    front.append((delivery, latency))
+    return True
 
 
 def build_pbft_message_matrices_from_network_records(
@@ -171,15 +244,23 @@ def build_pbft_message_matrices_from_network_records(
 
     for phase_name in PBFT_PHASE_NAMES:
         records = tuple(phase_records.get(phase_name, ()))
-        matrix, deadline_filtered, zero_delivery = _matrix_for_phase(
+        phase_budget = phase_budgets.budget_for_phase(phase_name)
+        matrix, latency_matrix, deadline_filtered, zero_delivery = _matrix_for_phase(
             checked_node_ids,
             records,
-            phase_budgets.budget_for_phase(phase_name),
+            phase_budget,
             direct_only=one_hop_relay,
         )
         for pair in perfect_pairs:
             matrix[pair] = 1.0
-        matrix = _multi_hop_reach(checked_node_ids, matrix, relay_hops)
+            latency_matrix[pair] = 0.0  # wired RSU backhaul: out-of-band, negligible latency
+        # R2b (Spec S4.2/S4.10): relay deadline propagation -- a relayed path delivers only if its
+        # CUMULATIVE link latency is within the phase budget (a slow multi-hop path misses the
+        # deadline). Direct links (relay_hops==1) already passed the per-link filter above.
+        matrix = _multi_hop_reach(
+            checked_node_ids, matrix, relay_hops,
+            latency_matrix=latency_matrix, phase_budget_s=phase_budget,
+        )
         matrices[phase_name] = matrix
         record_counts[phase_name] = len(records)
         deadline_counts[phase_name] = deadline_filtered
@@ -228,8 +309,9 @@ def _matrix_for_phase(
     records: tuple[NetworkCommunicationRecord, ...],
     phase_budget_s: float,
     direct_only: bool = False,
-) -> tuple[MessageMatrixDict, int, int]:
+) -> tuple[MessageMatrixDict, MessageMatrixDict, int, int]:
     matrix: MessageMatrixDict = {}
+    latency_matrix: MessageMatrixDict = {}  # latency of the kept (max-delivery) record per pair
     deadline_filtered = 0
     zero_delivery = 0
     for record in records:
@@ -250,9 +332,13 @@ def _matrix_for_phase(
         for target_id in record.target_ids:
             if target_id == record.source_id:
                 raise ValueError("self-message targets are not allowed")
-            current = matrix.get((record.source_id, target_id), 0.0)
-            matrix[(record.source_id, target_id)] = max(current, delivery)
-    return matrix, deadline_filtered, zero_delivery
+            key = (record.source_id, target_id)
+            # Keep the max-delivery record per pair, and the LATENCY that goes with it (R2b: the
+            # relay DP propagates this along the path and drops paths that miss the phase deadline).
+            if key not in matrix or delivery > matrix[key]:
+                matrix[key] = delivery
+                latency_matrix[key] = record.network_scheduled_latency_s
+    return matrix, latency_matrix, deadline_filtered, zero_delivery
 
 
 def _checked_node_ids(node_ids: tuple[str, ...]) -> tuple[str, ...]:
