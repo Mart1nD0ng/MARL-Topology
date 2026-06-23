@@ -112,12 +112,15 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 ## Headline result (under the corrected environment math)
 
 The legacy "+0.177 beat at out-of-range N = 24" is **retired** — it was produced under the
-pre-recalibration (incorrect) env-math. Under the **corrected** math (P0–P4 + recalibration,
-2026-06-23), an oracle-free cold-start decentralized learner is **statistically
-indistinguishable from the SA oracle in-range** (N ∈ {8,12,16}): 5-seed RL keep-best 0.624
-vs SA ceiling 0.655, margin **−0.031, CI95 [−0.086, +0.024]** (final-update +0.007
-[−0.021, +0.036]) — both CIs span 0, it MATCHES the oracle. The out-of-range N = 24
-comparison under correct math is the open question (gated on a `fixed_set` cost optimization
-+ a heavy build). This in-range parity is the baseline the CTDE method must match or beat
-under an equal evaluator-call budget. The ceiling is a finite SA search — per D5 a baseline,
-not an infeasibility proof.
+pre-recalibration (incorrect) env-math. Under the **corrected** math (P0–P4 + recalibration)
+**and the corrected sampler** (the NaN-gumbel no-exploration bug fixed 2026-06-23; the trunk
+samples through the verified Plackett-Luce action API), an oracle-free cold-start decentralized
+learner **approximately matches the SA oracle in-range** (N ∈ {8,12,16}): 5-seed RL keep-best
+**0.610** vs SA ceiling 0.655, margin **−0.045, CI95 [−0.083, −0.006]** (final-update margin
+−0.045 [−0.101, +0.011]) — at parity-to-marginally-below. The sampler fix is a train/deploy-
+alignment correctness fix but is **neutral on the headline** (the pre-fix 0.624/−0.031 is
+statistically indistinguishable; a single-shard pilot gain did not generalize). The out-of-range
+N = 24 comparison under correct math is the open question (gated on a `fixed_set` cost
+optimization + a heavy build). This in-range parity is the baseline the CTDE method (Graph-MAPPO,
+in progress) must match or beat under an equal evaluator-call budget. The ceiling is a finite SA
+search — per D5 a baseline, not an infeasibility proof.

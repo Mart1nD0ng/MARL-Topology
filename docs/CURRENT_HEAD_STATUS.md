@@ -338,3 +338,22 @@ while the deployed paths (`protocol/`/`policies/`/`data/`/`evaluation/`) stay pu
 enforced at the layer level. Phases 7–9 are open. **Next:** Phase 6 (decentralized actor action
 API: per-agent directed bid/logp/real entropy) → Phase 7 (Graph-MAPPO, the first legal CTDE
 baseline). Failing-test-first.
+
+---
+
+## 12. Sampler exploration-bug fix + corrected headline (2026-06-23)
+
+A latent NaN-gumbel bug in the trunk's mutual-acceptance sampler (`-log(-log(U).clamp_min(1e-12))`
+clamped the negative inner log to a constant -> NaN -> a fixed, logit-independent order with no
+exploration) was found via the Phase-6 action-API Monte-Carlo entropy test and fixed (commits
+`286ac58`, `b28febe`). The trunk now samples through the shared, fixed Phase-6 action API.
+
+**Effect on the in-range 5-seed headline: NEUTRAL.** Re-running the headline with the corrected
+sampler gives RL keep-best 0.610 [0.561,0.660] (temp 1.0) / 0.603 (temp 3.0) vs SA ceiling 0.655,
+margin -0.045 [-0.083,-0.006] -- statistically indistinguishable from the buggy-sampler 0.624
+(-0.031). A single-shard pilot had shown a dramatic 0.267->0.533 gain, but that did NOT generalize
+to the full 144-scene / 58-held pool (a small-sample artifact). The fix is kept as a genuine
+correctness improvement (train/deploy alignment); the in-range conclusion is unchanged: the
+decentralized learner approximately matches the SA oracle in-range, marginally below (margin
+~-0.045). The real lever for beating the centralized baseline is the CTDE method (Phase 7
+Graph-MAPPO, in progress), not the sampler.

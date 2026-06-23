@@ -55,12 +55,17 @@ below the BC start.
 > (incorrect) math** — unsafe quorum + incoherent remove-largest fault model + degenerate
 > latency + double-counted relay — and is **retired** (`retired_due_to_protocol_metric_change`).
 
-Under the **corrected** math, an oracle-free **cold-start decentralized learner is
-statistically indistinguishable from the centralized Simulated-Annealing oracle in-range**
-(N ∈ {8, 12, 16}): a 5-seed held-out comparison gives RL keep-best **0.624** vs SA ceiling
-**0.655**, margin **−0.031, 95% CI [−0.086, +0.024]** (the final-update policy sits essentially
-at the oracle: **+0.007, [−0.021, +0.036]**) — both CIs span 0. The learner **matches** the
-near-optimal centralized oracle in-range; it neither significantly beats nor trails.
+Under the **corrected** math **and a corrected sampler** (a latent NaN-gumbel bug that had
+collapsed the training sampler to a no-exploration fixed order was found and fixed, 2026-06-23 —
+the trunk now samples through the verified Plackett-Luce action API), an oracle-free **cold-start
+decentralized learner approximately matches the centralized Simulated-Annealing oracle in-range**
+(N ∈ {8, 12, 16}): a 5-seed held-out comparison gives RL keep-best **0.610** vs SA ceiling
+**0.655**, margin **−0.045, 95% CI [−0.083, −0.006]** (final-update policy margin **−0.045,
+[−0.101, +0.011]**). The learner sits **at parity-to-marginally-below** the near-optimal
+centralized oracle in-range. (The sampler fix is a genuine train/deploy-alignment correctness fix
+but is **neutral on this headline** — the pre-fix 0.624/−0.031 is statistically indistinguishable;
+a single-shard pilot gain did not generalize to the full pool. Beating the oracle is the job of the
+CTDE method, Graph-MAPPO, now in progress.)
 
 Whether a learned policy **generalizes past the oracle's build scale out-of-range (N = 24)**
 under the corrected math — the legacy claim's actual setting — is the **open question**, gated

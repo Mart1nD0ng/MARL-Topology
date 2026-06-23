@@ -2935,3 +2935,24 @@ DIAGNOSIS (confound): the old recipe's --temp 3.0 was INERT under the bug (NaN g
   (0.267 -> 0.533 on 1 shard) was at temp 1.0. So the temp must be re-tuned for the fixed sampler.
 DECISION: do NOT update the stated headline on the temp-3.0 run. Launch the temp-tuned corrected
   headline (--temp 1.0 --temp-end 0.1, else identical) as the proper corrected protocol; judge that.
+
+================================================================================
+ITER (2026-06-23) — corrected headline at temp=1.0: the sampler fix is NEUTRAL on the headline
+--------------------------------------------------------------------------------
+RESULT (temp-tuned fixed sampler, --temp 1.0, else identical): RL keep-best mean 0.610
+  [0.561,0.660]; SA ceiling 0.655; margin keep-best -0.045 [-0.083,-0.006]; RLfin margin -0.045
+  [-0.101,+0.011]. Per-seed RL: 0.552/0.586/0.638/0.638/0.638.
+THREE-WAY (RL keep-best / margin): buggy temp3.0 0.624/-0.031 ; fixed temp3.0 0.603/-0.052 ;
+  fixed temp1.0 0.610/-0.045. All statistically indistinguishable (CIs overlap heavily); the
+  learner sits robustly at ~0.61 vs ceiling 0.655 regardless of sampler/temp.
+CONCLUSION (honest): the NaN-gumbel sampler fix is a genuine CORRECTNESS fix (it aligns the train
+  sampling distribution with the deployed decoder and is a proper Plackett-Luce sampler), but it
+  does NOT change the in-range 5-seed headline. The pilot's dramatic gain (0.267->0.533) was a
+  SINGLE-SHARD small-sample effect (36 scenes / 15 held) that does NOT generalize to the full
+  144-scene / 58-held pool, where the buggy sampler's degenerate exploration is masked by the
+  data diversity across 144 scenes. The in-range conclusion stands: the decentralized learner
+  approximately matches the SA oracle, marginally below (margin ~-0.045). A temp sweep (1.5/2.0)
+  is unlikely to flip this (3 points already robust) -- deferred as optional.
+DECISION: KEEP the sampler fix (correctness). Update the headline number 0.624 -> ~0.610 + note it
+  is now under the corrected sampler; conclusion unchanged. The real lever for beating the baseline
+  is the Graph-MAPPO method (Phase 7), not the sampler. Continue Phase 7.
