@@ -3,7 +3,7 @@
 Extracted verbatim from the retired ``training/production_mappo_adapter.py`` so the
 single decentralized cold-start RL trunk (``scripts/train/train_decentralized_rl.py``)
 can build its (row, context) pool WITHOUT importing the deleted centralized-critic
-MAPPO trunk. Imports only from ``marl_topology.data.*`` / ``.policies.*`` / ``.scenario.*``
+multi-agent trunk. Imports only from ``marl_topology.data.*`` / ``.policies.*`` / ``.scenario.*``
 -- no ``models.centralized_*``, no ``training.mappo``, no critic.
 """
 

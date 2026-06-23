@@ -1,56 +1,38 @@
-"""Pin tau_requirement_min = 0.9 to a single cited decision record.
+"""Pin tau_requirement_min = 0.9 across all source modules (real D3 drift guard).
 
 The value was previously a bare literal duplicated across ~10 modules with no shared
-basis. docs/TAU_DECISION_RECORD.md is now the single source of truth; this test makes
-the magic number traceable and prevents silent per-module drift: every in-source
-definition of (STAGE21_)?TAU_REQUIREMENT_MIN must equal the value declared in the
-record, and the record must carry the owner-decision basis.
+basis. The canonical value is re-pinned here as a literal: the prior single-source-of-truth
+``docs/TAU_DECISION_RECORD.md`` lineage doc was retired on 2026-06-23 with the rest of the
+multi-stage process docs. The *real* invariant this test protects -- that every in-source
+definition of ``(STAGE21_)?TAU_REQUIREMENT_MIN`` equals the canonical 0.9, so the constant
+cannot silently drift per-module (D3) -- survives unchanged against the literal.
 """
 
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RECORD = ROOT / "docs" / "TAU_DECISION_RECORD.md"
+
+# Canonical tau requirement floor. Owner-approved Stage-31 production-readiness basis:
+# 0.9 is a requirement *floor* (not a calibrated optimum), anchored to the 0.99 per-link
+# reliability argument, and distinct from the still-open formal ``tau_consensus`` parameter.
+# Re-pinned as a literal after the TAU_DECISION_RECORD.md lineage doc was retired.
+CANONICAL_TAU_REQUIREMENT_MIN = 0.9
 
 # matches a module-level (optionally indented) CONSTANT definition only, not usages,
 # comparisons, or lowercase function-parameter defaults.
 _SRC_DEF = re.compile(r"^\s*(?:STAGE21_)?TAU_REQUIREMENT_MIN\s*=\s*([0-9.]+)", re.MULTILINE)
-_CANONICAL = re.compile(r"CANONICAL_TAU_REQUIREMENT_MIN\s*=\s*([0-9.]+)")
-
-
-def _canonical_value() -> float:
-    text = RECORD.read_text(encoding="utf-8")
-    match = _CANONICAL.search(text)
-    assert match, "TAU_DECISION_RECORD.md must declare CANONICAL_TAU_REQUIREMENT_MIN = <value>"
-    return float(match.group(1))
-
-
-def test_tau_decision_record_exists_and_states_the_basis() -> None:
-    assert RECORD.exists(), "docs/TAU_DECISION_RECORD.md must exist"
-    text = RECORD.read_text(encoding="utf-8")
-    required = [
-        "owner_approved_stage31_production_readiness_unfreeze",  # approval id
-        "requirement floor",  # 0.9 is a floor, not a calibrated optimum
-        "0.99",  # the per-link reliability anchor argument
-        "tau_consensus",  # relationship to the still-open formal parameter
-    ]
-    missing = [term for term in required if term not in text]
-    assert not missing, f"TAU_DECISION_RECORD.md missing basis terms: {missing}"
-    assert _canonical_value() == 0.9
 
 
 def test_every_source_tau_constant_matches_the_record() -> None:
-    canonical = _canonical_value()
+    canonical = CANONICAL_TAU_REQUIREMENT_MIN
     definitions: dict[str, float] = {}
     for path in (ROOT / "src" / "marl_topology").rglob("*.py"):
         for value in _SRC_DEF.findall(path.read_text(encoding="utf-8")):
             definitions[f"{path.relative_to(ROOT)}"] = float(value)
 
     # The drift hazard is real: the constant is defined in several modules. Keep the
-    # test meaningful by requiring we actually found the cluster. (The cluster shrank
-    # after the production-main-body consolidation retired the pre-MARL/diagnostic
-    # modules that also pinned tau.)
+    # test meaningful by requiring we actually found the cluster.
     assert len(definitions) >= 6, f"expected the tau constant in >=6 modules, found {definitions}"
     drift = {loc: val for loc, val in definitions.items() if val != canonical}
-    assert not drift, f"tau constant drifted from the decision record ({canonical}): {drift}"
+    assert not drift, f"tau constant drifted from the canonical {canonical}: {drift}"
