@@ -3870,3 +3870,18 @@ the MLP cold-start 0.000 on the tiny 6-scene smoke -- encouraging, NOT a headlin
 BYTE-IDENTICAL (upd1 R=-1.550, VAL 0.000, matching pre-Phase-11). DECISION: KEEP (mechanism verified).
 Next: the honest 5-seed PNA-vs-MLP comparison on op_corrected (per-seed + CI; deferred/opt-in if no gain,
 per the Phase 8/9 standard) + omega-Pareto eval.
+
+PHASE 11 HEADLINE (5-seed PNA-vs-MLP, corrected, --baseline ema cold-start, matched config -- only
+--actor differs; scripts/diagnostics/phase11_pna_vs_mlp.py): MLP mean held raw 0.594 [0.484-0.641,
+consistent]; PNA mean 0.503 [bimodal: seeds 0,1 -> 0.641, seeds 2,3,4 -> ~0.41]; PAIRED diff pna-mlp =
+-0.091, t-CI95 [-0.308, +0.126] -> MATCHES (CI spans 0). The PNA actor does NOT beat the MLP and is
+LESS STABLE (high seed variance: 2 strong seeds matching the MLP's best, 3 mediocre; the MLP is uniformly
+0.48-0.64). The smoke's 0.333>0.000 was a lucky-seed artifact, not a trend. DECISION: the PNA actor is
+VERIFIED-CORRECT (11a/11b/11c, 23 tests; D1-clean, omega-conditioned, drop-in) but does not improve the
+held headline at this scale -> stays OPT-IN (--actor pna), the MLP MessagePassingGraphEdgeScorer remains
+the DEFAULT. Honest REVISE/deferred (the larger recurrent PNA actor is harder to train reliably cold-start
+at N<=16). CAMPAIGN PATTERN (Phases 8/9/11): every sophisticated mechanism (COMA per-agent credit, SCQ
+critic calibration, PNA actor) is verified-correct but NONE beats the simple baseline (shared-advantage
+RL + MLP actor + closed-form decoder) at the realistic single-step N<=16 scale -- a real, consistent
+result: the problem at this scale does not need the extra machinery. Deferred: larger N / true multi-step
+/ PNA training-stability tuning. -> Phase 11 adversarial-verify, then Phase 12 (generalization).
