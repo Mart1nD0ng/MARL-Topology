@@ -3828,3 +3828,24 @@ product spot-check; training_degree_delta; device/dtype preserving. Full suite 6
 update; 11c preference-conditioning (omega input) + a deployable PNA actor (opt-in, default = current
 MessagePassingGraphEdgeScorer for byte-identity), then honest comparison vs the current actor on
 op_corrected (deferred if no gain, per the Phase 8/9 standard).
+
+================================================================================
+PHASE 11b (2026-06-24): directional message passing + recurrent shared update (Spec S7.12). KEEP.
+================================================================================
++models/recurrent_directional_pna.py: RecurrentDirectionalPNA (the decentralized PNA actor backbone) +
+scatter_directional_pna. K rounds of: DIRECTIONAL message (per directed edge u->v: msg([H[u],
+e_{u->v}]), aggregated at the DESTINATION -> u->v and v->u with separate features contribute differently)
+-> PNA aggregate (scatter mean/max/min/std + 11a pna_combine over the node's IN-degree) -> SHARED GRUCell
+update (one cell across ALL nodes and ALL rounds, parameter-sharing per Spec). Permutation-equivariant,
+device-preserving, variable N/E, no node IDs/global state (decentralized, D1-safe).
+FIX (11a): pna_degree_scalers now clamps the base for NEGATIVE alphas -- an isolated node (in-degree 0)
+gave base=0 -> attenuation 0^-1 = +inf -> NaN; clamped to 1e-12 only for alpha<0 (amplify/identity at
+degree 0 stay exactly 0/1; the node's zero aggregation * large-finite scaler = 0). This surfaced via the
+11b isolated-node/permutation/CUDA tests.
+TESTS (tests/unit/test_recurrent_directional_pna_11b.py, 7): scatter_directional_pna == per-node
+pna_aggregators; the layer is DIRECTIONAL (reversing an edge changes who receives); the recurrent update
+SHARES one GRUCell (param count independent of rounds); rounds=0 == encoder-only; more rounds change the
+output (larger receptive field on a path); permutation-equivariant; isolated/no-edge nodes give no NaN.
+Full suite 678 passed / 0 failed (was 671). DECISION: KEEP. Next 11c: preference-conditioning (omega
+input) + assemble the deployable PNA actor (opt-in --actor pna, default = current for byte-identity) +
+honest vs-current comparison on op_corrected.
