@@ -3902,3 +3902,31 @@ attenuation column by (degree>0) so an isolated node's scaler is exactly 0 with 
 test_backward_finite_with_isolated_and_single_neighbour_nodes (all backbone grads finite). The connected-
 graph FORWARD (and thus the headline) is materially unchanged. NET: Phase 11 verified correct, fair,
 D1-clean, byte-identical when off; PNA opt-in, MLP default stands.
+
+================================================================================
+PHASE 12 (2026-06-24): honest cross-N generalization. R7 default generalizes best; N=24 deferred.
+================================================================================
+scripts/diagnostics/phase12_generalization.py -- EVAL-ONLY per-N held raw (raw_by_n) of the already-
+trained arms on op_corrected held 3017-3024 (no retraining; load each saved actor artifact, decode with
+the torch-free local_mutual_assemble; 5 seeds; per-(arm,N) mean +/- t-CI95; NO held-checkpoint
+selection). IN-RANGE table:
+  arm                              N=8    N=12   N=16   overall
+  R7_default (graph-mappo, mlp)    0.937  0.600  0.417  0.693
+  8b_counterfactual (mlp)          0.943  0.610  0.375  0.685
+  ema_mlp                          0.943  0.571  0.358  0.670
+  ema_pna (preference PNA)         0.886  0.419  0.217  0.562
+FINDINGS: (1) STRONG monotone N-degradation for EVERY arm (N=8 ~0.94 -> N=16 ~0.4) -- cross-N
+generalization is THE bottleneck, not the mechanisms. (2) The R7 DEFAULT (graph-mappo MLP) generalizes
+BEST (best overall 0.693 AND best at the hardest N=16, 0.417); 8b counterfactual ~ R7 (no gain, slightly
+worse at N=16); the PNA actor degrades MOST (worst at every N, 0.217 at N=16) -- it generalizes WORSE,
+not better. This reinforces the campaign pattern: the simple baseline is best; the sophisticated
+mechanisms do not help (PNA hurts) even on generalization.
+N=24 OUT-OF-RANGE: DEFERRED (evidence-based). The corrected fixed_set fault at N=24 has f=(n-1)//3=7 ->
+sum_{r<=7} C(24,r) = 536,155 fault sets >> the 50,000 enumeration budget -> the evaluator falls back to
+GREEDY (optimistic, NOT certified). A valid N=24 corrected headline therefore needs a cheaper EXACT-f
+path (the campaign-audit "N=24 needs cheaper exact f=1"), not built. The in-range N-degradation already
+exposes the generalization limit; an N=24 number under greedy fault would be an uncertified approximation,
+not a headline -- so it is honestly deferred (consistent with the audit).
+DECISION: KEEP -- R7 default (graph-mappo + MLP actor + closed-form decoder) is the best-generalizing
+production arm; all sophisticated mechanisms stay opt-in. The real open problem is large-N generalization
+(N=16 ~0.42, N=24 needs cheaper exact-f) -- the honest frontier, deferred. -> Phase 13 (release).
