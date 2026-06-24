@@ -198,7 +198,8 @@ def main() -> None:
         report["part_B_learned_Q_rank_correlation"] = {
             "spearman_A_i_vs_true_Delta_i": _spearman(learned_all, true_all),
             "n_agent_points": len(true_all),
-            "note": "pre-corrected data: a weak rho is Q-quality-limited (deferred to rebuild), not a headline",
+            "note": "rho>0 means the learned-Q COMA credit tracks the true per-agent marginal; a weak "
+                    "rho is Q-quality-limited (more training / better data). SE ~ 1/sqrt(n-1).",
         }
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")

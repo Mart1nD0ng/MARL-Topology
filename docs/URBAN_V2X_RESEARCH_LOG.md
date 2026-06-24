@@ -3577,3 +3577,39 @@ proper training. No overclaim: 8b ships as a verified mechanism; whether it BEAT
 efficiency is re-tested post-rebuild. (OWNER 2026-06-24: after Phase 8, DO the dataset rebuild, then
 RE-REVIEW Phase 8 against the rebuilt data, then Phase 9+ -- so Part B's rho is re-measured post-rebuild
 as the Phase-8 re-review headline.)
+
+================================================================================
+DATASET REBUILD + PHASE-8 RE-REVIEW (2026-06-24, owner-directed). 8b: mechanism KEEP, NOT promoted.
+================================================================================
+REBUILD: 24 corrected shards (result_save/campaign/data/op_corrected/_op_shard_3001..3024.pkl, gitignored)
+via build_operating_point_dataset.py -- operating_point_regime() is hardcoded corrected (fault_model=
+fixed_set + one_hop_relay + timeout_aware_latency + relay=3), so a fresh build is auto-corrected. ~69min
+wall @ jobs=22 (32 cores; SA teacher + fixed-set fault enum dominate, ~2-3.5ks/shard). VALIDATED via
+load_pool: 240 items, 168 witness_feasible + 72 unknown (0 certified_infeasible), feasible frac 0.70; all
+24 carry the corrected regime. Legacy 2026-06-19 op shards preserved for comparison.
+
+RE-REVIEW (corrected data; the previously-DEFERRED 8b headline):
+  PART A (credit resolution, true marginal via evaluator -- diagnostic-only calls, training 1/scene): 85%
+  of scenes carry nonzero COMA per-agent credit variance; R7 shared advantage 0% (one scalar/scene).
+  PART B (learned-Q credit fidelity, Spec S13): with an 80-update corrected-data Q, Spearman rho(A_i,
+  Delta_i) = 0.174 (n=676, SE~0.039 -> p<<0.001) -- IMPROVED from rho=-0.003 on pre-corrected data. So on
+  corrected data the budget-neutral learned-Q COMA credit DOES (modestly) track the true marginal.
+  HEADLINE (5-seed, cold-start, 80 updates, EQUAL evaluator budget 1/scene both arms): R7 mean held raw
+  0.622 [0.563-0.641], 8b mean 0.631 [0.609-0.641]; PAIRED diff 8b-r7 = +0.009, t-CI95 [-0.033, +0.052]
+  -> MATCHES (CI spans 0). NO significant held-raw edge for 8b.
+  STABILITY (secondary, decisive): R7 val_raw 0.667 on ALL 5 seeds (std 0). 8b val noisier (~0.52 mean)
+  and seed 2 DIVERGED (val 0.533->0.0, train_reward -1.79->-6.73, approx_kl spike 0.604), rescued only by
+  keep-best (rl_final held 0.0625). The modest-fidelity Q (rho=0.17) makes A_i higher-variance than the
+  bounded shared advantage -> larger/noisier per-agent gradients (classic COMA: variance reduction needs
+  an ACCURATE Q; an inaccurate one increases variance).
+
+DECISION: 8b is a VERIFIED-CORRECT, budget-neutral mechanism (8a/8b adversarial verify: unbiased, S_i-
+independent, D1-clean, non-degenerate; Part A/B confirm it targets + modestly tracks real per-agent
+credit) -- but it does NOT beat R7 at equal budget on corrected data (matches on held raw, LESS stable).
+=> 8b stays OPT-IN (--counterfactual, OFF by default); R7 (shared Graph-MAPPO advantage) remains the
+DEFAULT production arm. This is the HONEST "no headline win" outcome (the directive's "or honest
+rollback" -- 8b is not promoted, not deleted). Candidate mitigations for a future refinement (NOT run,
+flagged): advantage normalization to bound COMA variance; a higher-fidelity Q (vector-Q heads / SCQ
+supervision = Phase 9); larger scale / true multi-step (the single-step bandit at N<=16 gives the shared
+advantage little to lose to per-agent credit). Phase-8 re-review COMPLETE -> proceed to Phase 9 (SCQ),
+which directly targets the Q-fidelity bottleneck this re-review exposed.
