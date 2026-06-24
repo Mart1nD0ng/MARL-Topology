@@ -3930,3 +3930,61 @@ not a headline -- so it is honestly deferred (consistent with the audit).
 DECISION: KEEP -- R7 default (graph-mappo + MLP actor + closed-form decoder) is the best-generalizing
 production arm; all sophisticated mechanisms stay opt-in. The real open problem is large-N generalization
 (N=16 ~0.42, N=24 needs cheaper exact-f) -- the honest frontier, deferred. -> Phase 13 (release).
+
+================================================================================
+v2 CAMPAIGN SUMMARY (R0-R7 + Phase 8-13) -- 2026-06-24. COMPLETE.
+================================================================================
+Spec-driven CTDE rebuild of decentralized MARL for urban-V2X PBFT-consensus topology planning, per
+docs/MARL-Topology-Technical-Spec-v2.md + Engineering-Plan-v2. Each gate/phase: experiment_plan ->
+failing-test-first -> minimal impl -> math/integration/production-scale tests -> real-shard smoke ->
+mechanism activation -> measured decision -> adversarial-verify (multi-lens Workflow). Small commits,
+zero new test failures throughout (suite 560 -> 688 passing, 0 failed).
+
+R0-R7 (v2 fix gates, re-accept Phase 0-7): R0 config tiers + run manifest + honest reward wording;
+R1 fixed-B robustness all-sizes + f/q accounting (verified); R2 corrected one-hop relay default +
+latency-aware DP; R3 tri-state solvability into training (include-unknown A/B HARMFUL -> flagged);
+R4 phase-specific PBFT message-plan; R5 two-timescale Temporal Value Test -> DECISION static bandit
+suffices; R6 BCSP unordered-subset policy replacing the ordered Plackett-Luce (verified; dissolved the
+m=15,b=64 trunk hang); R7 Graph-MAPPO per-agent ratio + genuinely-trained critic (verified). All R1/R6/
+R7 adversarially verified, no refutations.
+
+Phase 8 (Graph-Counterfactual PPO): 8a action-conditioned Q critic + 8b COMA per-agent counterfactual
+credit (adversarially verified: unbiased by independent brute-force, S_i-independent, budget-neutral
+[counterfactuals are critic forwards], D1-clean). DATASET REBUILD (owner-directed): 24 corrected shards
+op_corrected/ (fixed_set fault + one_hop_relay + timeout_aware_latency + relay=3). Phase-8 re-review on
+corrected data: Part B credit-fidelity rho rose 0 -> 0.174; 5-seed headline 8b-vs-R7 MATCHES (CI spans
+0), 8b less stable -> 8b OPT-IN, R7 default.
+Phase 9 (SCQ): closed-form counterfactual critic supervision (consistency loss + sensitivity top-M).
+HONEST NEGATIVE: SCQ did NOT raise held Q fidelity (matched rho 0.244 no-SCQ vs 0.071 SCQ, p=0.008),
+non-converging in-sample, ~2x budget -> OPT-IN.
+Phase 10 (reliability): chance constraint Pr(C<tau)<=delta dual + CVaR shortfall (Rockafellar) + Pareto
+checkpoint archive (verified; opt-in, default-off byte-identical).
+Phase 11 (PNA actor): preference-conditioned recurrent directional PNA actor (PNA aggregation +
+directional MP + recurrent shared GRU + omega-conditioning; verified, D1-clean drop-in). Headline
+MATCHES MLP (less stable) -> OPT-IN, MLP default.
+Phase 12 (generalization): cross-N held raw_by_n -- R7 default generalizes BEST (overall 0.693, N=16
+0.417); strong N-degradation for ALL arms (N=8 ~0.94 -> N=16 ~0.4); PNA generalizes WORST; N=24 deferred
+(greedy fault > 50k budget, not certified).
+
+MECHANISM LEDGER (final):
+  mechanism                     flag                       status        verified  headline-at-scale
+  R7 Graph-MAPPO (shared adv)   --baseline graph-mappo     KEEP-DEFAULT  yes       best in-range + best generalization
+  BCSP subset policy (R6)       (always-on, replaced PL)   KEEP          yes       dissolved the trunk hang
+  MLP actor                     --actor mlp (default)      KEEP-DEFAULT  yes       best-generalizing actor
+  8b COMA counterfactual credit --counterfactual           OPT-IN        yes       MATCHES R7 (no gain at N<=16)
+  9 SCQ critic supervision      --scq (+--counterfactual)  OPT-IN        yes       no Q-fidelity gain (+budget)
+  10 chance constraint          --chance                   OPT-IN        yes       distribution-level reliability
+  10 CVaR shortfall             (primitive)                OPT-IN        yes       tail-reliability primitive
+  10 Pareto checkpoint archive  --pareto-archive           OPT-IN        yes       S6.4 risk-aware checkpoint
+  11 PNA directional actor      --actor pna                OPT-IN        yes       MATCHES MLP (less stable)
+  N=24 / larger-N / multi-step  --                         DEFERRED      n/a       needs cheaper exact-f / two-timescale env
+
+CENTRAL RESULT: the simple baseline -- shared-advantage Graph-MAPPO + MLP actor + closed-form local
+mutual-acceptance decoder -- is the best in-range AND the best-generalizing arm at the realistic
+single-step N<=16 scale. Every sophisticated CTDE mechanism (COMA credit, SCQ, PNA actor) is verified-
+correct but NONE beats the baseline at this scale; all ship OPT-IN (default off, byte-identical). This is
+an honest, adversarially-verified negative-for-the-fancy-stuff: at this scale the problem does not need
+the extra machinery. The open frontier is large-N generalization (N=16 ~0.42; N=24 needs a cheaper
+exact-fault evaluator). Deployment stays fully decentralized (D1): the deployed actor uses only local
+obs + physical-neighbour messages + public protocol params + the torch-free decoder; the critic / SCQ /
+chance / Pareto machinery is training-only.

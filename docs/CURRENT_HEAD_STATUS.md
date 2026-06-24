@@ -1,5 +1,23 @@
 # CURRENT HEAD STATUS — Phase 0 freeze (spec-driven reconstruction)
 
+> ## ⏩ v2 CAMPAIGN COMPLETE (2026-06-24) — supersedes the Phase-0 snapshot below
+> The v2 spec-driven CTDE rebuild (R0–R7 + Phase 8–13) is COMPLETE; see the
+> `v2 CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md` for the full ledger.
+> - **Production default**: `--baseline graph-mappo --actor mlp` (shared-advantage Graph-MAPPO + MLP
+>   actor + torch-free local mutual-acceptance decoder). Best in-range AND best-generalizing arm.
+> - **Dataset**: corrected env-math shards `result_save/campaign/data/op_corrected/` (fixed_set fault +
+>   one_hop_relay + timeout_aware_latency + relay=3). The legacy `result_save/campaign/data/op/`
+>   (2026-06-19) shards are SUPERSEDED (pre-corrected-env-math; kept only for comparison).
+> - **Opt-in mechanisms** (all verified, default-off, byte-identical when off; none beat the default at
+>   N≤16): `--counterfactual` (8b COMA credit), `--scq` (Phase 9), `--chance` (Phase 10 chance dual),
+>   `--pareto-archive` (Phase 10c), `--actor pna` (Phase 11). CVaR is a verified primitive.
+> - **Central result**: every sophisticated CTDE mechanism is verified-correct but NONE beats the simple
+>   baseline at the realistic single-step N≤16 scale (honest, adversarially-verified). Open frontier:
+>   large-N generalization (N=16 ~0.42; N=24 needs a cheaper exact-fault evaluator — deferred).
+> - **Deployment (D1)**: fully decentralized — deployed actor uses only local obs + physical-neighbour
+>   messages + public protocol params + the torch-free decoder; critic/SCQ/chance/Pareto are training-only.
+> - Suite 688 passed / 0 failed; both smokes (mlp default + a graph-mappo+counterfactual opt-in) exit 0.
+
 > Produced by Phase 0 of the `MARL-Topology-Engineering-Plan.md` reconstruction loop.
 > Authority of record: `docs/MARL-Topology-Technical-Spec.md` +
 > `docs/MARL-Topology-Engineering-Plan.md` (2026-06-22). Where old code/comments/results
