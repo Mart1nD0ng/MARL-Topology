@@ -85,6 +85,7 @@ from marl_topology.training.scq_supervision import (  # noqa: E402
     scq_counterfactual_targets,
     scq_loss_from_targets,
 )
+from marl_topology.training.reliability_constraints import chance_dual_update  # noqa: E402
 from marl_topology.solvability.status import WITNESS_FEASIBLE  # noqa: E402
 from marl_topology.training.tristate_training import (  # noqa: E402
     assert_split_isolation,
@@ -152,8 +153,12 @@ def _ref_energy(sample):
 
 
 def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier",
-              live_consensus_dual=False):
+              live_consensus_dual=False, lam_chance=0.0):
     """ONE constrained objective. Returns (reward, consensus_violation, budget_violation, feasible).
+
+    lam_chance (Phase 10a, Spec S6.2): the CHANCE-constraint Lagrangian dual. When >0 it adds the
+    per-scene chance penalty -lam_chance*1[c<tau] -- the scene's contribution to the constraint
+    Pr(C<tau)<=delta (the -delta term is a constant, omitted from r). Default 0.0 -> byte-identical.
 
     barrier (binary): feasible -> 1 - beta*E/E_ref; infeasible -> -lam_c*g_c - lam_b*g_b. Gives NO
         gradient until a sample crosses tau -> signal-starved when the warm-started policy is too sharp
@@ -169,8 +174,9 @@ def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier"
     """
     try:
         c, energy, _lat = _evaluate(sample, edge_ids)
-    except Exception:
-        return (-(TAU) if reward_mode == "dense" else -float(lam_c) * TAU - float(lam_b)), TAU, 1.0, False
+    except Exception:    # evaluator failure == infeasible (c<tau) -> chance penalty applies too
+        base = -(TAU) if reward_mode == "dense" else -float(lam_c) * TAU - float(lam_b)
+        return base - lam_chance, TAU, 1.0, False
     budgets = _budgets(sample)
     budget_ok = is_budget_feasible(tuple(edge_ids), budgets) if edge_ids else False
     g_c = max(0.0, TAU - c)
@@ -189,6 +195,8 @@ def reward_of(sample, edge_ids, e_ref, lam_c, lam_b, beta, reward_mode="barrier"
         r = 1.0 - beta * er                      # barrier: in [1-2*beta, 1]  (>= 0.8 for beta<=0.1)
     else:
         r = -lam_c * g_c - lam_b * g_b           # barrier: <= 0  -> strictly below any feasible reward
+    if lam_chance and c < TAU:                   # Phase 10a chance-constraint penalty (-delta is const)
+        r = r - lam_chance
     return r, g_c, (0.0 if budget_ok else g_b), feasible
 
 
@@ -393,6 +401,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scq-select", choices=["simple", "topM"], default="simple",
                    help="SCQ counterfactual selection: simple (9a, BCSP samples) or topM (9b, Spec "
                         "S10.4 sensitivity-guided add/remove/swap -- the most informative counterfactuals)")
+    # --- Phase 10a chance constraint ---
+    p.add_argument("--chance", action="store_true",
+                   help="Phase 10a: distribution-level CHANCE constraint Pr(C<tau)<=delta (Spec S6.2) -- "
+                        "a sign-flexible dual lam_chance ascends on (frac scenes below tau - delta) and "
+                        "penalizes the reward -lam_chance*1[c<tau]. Opt-in (default off -> byte-identical).")
+    p.add_argument("--chance-delta", type=float, default=0.1,
+                   help="allowed reliability failure rate delta for the chance constraint (Phase 10a)")
+    p.add_argument("--chance-lr", type=float, default=0.0,
+                   help="chance dual learning rate (Phase 10a); 0 -> use --dual-lr")
     return p.parse_args()
 
 
@@ -494,6 +511,12 @@ def main() -> None:
                   f"select={args.scq_select} -> calibrates Q with EXACT evaluator diffs; budget = 1 + up "
                   f"to {args.scq_m} evaluator calls/scene (NOT budget-neutral, logged)")
     lam_c, lam_b = args.lam_c, args.lam_b
+    lam_chance = 0.0                                              # Phase 10a chance dual (0 unless --chance)
+    chance_lr = args.chance_lr if args.chance_lr > 0 else args.dual_lr
+    if args.chance:
+        print(f"[chance] Phase 10a chance constraint ACTIVE: Pr(C<tau)<=delta={args.chance_delta} "
+              f"-> dual lam_chance ascends on (frac_below - delta), reward -lam_chance*1[c<tau] "
+              f"(lr={chance_lr})")
     ws_val = eval_held(actor, val_s, mean, std)["raw"]            # warm-start VAL = keep-best floor
     best_val, best_state = ws_val, {k: v.detach().clone() for k, v in actor.state_dict().items()}
     print(f"[warm-start] VAL raw={ws_val:.3f} (keep-best floor; RL never reported below this)")
@@ -510,6 +533,7 @@ def main() -> None:
         best_state, best_val = ck["best_state"], ck["best_val"]
         mean, std = ck["mean"], ck["std"]
         baseline, lam_c, lam_b = ck["baseline"], ck["lam_c"], ck["lam_b"]
+        lam_chance = ck.get("lam_chance", lam_chance)            # Phase 10a (back-compat default)
         history, start_upd = ck["history"], ck["update"] + 1
         if critic is not None and "critic" in ck:  # R7: resume the centralized critic + its optimizer
             saved_csa = ck.get("critic_sees_action", False)   # 8b: the ckpt's critic was V or Q
@@ -552,7 +576,7 @@ def main() -> None:
                         v0 = float(forward_value(critic, s, mean, std))   # rollout baseline (no_grad)
                 topo = [s["edge_ids"][j] for j in act.active_edge_indices]
                 r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
-                                            args.live_consensus_dual)
+                                            args.live_consensus_dual, lam_chance=lam_chance)
                 # PER-AGENT records for the per-agent PPO ratio (Spec S9.2 -- NOT a joint sum). Each
                 # agent with >=1 incident edge contributes (incident, accepted-subset, budget, logp_old).
                 filtered = [pa for pa in act.per_agent if pa.incident_edge_indices]
@@ -624,7 +648,8 @@ def main() -> None:
                 for b in batch:
                     def _reward_fn(active, _b=b):
                         return reward_of(_b["s"], [_b["s"]["edge_ids"][j] for j in active], _b["e_ref"],
-                                         lam_c, lam_b, args.beta, args.reward_mode, args.live_consensus_dual)[0]
+                                         lam_c, lam_b, args.beta, args.reward_mode,
+                                         args.live_consensus_dual, lam_chance=lam_chance)[0]
                     tgt = scq_counterfactual_targets(
                         _reward_fn, per_agent_actions=b["act_per_agent"], edge_ids=b["s"]["edge_ids"],
                         edges=b["edges"], logits=b["logits0"], temperature=temp_now, scq_m=args.scq_m,
@@ -680,7 +705,7 @@ def main() -> None:
                         logp = dist.log_prob(action).sum()
                         topo = [eid for j, eid in enumerate(s["edge_ids"]) if action[j] > 0.5]
                     r, g_c, g_b, ok = reward_of(s, topo, e_ref[i], lam_c, lam_b, args.beta, args.reward_mode,
-                                                args.live_consensus_dual)
+                                                args.live_consensus_dual, lam_chance=lam_chance)
                     s_logps.append(logp); s_rs.append(r); s_gc.append(g_c); s_gb.append(g_b); s_ok.append(ok)
                 if K > 1:
                     tot = sum(s_rs)
@@ -709,6 +734,11 @@ def main() -> None:
         mean_gc, mean_gb = fmean(gcs), fmean(gbs)
         lam_c = min(args.lam_max, max(0.0, lam_c + args.dual_lr * mean_gc))
         lam_b = min(args.lam_max, max(0.0, lam_b + args.dual_lr * mean_gb))
+        chance_frac_below, chance_res = 0.0, 0.0
+        if args.chance and gcs:  # Phase 10a: sign-flexible dual on the chance residual Pr(c<tau)-delta
+            chance_frac_below = fmean([1.0 if g > 1e-9 else 0.0 for g in gcs])  # 1[c<tau] == 1[g_c>0]
+            chance_res = chance_frac_below - args.chance_delta
+            lam_chance = chance_dual_update(lam_chance, chance_res, chance_lr, args.lam_max)
 
         if upd % args.eval_every == 0 or upd == args.updates:
             ve = eval_held(actor, val_s, mean, std)
@@ -716,9 +746,11 @@ def main() -> None:
             if sel > best_val:
                 best_val = sel
                 best_state = {k: v.detach().clone() for k, v in actor.state_dict().items()}
+            chance_tag = (f" | chance frac<tau={chance_frac_below:.3f} res={chance_res:+.3f} "
+                          f"lam_chance={lam_chance:.2f}") if args.chance else ""
             print(f"[upd {upd:3d}] temp={temp_now:.2f} train R={fmean(rwds):+.3f} feas={fmean(feas):.3f} "
                   f"g_c={mean_gc:.3f} g_b={mean_gb:.3f} lam_c={lam_c:.2f} lam_b={lam_b:.2f} "
-                  f"| VAL raw={ve['raw']:.3f} (best {best_val:.3f})")
+                  f"| VAL raw={ve['raw']:.3f} (best {best_val:.3f}){chance_tag}")
             if args.baseline == "graph-mappo" and critic_history:
                 cm = critic_history[-1]
                 cf_tag = f" cf(K={cm['k_cf']})" if cm.get("counterfactual") else ""
@@ -727,11 +759,12 @@ def main() -> None:
                       f"eval_calls={cm['evaluator_calls']}({cm['evaluator_calls_per_scene']}/scene){cf_tag}")
             history.append({"update": upd, "train_reward": fmean(rwds), "train_feasible": fmean(feas),
                             "mean_g_c": mean_gc, "mean_g_b": mean_gb, "lam_c": lam_c, "lam_b": lam_b,
+                            "lam_chance": lam_chance, "chance_frac_below": chance_frac_below,
                             "val_raw": ve["raw"]})
             if args.ckpt_every and upd % args.ckpt_every == 0:
                 ckpt = {"actor": actor.state_dict(), "opt": opt.state_dict(),
                         "best_state": best_state, "best_val": best_val, "mean": mean, "std": std,
-                        "baseline": baseline, "lam_c": lam_c, "lam_b": lam_b,
+                        "baseline": baseline, "lam_c": lam_c, "lam_b": lam_b, "lam_chance": lam_chance,
                         "history": history, "update": upd}
                 if critic is not None:  # R7: the centralized critic + its optimizer resume too (Spec 8.6)
                     ckpt["critic"] = critic.state_dict()

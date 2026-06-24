@@ -3768,3 +3768,14 @@ DECISION: KEEP (verified primitives). Next 10a-activation: wire the CHANCE dual 
 --chance-delta: lam_chance ascends on chance_residual, reward gets -lam_chance*1[c<tau]; opt-in, default
 off -> byte-identical), with runtime activation log + smoke; then 10c wire the Pareto archive into the
 keep-best checkpoint selection (opt-in). CVaR available as a verified metric/constraint primitive.
+
+10a-ACTIVATION (trunk wiring): --chance / --chance-delta / --chance-lr. reward_of gains a lam_chance kwarg
+(default 0.0 -> byte-identical): adds -lam_chance*1[c<tau] (the per-scene chance Lagrangian term, -delta
+omitted as constant). After each update a SIGN-FLEXIBLE dual ascends: chance_res = frac(c<tau) - delta
+(computed from the already-collected g_c indicators, == chance_residual), lam_chance =
+chance_dual_update(lam_chance, chance_res, chance_lr, lam_max). Passed to all 3 reward_of call sites
+(graph-mappo + ema/rloo rollout + the SCQ counterfactual reward, for consistent shaping). lam_chance
+checkpoints/resumes; logged per update (frac<tau, res, lam_chance). SMOKE (--chance --chance-delta 0.2):
+exits 0, lam_chance ascends 0.40->0.80->1.20 on res=+0.8, the penalty enters from upd2 (chance train R
+-2.549 vs default -2.149). DEFAULT (--chance off): BYTE-IDENTICAL (upd1 identical; `if lam_chance` is
+False at 0.0; the dual block is gated on args.chance). KEEP.
