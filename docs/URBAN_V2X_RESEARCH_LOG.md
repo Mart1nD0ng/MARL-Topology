@@ -3792,3 +3792,18 @@ S6.4 selection (degenerate on the no-feasible cold-start smoke -> min-violation 
 default (off) byte-identical. Phase 10 COMPLETE (10a chance dual + primitives + 10c Pareto archive; CVaR
 a verified primitive available to wire). -> Phase 11 (preference-conditioned recurrent directional PNA
 actor).
+
+PHASE 10 ADVERSARIAL-VERIFY (Workflow w0ja0x54s, 2 lenses) -> NO blockers/majors; CONFIRMED. CHANCE+CVaR
+lens: chance_residual signed + correct; chance_dual_update sign-flexible projected ascent (rises/falls/
+clamped>=0/respects lam_max); the trunk reward penalty -lam_chance*1[c<tau] is dual-gated (byte-identical
+at lam_chance=0); CVaR matches a 200001-point dense-grid brute-force of the Rockafellar objective to
+<1e-4, equals the worst-(1-alpha) tail mean when integral, == mean shortfall at alpha=0, monotone
+non-decreasing in alpha, correct (failure) tail direction, guards alpha. PARETO+BYTE-IDENTITY lens: ZERO
+issues -- S6.4 order exact over 17 adversarial archives (risky-but-efficient/dominated/all-violating-
+fallback all correct, never raw feasibility), _dominates correct, byte-identity PROVEN (two default smokes
+byte-identical incl. smoke_result.json; --chance diverges from default ONLY once lam_chance>0), VAL-only
+checkpoint selection (no held leakage). ONE nit (FIXED): the trunk computed chance_frac_below via g_c>1e-9
+(line 752), diverging from chance_residual's strict c<tau and the reward's c<TAU on the measure-zero
+window c in (tau-1e-9, tau) -> changed to g_c>0.0 (exact: g_c=max(0,tau-c) so g_c>0 <=> c<tau). Reliability
+tests 9/9 + chance smoke unchanged (lam_chance 0.40->1.20). NET: Phase 10 verified correct, byte-identical
+when off, no headline risk.

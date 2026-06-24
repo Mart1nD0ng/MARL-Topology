@@ -749,7 +749,9 @@ def main() -> None:
         lam_b = min(args.lam_max, max(0.0, lam_b + args.dual_lr * mean_gb))
         chance_frac_below, chance_res = 0.0, 0.0
         if args.chance and gcs:  # Phase 10a: sign-flexible dual on the chance residual Pr(c<tau)-delta
-            chance_frac_below = fmean([1.0 if g > 1e-9 else 0.0 for g in gcs])  # 1[c<tau] == 1[g_c>0]
+            chance_frac_below = fmean([1.0 if g > 0.0 else 0.0 for g in gcs])  # 1[c<tau] == 1[g_c>0] exactly
+            # (g_c = max(0, tau-c), so g_c>0 <=> c<tau -- byte-identical to chance_residual + the c<TAU
+            # reward indicator; no 1e-9 guard, which would mis-handle the measure-zero c in (tau-1e-9, tau))
             chance_res = chance_frac_below - args.chance_delta
             lam_chance = chance_dual_update(lam_chance, chance_res, chance_lr, args.lam_max)
 
