@@ -81,6 +81,10 @@ from marl_topology.training.graph_mappo import (  # noqa: E402
     ppo_clip_actor_loss,
 )
 from marl_topology.training.counterfactual_credit import counterfactual_advantages  # noqa: E402
+from marl_topology.training.scq_supervision import (  # noqa: E402
+    scq_counterfactual_targets,
+    scq_loss_from_targets,
+)
 from marl_topology.solvability.status import WITNESS_FEASIBLE  # noqa: E402
 from marl_topology.training.tristate_training import (  # noqa: E402
     assert_split_isolation,
@@ -376,6 +380,16 @@ def parse_args() -> argparse.Namespace:
                         "(1/scene). Requires --baseline graph-mappo.")
     p.add_argument("--k-cf", type=int, default=4,
                    help="counterfactual subset samples per agent for the COMA baseline (Phase 8b)")
+    # --- Phase 9 SCQ critic supervision ---
+    p.add_argument("--scq", action="store_true",
+                   help="Phase 9: SCQ closed-form counterfactual supervision -- calibrate the Q critic "
+                        "with EXACT evaluator differences DeltaR_i=R(S)-R(S~_i,S_-i) (Spec S10). "
+                        "Requires --counterfactual. NOT budget-neutral: spends up to --scq-m extra "
+                        "evaluator calls/scene (logged as scq_evaluator_calls_per_scene).")
+    p.add_argument("--scq-m", type=int, default=2,
+                   help="SCQ counterfactuals per scene (extra evaluator calls/scene); Spec S10.4 top-M")
+    p.add_argument("--scq-coef", type=float, default=0.5,
+                   help="weight of the SCQ consistency loss in the critic objective (Phase 9)")
     return p.parse_args()
 
 
@@ -392,6 +406,9 @@ def main() -> None:
     if args.counterfactual and args.baseline != "graph-mappo":
         raise SystemExit("[counterfactual] --counterfactual (Phase 8b) requires --baseline graph-mappo "
                          "(the action-conditioned Q critic lives in the graph-mappo arm)")
+    if args.scq and not args.counterfactual:
+        raise SystemExit("[scq] --scq (Phase 9) requires --counterfactual (SCQ supervises the action-"
+                         "conditioned Q critic, which exists only in the counterfactual arm)")
     torch.manual_seed(args.seed)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -468,6 +485,11 @@ def main() -> None:
             print(f"[counterfactual] Phase 8b COMA per-agent credit ACTIVE: K_cf={args.k_cf} "
                   f"(action-conditioned Q critic; counterfactuals are critic forwards -> "
                   f"evaluator budget unchanged 1/scene)")
+        if args.scq:
+            scq_gen = torch.Generator().manual_seed(args.seed + 7)
+            print(f"[scq] Phase 9 SCQ critic supervision ACTIVE: scq_m={args.scq_m} scq_coef={args.scq_coef} "
+                  f"-> calibrates Q with EXACT evaluator diffs; budget = 1 + up to {args.scq_m} "
+                  f"evaluator calls/scene (NOT budget-neutral, logged)")
     lam_c, lam_b = args.lam_c, args.lam_b
     ws_val = eval_held(actor, val_s, mean, std)["raw"]            # warm-start VAL = keep-best floor
     best_val, best_state = ws_val, {k: v.detach().clone() for k, v in actor.state_dict().items()}
@@ -545,8 +567,12 @@ def main() -> None:
                         generator=cf_gen)
                     per_agent_adv = [cf.advantages[pa.node_id] for pa in filtered]
                     v0 = cf.q_actual                                  # action-conditioned value of S
-                batch.append({"s": s, "per_agent": per_agent, "per_agent_adv": per_agent_adv,
-                              "r": r, "V": v0, "active": act.active_edge_indices})
+                rec = {"s": s, "per_agent": per_agent, "per_agent_adv": per_agent_adv,
+                       "r": r, "V": v0, "active": act.active_edge_indices}
+                if args.scq:  # Phase 9: SCQ needs the full per-agent actions + rollout logits + edges
+                    rec.update({"act_per_agent": act.per_agent, "logits0": logits0.detach(),
+                                "edges": edges, "e_ref": e_ref[i]})
+                batch.append(rec)
                 rwds.append(r); gcs.append(g_c); gbs.append(g_b); feas.append(float(ok))
             if not batch:
                 continue
@@ -587,22 +613,49 @@ def main() -> None:
             #      graph-mappo critic regresses V(scene); the Phase-8b Q critic regresses the action-
             #      conditioned Q(s, S_actual) (Spec S9.7) -- same target reward, grad-on. ----
             r_t = torch.tensor([float(b["r"]) for b in batch])
+            # Phase 9 SCQ: the EXACT evaluator differences are computed ONCE per update (here), so the
+            # extra evaluator calls are paid once -- NOT per critic epoch (Spec S10.2 single-step).
+            scq_targets, scq_calls, scq_res = None, 0, 0.0
+            if args.scq:
+                scq_targets = []
+                for b in batch:
+                    def _reward_fn(active, _b=b):
+                        return reward_of(_b["s"], [_b["s"]["edge_ids"][j] for j in active], _b["e_ref"],
+                                         lam_c, lam_b, args.beta, args.reward_mode, args.live_consensus_dual)[0]
+                    tgt = scq_counterfactual_targets(
+                        _reward_fn, per_agent_actions=b["act_per_agent"], edge_ids=b["s"]["edge_ids"],
+                        edges=b["edges"], logits=b["logits0"], temperature=temp_now, scq_m=args.scq_m,
+                        r_actual=b["r"], generator=scq_gen)
+                    scq_targets.append(tgt)
+                    scq_calls += tgt.counterfactual_calls
             for _ in range(args.ppo_epochs):
                 if args.counterfactual:
                     v_pred = torch.stack([forward_q(critic, b["s"], b["active"], mean, std) for b in batch])
                 else:
                     v_pred = torch.stack([forward_value(critic, b["s"], mean, std) for b in batch])
                 v_loss = args.critic_coef * (r_t - v_pred).pow(2).mean()
+                if scq_targets is not None:   # + SCQ consistency loss (recomputed per epoch; Q changes)
+                    scq_terms, mars = [], []
+                    for b, tgt in zip(batch, scq_targets):
+                        def _q_of(active, _b=b):
+                            return forward_q(critic, _b["s"], active, mean, std)
+                        l, mar = scq_loss_from_targets(_q_of, tgt)
+                        scq_terms.append(l); mars.append(mar)
+                    v_loss = v_loss + args.critic_coef * args.scq_coef * torch.stack(scq_terms).mean()
+                    scq_res = fmean(mars)
                 opt_c.zero_grad(); v_loss.backward()
                 torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
                 opt_c.step()
             ev = explained_variance([b["r"] for b in batch], [b["V"] for b in batch])
+            scq_calls_per_scene = (scq_calls / len(batch)) if (args.scq and batch) else 0.0
             critic_history.append({"update": upd, "explained_variance": ev, "approx_kl": last_kl,
                                    "clip_fraction": last_clip, "n_scenes": len(batch),
-                                   "evaluator_calls": len(batch),       # 1 _evaluate/scene == EMA budget
-                                   "evaluator_calls_per_scene": 1,      # fair A/B vs ema (rloo spends K);
+                                   "evaluator_calls": len(batch) + scq_calls,  # rollout(1/scene) + SCQ
+                                   "evaluator_calls_per_scene": 1 + scq_calls_per_scene,  # SCQ NOT free
                                    "counterfactual": bool(args.counterfactual),  # Phase 8b COMA credit
                                    "k_cf": args.k_cf if args.counterfactual else 0,  # critic forwards, not evals
+                                   "scq": bool(args.scq), "scq_evaluator_calls_per_scene": scq_calls_per_scene,
+                                   "scq_critic_difference_error": scq_res,  # Spec S10.5 audit
                                    "critic_value_mean": fmean([b["V"] for b in batch])})
         else:
             for i in order:

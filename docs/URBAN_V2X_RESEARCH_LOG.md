@@ -3634,3 +3634,37 @@ stability deficit; (minor) the gitignored coma_credit_resolution_corrected.json 
 are STALE (written before the script's note de-staling) -- the rho=0.174 value + this narrative are
 correct, only that local artifact's note is wrong (harmless, gitignored). NET: the re-review (8b matches-
 but-less-stable -> opt-in, R7 default) is fair, honest, and robust.
+
+================================================================================
+PHASE 9a (2026-06-24): SCQ closed-form counterfactual supervision for the Q critic. KEEP (mechanism).
+================================================================================
+Targets the Q-fidelity bottleneck the Phase-8 re-review exposed (learned-Q COMA credit tracked the true
+marginal only at rho~0.17, making A_i high-variance -> 8b unstable). SCQ (Spec S10) CALIBRATES the Q
+critic with EXACT evaluator differences.
+
++training/scq_supervision.py: scq_counterfactual_targets (the EVALUATOR side -- sample up to scq_m
+UNORDERED counterfactuals S~_i~pi_i, fix S_-i, re-pass the mutual decoder, query the REAL evaluator ONCE
+per UNIQUE non-trivial topology for DeltaR_i=R(S)-R(S~_i,S_-i); dedup + skip no-ops per S10.5; the
+actual-action reward is reused from the rollout) + scq_loss_from_targets (the Q side -- L_SCQ =
+mean_i[(Q(s,S)-Q(s,S~_i,S_-i)) - DeltaR_i]^2, grad-on, recomputed per critic epoch) + scq_consistency_
+loss (all-in-one for tests). The split is DELIBERATE: the evaluator targets are computed ONCE per update
+so the extra budget is paid once, NOT per critic epoch.
+
+Trunk (--scq --scq-m --scq-coef, requires --counterfactual): the rollout records act.per_agent + logits0
++ edges + e_ref; the critic objective becomes critic_coef*[(r-Q(s,S))^2 + scq_coef*L_SCQ]. SCQ enters
+ONLY the critic loss (its own opt_c), never the actor gradient (Spec S10.4/10.5). Budget is HONESTLY
+logged: evaluator_calls_per_scene = 1 + scq_evaluator_calls_per_scene (SCQ is NOT budget-neutral);
+critic_history adds scq_critic_difference_error (the S10.5 |Q_diff-DeltaR| audit).
+
+TESTS (tests/unit/test_scq_supervision_9a.py, 6): L_SCQ==0 exactly when Q_diff==DeltaR; DeltaR comes from
+the REAL evaluator not the learned Q (constant-Q -> loss==mean(DeltaR^2)); loss is grad-on for the critic
+(populates critic params); counterfactual_calls counted == unique non-trivial counterfactuals (budget
+honest); r_actual reused -> evaluator never called for the actual action; and SMALL-GAME CALIBRATION -- a
+real Q critic trained with L_SCQ drives its predicted difference to the exact evaluator difference (late
+loss < 0.6x early). SCQ smoke (--counterfactual --scq) exits 0, logs eval_calls/scene 1.5-2.83 (budget
+correctly >1), scq_critic_difference_error ~9e-4.
+
+DECISION: KEEP (mechanism verified). Next: 9b sensitivity-guided top-M selection (Spec S10.4) to choose
+the most informative counterfactuals, then re-measure the learned-Q credit fidelity (rho) with an
+SCQ-calibrated Q (does rho rise from 0.17?) and re-run the 8b-vs-R7 headline with SCQ -- the honest test
+of whether better Q fidelity lets the COMA credit beat R7, at the disclosed 1+M budget.
