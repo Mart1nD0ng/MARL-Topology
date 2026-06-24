@@ -3725,3 +3725,24 @@ single-step N<=16 scale the shared advantage is hard to beat -- credit assignmen
 scene is one joint decision over few agents. DEFERRED (untested, flagged not run): higher scq_coef /
 more updates / larger N / a true multi-step (two-timescale) setting where per-agent temporal credit
 actually accrues. Phase 9 COMPLETE -> Phase 10 (reliability: CVaR / chance constraints).
+
+CORRECTION (Phase-9 adversarial-verify wip8t4xge, 2 lenses) -- the negative SURVIVES and is STRENGTHENED;
+three reporting errors fixed for honesty:
+  (1) [MAJOR] The two rho were NOT at the same diagnostic config: SCQ at --n-scenes 40 (n=452) but the
+  no-SCQ 0.174 at --n-scenes 60 (n=676). The verifier re-ran no-SCQ at the MATCHED n-scenes=40: rho=0.244
+  (n=452). So the honest MATCHED A/B is no-SCQ rho=0.244 vs SCQ rho=0.071 (both n=452, same held shards,
+  same config) -- the gap WIDENS and is significant (Fisher-z = 2.66, p=0.008). The 0.174 figure was a
+  different (n=60) config; the matched verdict is stronger. (The n gap is NOT a selection artifact: the
+  active-agent count is structural; both actors yield 452 points at n=40.)
+  (2) [MINOR] Budget: 1.506 ev/scene is the FINAL-update figure; the SCQ training-AVERAGE was 2.075
+  ev/scene (~2x the no-SCQ 1.0), range ~1.5-2.6. The cost is ~2x, not ~1.5x.
+  (3) [MAJOR] scq_critic_difference_error did NOT plateau at 0.169 -- it ROSE over training (first-10-
+  update mean 0.092 -> last-10 mean 0.279, +0.0009/update; near-zero early values are an untrained-critic
+  artifact). The in-sample supervision error is NON-CONVERGING -- SCQ at scq_coef=0.5 is fighting the
+  main critic objective / transiently overfitting, NOT merely "slow"; this pre-empts "just train longer".
+VERIFIED (unchanged): the decision is correctly SCOPED ("at this scale", deferred alternatives listed,
+not a universal negative); skipping the 8b+SCQ-vs-R7 headline is justified (failed prerequisite + budget
+unfairness + held raw already pinned 0.625==0.625, SCQ rl_final 0.609 slightly worse); SCQ CORRECTNESS is
+intact (10 unit tests pass incl. the small-game calibration proving L_SCQ works on a clean signal). NET:
+SCQ verified-correct, no fidelity gain at this scale (matched gap 0.244 vs 0.071, p=0.008), rising
+in-sample error, ~2x budget -> stays OPT-IN, R7 DEFAULT. Honest REVISE/deferred, robust.
