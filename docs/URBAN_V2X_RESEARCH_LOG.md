@@ -3668,3 +3668,28 @@ DECISION: KEEP (mechanism verified). Next: 9b sensitivity-guided top-M selection
 the most informative counterfactuals, then re-measure the learned-Q credit fidelity (rho) with an
 SCQ-calibrated Q (does rho rise from 0.17?) and re-run the 8b-vs-R7 headline with SCQ -- the honest test
 of whether better Q fidelity lets the COMA credit beat R7, at the disclosed 1+M budget.
+
+================================================================================
+PHASE 9b (2026-06-24): SCQ sensitivity-guided top-M counterfactual selection. KEEP (mechanism).
+================================================================================
+9a spent the SCQ evaluator budget on random BCSP counterfactuals; 9b (Spec S10.4) spends it on the MOST
+INFORMATIVE ones. scq_supervision.py += SCQScoreWeights + sensitivity_score (s_e^cf = alpha*mu(1-mu) +
+beta/(1+|z_e|) + gamma*mutualConflict + eta*bridge - zeta*cost) + _bridge_score (active-topology bridge
+detector over a fixed node set) + select_topM_counterfactuals (scores per-agent add/remove/swap edits of
+each incident edge, returns the top-M deduped (node_id, new_accepted) proposals). scq_counterfactual_
+targets now dispatches selection in {"simple" (9a default), "topM" (9b)}; the budget accounting + dedup +
+no-op skipping are shared, so topM still spends <= scq_m evaluator calls. Trunk: --scq-select {simple,
+topM}. SCQ candidates DEPEND on the realized S_i (add/remove from S_i) -- valid because SCQ is critic
+supervision, NOT a policy baseline (S10.4/10.5): they enter only the critic loss, never the actor grad.
+
+TESTS (tests/unit/test_scq_topm_9b.py, 5): bridge detector (cycle->no bridge, path->both bridges,
+inactive edge never); each score component isolated via weights (chi=mu(1-mu); boundary 1.0 at z=0, 1/5
+at z=4; conflict 1 iff endpoints disagree; cost = -zeta*cost); select_topM respects M + dedups; topM
+targets are re-decoded valid topologies with <= M evaluator calls + no-ops skipped; simple/topM share the
+budget cap. Full suite 655 passed / 0 failed (was 650). topM smoke (--scq --scq-select topM) exits 0,
+eval_calls/scene 1.3-1.67 (budget bounded).
+
+DECISION: KEEP (mechanism). Phase 9 (SCQ) build COMPLETE (9a loss + 9b selection). Next: the Phase-9
+RE-MEASUREMENT -- train an SCQ-calibrated Q (--counterfactual --scq --scq-select topM) on op_corrected,
+re-run coma_credit_resolution Part B (does rho rise from 0.17 with SCQ?), and the 8b+SCQ-vs-R7 headline
+at the HONEST 1+M budget (does better Q fidelity let the COMA credit beat R7?). Then Phases 10-13.

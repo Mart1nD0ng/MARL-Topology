@@ -390,6 +390,9 @@ def parse_args() -> argparse.Namespace:
                    help="SCQ counterfactuals per scene (extra evaluator calls/scene); Spec S10.4 top-M")
     p.add_argument("--scq-coef", type=float, default=0.5,
                    help="weight of the SCQ consistency loss in the critic objective (Phase 9)")
+    p.add_argument("--scq-select", choices=["simple", "topM"], default="simple",
+                   help="SCQ counterfactual selection: simple (9a, BCSP samples) or topM (9b, Spec "
+                        "S10.4 sensitivity-guided add/remove/swap -- the most informative counterfactuals)")
     return p.parse_args()
 
 
@@ -488,8 +491,8 @@ def main() -> None:
         if args.scq:
             scq_gen = torch.Generator().manual_seed(args.seed + 7)
             print(f"[scq] Phase 9 SCQ critic supervision ACTIVE: scq_m={args.scq_m} scq_coef={args.scq_coef} "
-                  f"-> calibrates Q with EXACT evaluator diffs; budget = 1 + up to {args.scq_m} "
-                  f"evaluator calls/scene (NOT budget-neutral, logged)")
+                  f"select={args.scq_select} -> calibrates Q with EXACT evaluator diffs; budget = 1 + up "
+                  f"to {args.scq_m} evaluator calls/scene (NOT budget-neutral, logged)")
     lam_c, lam_b = args.lam_c, args.lam_b
     ws_val = eval_held(actor, val_s, mean, std)["raw"]            # warm-start VAL = keep-best floor
     best_val, best_state = ws_val, {k: v.detach().clone() for k, v in actor.state_dict().items()}
@@ -625,7 +628,7 @@ def main() -> None:
                     tgt = scq_counterfactual_targets(
                         _reward_fn, per_agent_actions=b["act_per_agent"], edge_ids=b["s"]["edge_ids"],
                         edges=b["edges"], logits=b["logits0"], temperature=temp_now, scq_m=args.scq_m,
-                        r_actual=b["r"], generator=scq_gen)
+                        r_actual=b["r"], generator=scq_gen, selection=args.scq_select)
                     scq_targets.append(tgt)
                     scq_calls += tgt.counterfactual_calls
             for _ in range(args.ppo_epochs):
