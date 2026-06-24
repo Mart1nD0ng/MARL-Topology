@@ -91,6 +91,12 @@ from marl_topology.training.reliability_constraints import (  # noqa: E402
     chance_dual_update,
     pareto_archive_select,
 )
+from marl_topology.training.run_instrumentation import (  # noqa: E402
+    dataset_manifest,
+    mechanism_activation,
+    shard_generator_config,
+    split_manifest,
+)
 from marl_topology.solvability.status import WITNESS_FEASIBLE  # noqa: E402
 from marl_topology.training.tristate_training import (  # noqa: E402
     assert_split_isolation,
@@ -487,6 +493,22 @@ def main() -> None:
     print(f"[tri-state] train pool {len(train_s)}: {n_wf} witness_feasible + {n_unk} unknown -> "
           f"{n_train} enter training (exclude_unknown={args.exclude_unknown})")
 
+    # Full-Integration-Audit instrumentation (checklist §11): emit reproducible provenance now that
+    # the split is fixed -- shard SHA256 + env-math generator config, per-split scenario IDs +
+    # node-count / solvability / trajectory-length(=1, T=1 bandit) distributions, seed/split. The
+    # mechanism_activation.json (with the MEASURED critic-parameter delta) is written after training.
+    data_man = dataset_manifest(args.shards)
+    dataset_env_math = data_man.get("generator_config", {}).get("env_math_regime", {})
+    (out_dir / "data_manifest.json").write_text(json.dumps(data_man, indent=2, default=str),
+                                                encoding="utf-8")
+    (out_dir / "split_manifest.json").write_text(
+        json.dumps(split_manifest(fit_items, val_items, held_items), indent=2, default=str),
+        encoding="utf-8")
+    (out_dir / "seed_manifest.json").write_text(json.dumps(
+        {"seed": args.seed, "split_seed": args.split_seed, "held_frac": args.held_frac,
+         "val_scenes": args.val_scenes, "cold_start": bool(args.cold_start),
+         "warm_actor_idx": None if args.cold_start else args.warm_actor_idx}, indent=2), encoding="utf-8")
+
     node_dim, edge_dim = train_s[0]["nf"].shape[1], train_s[0]["ef"].shape[1]
     if args.cold_start:
         # random-init actor, standardization computed from data -- NO oracle warm-start
@@ -527,11 +549,13 @@ def main() -> None:
     # Phase 7 Graph-MAPPO: a centralized graph value critic + its own optimizer (training-only;
     # constructed only on this arm, never reachable from the deployed actor -> D1).
     critic = opt_c = None
+    critic_init_params = None    # snapshot for the audited critic_parameter_delta (§5.1)
     critic_history: list = []
     if args.baseline == "graph-mappo":
         critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden,
                                         rounds=args.critic_rounds, critic_sees_action=args.counterfactual)
         opt_c = torch.optim.AdamW(critic.parameters(), lr=args.critic_lr, weight_decay=1e-4)
+        critic_init_params = torch.cat([p.detach().flatten().clone() for p in critic.parameters()])
         print(f"[graph-mappo] centralized critic: hidden={args.critic_hidden} rounds={args.critic_rounds} "
               f"clip={args.clip_epsilon} ppo_epochs={args.ppo_epochs} critic_lr={args.critic_lr}")
         if args.counterfactual:
@@ -654,6 +678,7 @@ def main() -> None:
             if args.normalize_adv:
                 adv_flat = (adv_flat - adv_flat.mean()) / (adv_flat.std() + 1e-6)
             last_kl, last_clip = 0.0, 0.0
+            last_actor_loss, last_actor_gnorm, last_entropy = 0.0, 0.0, 0.0  # §6 audit logging
             for _epoch in range(args.ppo_epochs):
                 lp_new, en_new = [], []
                 for b in batch:
@@ -665,11 +690,14 @@ def main() -> None:
                     break
                 ppo_loss, info = ppo_clip_actor_loss(torch.stack(lp_new), logp_old_flat,
                                                      adv_flat.detach(), clip_eps=args.clip_epsilon)
-                loss = ppo_loss - args.entropy_coef * torch.stack(en_new).mean()  # BCSP normalized-entropy bonus
+                ent_bonus = torch.stack(en_new).mean()
+                loss = ppo_loss - args.entropy_coef * ent_bonus  # BCSP normalized-entropy bonus
                 opt.zero_grad(); loss.backward()
-                torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+                # clip_grad_norm_ returns the TOTAL norm pre-clip -> actor gradient-norm audit log (§4.2)
+                actor_gnorm = float(torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0))
                 opt.step()
                 last_kl, last_clip = float(info["approx_kl"]), float(info["clip_fraction"])
+                last_actor_loss, last_actor_gnorm, last_entropy = float(ppo_loss), actor_gnorm, float(ent_bonus)
                 if last_kl > args.target_kl * 1.5:                  # early-stop the inner loop
                     break
             # ---- critic regression -> reward (its OWN optimizer; never touches the actor). The
@@ -692,6 +720,7 @@ def main() -> None:
                         r_actual=b["r"], generator=scq_gen, selection=args.scq_select)
                     scq_targets.append(tgt)
                     scq_calls += tgt.counterfactual_calls
+            last_critic_loss, last_critic_gnorm = 0.0, 0.0      # §5.1 audit logging
             for _ in range(args.ppo_epochs):
                 if args.counterfactual:
                     v_pred = torch.stack([forward_q(critic, b["s"], b["active"], mean, std) for b in batch])
@@ -708,12 +737,23 @@ def main() -> None:
                     v_loss = v_loss + args.critic_coef * args.scq_coef * torch.stack(scq_terms).mean()
                     scq_res = fmean(mars)
                 opt_c.zero_grad(); v_loss.backward()
-                torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
+                # clip_grad_norm_ returns the TOTAL norm pre-clip -> critic gradient-norm audit log (§5.1)
+                critic_gnorm = float(torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0))
                 opt_c.step()
+                last_critic_loss, last_critic_gnorm = float(v_loss), critic_gnorm
             ev = explained_variance([b["r"] for b in batch], [b["V"] for b in batch])
             scq_calls_per_scene = (scq_calls / len(batch)) if (args.scq and batch) else 0.0
+            # §4/§5 audit logging: subset cardinality |S_i| and active-edge count per scene.
+            card = [len(acc) for b in batch for (_inc, acc, _bud, _lo) in b["per_agent"]]
+            mean_subset_card = fmean(card) if card else 0.0
+            mean_active_edges = fmean([len(b["active"]) for b in batch]) if batch else 0.0
             critic_history.append({"update": upd, "explained_variance": ev, "approx_kl": last_kl,
                                    "clip_fraction": last_clip, "n_scenes": len(batch),
+                                   "actor_loss": last_actor_loss, "actor_grad_norm": last_actor_gnorm,
+                                   "entropy": last_entropy, "critic_loss": last_critic_loss,
+                                   "critic_grad_norm": last_critic_gnorm,
+                                   "mean_subset_cardinality": mean_subset_card,
+                                   "mean_active_edges": mean_active_edges,
                                    "evaluator_calls": len(batch) + scq_calls,  # rollout(1/scene) + SCQ
                                    "evaluator_calls_per_scene": 1 + scq_calls_per_scene,  # SCQ NOT free
                                    "counterfactual": bool(args.counterfactual),  # Phase 8b COMA credit
@@ -852,11 +892,24 @@ def main() -> None:
                                          else rl_held["conditional"] - bc_held["conditional"])}}
     (out_dir / ("smoke_result.json" if args.smoke else "rl_result.json")).write_text(
         json.dumps(result, indent=2, default=str), encoding="utf-8")
+    # Full-Integration-Audit: the MEASURED critic-parameter delta (§5.1 critic_parameter_delta>0)
+    # + the honest mechanism_activation.json (dynamic_task=False at T=1; the env-math read from data).
+    critic_param_delta = None
+    if critic is not None and critic_init_params is not None:
+        final_params = torch.cat([p.detach().flatten() for p in critic.parameters()])
+        critic_param_delta = float((final_params - critic_init_params).norm())
+    scq_cps = critic_history[-1].get("scq_evaluator_calls_per_scene", 0.0) if critic_history else 0.0
+    (out_dir / "mechanism_activation.json").write_text(json.dumps(
+        mechanism_activation(args, critic_parameter_delta=critic_param_delta,
+                             scq_calls_per_scene=scq_cps, dataset_env_math=dataset_env_math),
+        indent=2, default=str), encoding="utf-8")
+
     artifacts = {"actors": [{"state": actor.state_dict(), "mean": mean, "std": std}]}
     if args.baseline == "graph-mappo":
         # the centralized critic + its optimizer are TRAINING artifacts only (D1: never deployed)
         artifacts["critic"] = critic.state_dict()
         artifacts["opt_c"] = opt_c.state_dict()
+        artifacts["critic_parameter_delta"] = critic_param_delta
         final = critic_history[-1] if critic_history else {}
         (out_dir / "critic_metrics.json").write_text(
             json.dumps({"final": final, "history": critic_history,
