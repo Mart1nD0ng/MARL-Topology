@@ -3746,3 +3746,25 @@ unfairness + held raw already pinned 0.625==0.625, SCQ rl_final 0.609 slightly w
 intact (10 unit tests pass incl. the small-game calibration proving L_SCQ works on a clean signal). NET:
 SCQ verified-correct, no fidelity gain at this scale (matched gap 0.244 vs 0.071, p=0.008), rising
 in-sample error, ~2x budget -> stays OPT-IN, R7 DEFAULT. Honest REVISE/deferred, robust.
+
+================================================================================
+PHASE 10a (2026-06-24): distribution-level reliability constraint PRIMITIVES. KEEP.
+================================================================================
+The trunk dual ascends lam_c on the MEAN consensus margin g_c = mean_s max(0, tau - c_s) -- bounds the
+average shortfall but not the FREQUENCY or the TAIL of failures. Phase 10 adds the Spec S5.4/S6.2-6.4
+distribution-level primitives (training/reliability_constraints.py, pure evaluator-free functions):
+  - chance_residual(c, tau, delta) = Pr(C<tau) - delta (S6.2, signed) + chance_dual_update (projected
+    ascent lam <- clip([lam+lr*g]_+, 0, lam_max) -- rises when violated, FALLS when met, never <0).
+  - cvar_shortfall(c, tau, alpha) = CVaR_alpha(D=tau-C) via the exact empirical Rockafellar-Uryasev
+    minimum min_nu[nu + 1/(1-alpha)*mean((D-nu)_+)] (S6.3) + tail_mean_shortfall (independent oracle).
+  - pareto_archive_select (S6.4): reliability-risk satisfied -> min violation -> energy-latency
+    non-dominated -> max hypervolume -> stability; never raw feasibility.
+TESTS (tests/unit/test_reliability_constraints_10.py, 8): chance residual = frac-below - delta (+ empty);
+chance dual rises/falls/non-negative/clamped; CVaR == independent worst-tail-mean when (1-alpha)*n
+integral; CVaR(alpha=0)==mean shortfall, monotone non-decreasing in alpha, tail>=mean; CVaR rejects
+alpha>=1; Pareto prefers reliability+non-dominated over a risky-but-efficient or raw-feasible entry;
+empty archive -> None. Full suite 663 passed / 0 failed (was 655; zero new failures).
+DECISION: KEEP (verified primitives). Next 10a-activation: wire the CHANCE dual into the trunk (--chance
+--chance-delta: lam_chance ascends on chance_residual, reward gets -lam_chance*1[c<tau]; opt-in, default
+off -> byte-identical), with runtime activation log + smoke; then 10c wire the Pareto archive into the
+keep-best checkpoint selection (opt-in). CVaR available as a verified metric/constraint primitive.
