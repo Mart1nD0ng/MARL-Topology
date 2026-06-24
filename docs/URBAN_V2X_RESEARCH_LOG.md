@@ -3807,3 +3807,24 @@ checkpoint selection (no held leakage). ONE nit (FIXED): the trunk computed chan
 window c in (tau-1e-9, tau) -> changed to g_c>0.0 (exact: g_c=max(0,tau-c) so g_c>0 <=> c<tau). Reliability
 tests 9/9 + chance smoke unchanged (lam_chance 0.40->1.20). NET: Phase 10 verified correct, byte-identical
 when off, no headline risk.
+
+================================================================================
+PHASE 11a (2026-06-24): Principal Neighbourhood Aggregation primitives (Spec S7.12). KEEP.
+================================================================================
+Phase 11 = the Spec S7.12 "Preference-conditioned Recurrent Directional PNA Actor" (local temporal
+encoder -> directional message passing -> PNA aggregation -> recurrent shared update -> directed bid head
+-> BCSP sampler -> local mutual-acceptance decoder). 11a is the foundational PNA op. +models/
+pna_aggregation.py (Corso 2020; torch is allowed in the actor -- only the DECODE path is torch-free):
+  - pna_aggregators(messages [k,F]) -> [4,F] (mean/max/min/std; k=0 -> zeros, k=1 -> std row 0, no NaN).
+  - pna_degree_scalers(degree [N], delta) -> [N,3] S(d,alpha)=(log(1+d)/delta)^alpha for alpha in
+    {+1 amplify, 0 identity, -1 attenuate}; delta = training_degree_delta (mean log(1+d)).
+  - pna_combine(aggregated [N,4,F], degree, delta) -> [N, 4*3*F] (the aggregator x scaler outer product).
+All permutation-invariant, device/dtype-preserving, no node IDs / global state (Spec S7.13).
+TESTS (tests/unit/test_pna_aggregation_11a.py, 7): aggregators vs independent ground truth; permutation
+invariance; isolated (k=0) + single-neighbour (k=1, std=0 no NaN) edge cases; scalers amplify/identity/
+attenuate (identity==1, amplify==log(1+d)/delta, attenuate==reciprocal); combine shape 4*3*F + outer-
+product spot-check; training_degree_delta; device/dtype preserving. Full suite 671 passed / 0 failed
+(was 664). DECISION: KEEP (verified primitive). Next: 11b directional message passing + recurrent shared
+update; 11c preference-conditioning (omega input) + a deployable PNA actor (opt-in, default = current
+MessagePassingGraphEdgeScorer for byte-identity), then honest comparison vs the current actor on
+op_corrected (deferred if no gain, per the Phase 8/9 standard).
