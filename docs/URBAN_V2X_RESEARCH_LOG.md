@@ -3885,3 +3885,20 @@ critic calibration, PNA actor) is verified-correct but NONE beats the simple bas
 RL + MLP actor + closed-form decoder) at the realistic single-step N<=16 scale -- a real, consistent
 result: the problem at this scale does not need the extra machinery. Deferred: larger N / true multi-step
 / PNA training-stability tuning. -> Phase 11 adversarial-verify, then Phase 12 (generalization).
+
+PHASE 11 ADVERSARIAL-VERIFY (Workflow wlbeih230, 2 lenses) -> NO blockers/majors; CONFIRMED. COMPARISON-
+FAIRNESS lens: ZERO issues -- matched config (only --actor + seed differ; same baseline/shards/updates/
+split_seed/cold_start), data split actor-independent, paired diff recomputed EXACTLY (mean -0.0906, CI
+[-0.3077,+0.1265]), no seed dropped, instability REAL (PNA sd 0.126 vs MLP 0.064 ~2x), decision honestly
+hedged (MATCHES not better/worse; n=5 caveat; smoke artifact dismissed). PNA-CORRECTNESS+D1 lens: drop-in
++ forward_logits-compatible, edge logit symmetric, permutation-equivariant, omega genuinely conditions
+(sweep distinct), D1-CLEAN (no critic/global/node-ID import; torch stays out of policies/), --actor mlp
+default BYTE-IDENTICAL, 23 tests pass. ONE minor (FIXED): the PNA std (sqrt(var)) and degree-0
+attenuation scaler produced inf/NaN GRADIENTS in BACKWARD at single-neighbour/isolated nodes (sqrt(0)
+deriv = inf; clip_grad_norm doesn't rescue) -- NO current impact (all 240 op-shard graphs connected,
+multi-neighbour) but a latent footgun for sparser regimes, and the 11b isolated test was forward-only.
+FIX: gradient-safe std (var.clamp_min(1e-12) before sqrt -> finite deriv, std~1e-6 negligible) + mask the
+attenuation column by (degree>0) so an isolated node's scaler is exactly 0 with 0 gradient; pinned by
+test_backward_finite_with_isolated_and_single_neighbour_nodes (all backbone grads finite). The connected-
+graph FORWARD (and thus the headline) is materially unchanged. NET: Phase 11 verified correct, fair,
+D1-clean, byte-identical when off; PNA opt-in, MLP default stands.

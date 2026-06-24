@@ -42,7 +42,10 @@ def scatter_directional_pna(messages: Tensor, dst: Tensor, num_nodes: int) -> Te
     mx = z.clone().scatter_reduce(0, idx, messages, reduce="amax", include_self=False)
     mn = z.clone().scatter_reduce(0, idx, messages, reduce="amin", include_self=False)
     msq = z.clone().scatter_reduce(0, idx, messages * messages, reduce="mean", include_self=False)
-    std = (msq - mean * mean).clamp_min(0.0).sqrt()
+    # GRADIENT-SAFE std: sqrt(0) has an infinite derivative, so a single-neighbour / isolated node
+    # (var == 0) would inject inf/NaN GRADIENTS into every backbone param. Clamp the variance to a tiny
+    # positive floor -> std ~ 1e-6 (negligible) but the sqrt gradient stays finite.
+    std = (msq - mean * mean).clamp_min(1e-12).sqrt()
     # scatter_reduce leaves untouched (isolated) destinations at the init 0 for mean/msq; amax/amin leave
     # them at 0 too (include_self=False on an empty segment keeps the init) -> isolated rows are zeros.
     return torch.stack([mean, mx, mn, std], dim=1)

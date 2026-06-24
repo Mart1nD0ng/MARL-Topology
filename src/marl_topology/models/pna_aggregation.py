@@ -45,10 +45,12 @@ def pna_degree_scalers(degree: Tensor, delta: float, alphas=PNA_SCALER_ALPHAS) -
     if delta <= 0.0:
         raise ValueError("delta (mean log(1+degree) over training) must be > 0")
     base = torch.log1p(degree.to(torch.get_default_dtype())) / delta            # [N]
-    # NEGATIVE powers (attenuation) would give 0^alpha = +inf at an isolated node (degree 0 -> base 0).
-    # Such a node has ZERO aggregation, so a large-but-finite scaler * 0 = 0 (no NaN); clamp the base
-    # ONLY for negative alphas so amplification/identity at degree 0 stay exactly 0/1 (the PNA values).
-    cols = [(base.clamp_min(1e-12) if a < 0 else base) ** float(a) for a in alphas]
+    # NEGATIVE powers (attenuation) would give 0^alpha = +inf at an isolated node (degree 0 -> base 0),
+    # and even a clamped 1e12 leaves a huge/ill-conditioned BACKWARD path. An isolated node has ZERO
+    # aggregation, so its scaler should be exactly 0 with ZERO gradient: mask the attenuation column by
+    # (degree > 0). amplification/identity at degree 0 stay exactly 0/1 (the true PNA values).
+    pos = (base > 0).to(base.dtype)
+    cols = [((base.clamp_min(1e-12) ** float(a)) * pos if a < 0 else base ** float(a)) for a in alphas]
     return torch.stack(cols, dim=-1)                                            # [N, len(alphas)]
 
 

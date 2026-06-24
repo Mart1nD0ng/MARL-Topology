@@ -102,6 +102,18 @@ def test_isolated_node_and_no_edges_no_nan() -> None:
     # (no edges != encoder-only: only rounds=0 is encoder-only -- see test_rounds_zero_is_encoder_only)
 
 
+def test_backward_finite_with_isolated_and_single_neighbour_nodes() -> None:
+    # BACKWARD gradient safety (Phase-11 verify): a single-neighbour node has var=0 (sqrt(0) -> inf grad)
+    # and an isolated node hits the attenuation scaler -- both must give FINITE grads, not NaN.
+    mod = _module(rounds=3)
+    nf = torch.randn(4, ND)
+    ei = torch.tensor([[0, 1], [1, 0]])          # nodes 0,1 single-neighbour; nodes 2,3 isolated
+    ef = torch.randn(2, ED)
+    mod(nf, ei, ef).sum().backward()
+    grads = [p.grad for p in mod.parameters() if p.grad is not None]
+    assert grads and all(torch.isfinite(g).all() for g in grads)   # every backbone grad finite (no NaN)
+
+
 def test_device_dtype() -> None:
     if torch.cuda.is_available():
         mod = _module(rounds=2).cuda()
