@@ -3849,3 +3849,24 @@ output (larger receptive field on a path); permutation-equivariant; isolated/no-
 Full suite 678 passed / 0 failed (was 671). DECISION: KEEP. Next 11c: preference-conditioning (omega
 input) + assemble the deployable PNA actor (opt-in --actor pna, default = current for byte-identity) +
 honest vs-current comparison on op_corrected.
+
+================================================================================
+PHASE 11c (2026-06-24): the deployable preference-conditioned directional PNA actor. KEEP (mechanism).
+================================================================================
++models/pna_directional_actor.py: PNADirectionalActor -- the Spec S7.12 actor stack assembled on 11a/11b
+(node encoder + omega -> directional MP -> PNA agg -> recurrent shared update [RecurrentDirectionalPNA]
+-> SYMMETRIC directed-bid edge-logit head). A signature-compatible DROP-IN for MessagePassingGraphEdge
+Scorer: same forward(nf, ef, ei, node_mask, edge_mask) -> [B,E], so forward_logits + BCSP + the decoder
+are reused unchanged. The omega=(omega_E, omega_L) preference (Spec S6.1) is concatenated per node (one
+policy spanning the energy-latency Pareto front), defaulting to neutral (0.5,0.5) for the 5-arg call.
+Each undirected candidate edge is message-passed in BOTH directions but its activation logit is SYMMETRIC
+in its endpoints (mutual activation). D1: no global state / global decoder / node IDs / critic import.
+TESTS (tests/unit/test_pna_directional_actor_11c.py, 8): forward -> [B,E]; forward_logits-compatible;
+omega changes + sweeps the logits (default == neutral); edge logit symmetric in endpoint order;
+permutation-equivariant; D1 boundary report + NO critic/training-only import; variable N/E + no-edges;
+device. Trunk: --actor {mlp(default), pna}; PNA cold-start only; delta computed from training degrees;
+activation log. Full suite 687 passed / 0 failed (was 679). SMOKE: --actor pna exits 0 (VAL raw 0.333 vs
+the MLP cold-start 0.000 on the tiny 6-scene smoke -- encouraging, NOT a headline); default --actor mlp
+BYTE-IDENTICAL (upd1 R=-1.550, VAL 0.000, matching pre-Phase-11). DECISION: KEEP (mechanism verified).
+Next: the honest 5-seed PNA-vs-MLP comparison on op_corrected (per-seed + CI; deferred/opt-in if no gain,
+per the Phase 8/9 standard) + omega-Pareto eval.

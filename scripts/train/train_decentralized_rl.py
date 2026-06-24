@@ -74,6 +74,8 @@ from marl_topology.training.decentralized_action import (  # noqa: E402
     sample_decentralized_bcsp_action,
 )
 from marl_topology.models.centralized_graph_critic import CentralizedGraphCritic  # noqa: E402
+from marl_topology.models.pna_directional_actor import PNADirectionalActor  # noqa: E402
+from marl_topology.models.pna_aggregation import training_degree_delta  # noqa: E402
 from marl_topology.training.graph_mappo import (  # noqa: E402
     critic_q_value,
     critic_scene_value,
@@ -422,6 +424,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--pareto-risk-budget", type=float, default=0.0,
                    help="max reliability_violation (1 - VAL raw) for an archive entry to count as "
                         "reliability-risk satisfied (Phase 10c)")
+    # --- Phase 11 actor architecture ---
+    p.add_argument("--actor", choices=["mlp", "pna"], default="mlp",
+                   help="actor architecture: mlp (default = MessagePassingGraphEdgeScorer, byte-identical) "
+                        "or pna (Phase 11 preference-conditioned directional PNA actor). PNA is "
+                        "cold-start only (warm-start loads an MLP checkpoint).")
     return p.parse_args()
 
 
@@ -441,6 +448,9 @@ def main() -> None:
     if args.scq and not args.counterfactual:
         raise SystemExit("[scq] --scq (Phase 9) requires --counterfactual (SCQ supervises the action-"
                          "conditioned Q critic, which exists only in the counterfactual arm)")
+    if args.actor == "pna" and not args.cold_start:
+        raise SystemExit("[actor] --actor pna (Phase 11) is cold-start only (warm-start loads an MLP "
+                         "BC checkpoint); pass --cold-start")
     torch.manual_seed(args.seed)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -481,10 +491,23 @@ def main() -> None:
     if args.cold_start:
         # random-init actor, standardization computed from data -- NO oracle warm-start
         mean, std = feature_standardization(train_s)
-        actor = MessagePassingGraphEdgeScorer(node_dim, edge_dim, hidden=args.hidden,
-                                              rounds=args.rounds, dropout=0.0)
+        if args.actor == "pna":   # Phase 11: preference-conditioned directional PNA actor (opt-in)
+            degs = []
+            for s in train_s:
+                ei = s["ei"]; deg = [0] * s["nf"].shape[0]
+                for e in range(ei.shape[0]):
+                    deg[int(ei[e, 0])] += 1; deg[int(ei[e, 1])] += 1
+                degs.extend(deg)
+            pna_delta = training_degree_delta(degs)
+            actor = PNADirectionalActor(node_dim, edge_dim, hidden=args.hidden, rounds=args.rounds,
+                                        delta=pna_delta, dropout=0.0)
+            print(f"[actor] Phase 11 PNA directional actor ACTIVE: hidden={args.hidden} rounds={args.rounds} "
+                  f"delta={pna_delta:.3f} (preference-conditioned; decentralized D1)")
+        else:
+            actor = MessagePassingGraphEdgeScorer(node_dim, edge_dim, hidden=args.hidden,
+                                                  rounds=args.rounds, dropout=0.0)
         bc_held = eval_held(actor, held_s, mean, std)        # random-init baseline (the floor RL starts from)
-        tag = "cold-start random-init"
+        tag = f"cold-start random-init ({args.actor})"
     else:
         # warm-start from a frozen BC actor (its own normalization)
         art = torch.load(args.artifacts, map_location="cpu", weights_only=False)
