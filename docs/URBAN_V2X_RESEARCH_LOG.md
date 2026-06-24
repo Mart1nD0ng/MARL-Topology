@@ -3613,3 +3613,24 @@ flagged): advantage normalization to bound COMA variance; a higher-fidelity Q (v
 supervision = Phase 9); larger scale / true multi-step (the single-step bandit at N<=16 gives the shared
 advantage little to lose to per-agent credit). Phase-8 re-review COMPLETE -> proceed to Phase 9 (SCQ),
 which directly targets the Q-fidelity bottleneck this re-review exposed.
+
+RE-REVIEW ADVERSARIAL-VERIFY (Workflow wp815y9cc, 2 lenses) -> NO refutation; fairness + honesty
+CONFIRMED, conclusion STRENGTHENED. FAIRNESS lens: equal evaluator budget proven (all 10 runs log 81
+calls, 1/scene; 8b counterfactuals are critic forwards, not reward_of); identical shards/split/seeds/
+updates (only --counterfactual differs); held disjoint (train 3001-3016, Part B held 3017-3024); keep-
+best is on VAL not held (8b seed2 held_final 0.062 vs keep-best 0.641 proves no held selection); the
+op_corrected shards are genuinely corrected (legacy regime lacks the fields; teacher labels differ, e.g.
+proc_00008 7 edges/0.123J corrected vs 15 edges/0.403J legacy); train==deploy via the torch-free
+local_mutual_assemble for BOTH arms. HONESTY lens: the headline CI reproduces exactly from the 10
+rl_result.json (diff +0.009375, t-CI95 [-0.0331,+0.0519]); no seed dropped; Part B rho=0.174 z~4.5
+p<<0.001 ('modest' fair); seed-2 divergence is a real instability (train_reward -1.79->-6.73, approx_kl
+0.604, critic_value_mean -> -6.5), not a bug. STRENGTHENED: EVERY 8b seed shows elevated max approx_kl
+(0.985/0.213/0.604/0.315/0.330) vs r7 (<=0.041) -> '8b less stable' is robust across all seeds, the
+load-bearing reason for opt-in (independent of the n=5 power). THREE cosmetic findings (no code churn;
+conclusion unaffected): (nit) the 8b critic EV is an ACTION-CONDITIONED Q-EV (harder target) vs r7's
+V-EV, so 8b's lower EV reflects target difficulty NOT under-resourcing; (nit) 'MATCHES' = UNDERPOWERED
+NO-WIN (n=5, CI could hide up to ~3 scenes/64), NOT proven equivalence -- the decision rests on the
+stability deficit; (minor) the gitignored coma_credit_resolution_corrected.json artifact's note strings
+are STALE (written before the script's note de-staling) -- the rho=0.174 value + this narrative are
+correct, only that local artifact's note is wrong (harmless, gitignored). NET: the re-review (8b matches-
+but-less-stable -> opt-in, R7 default) is fair, honest, and robust.
