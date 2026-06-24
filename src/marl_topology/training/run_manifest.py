@@ -25,9 +25,10 @@ from .config_tiers import TIER_NAMES
 # (safe quorum + fixed-B + one-hop relay + tri-state + phase accounting).
 ENVIRONMENT_MATH_VERSION = "v2-corrected-2026-06-23"
 
-# The action distribution in the production rollout path. The ordered Plackett-Luce
-# is under REVISE (R6) -> becomes "bcsp-v1" once the unordered subset policy lands.
-ACTION_DISTRIBUTION_VERSION = "ordered_plackett_luce_v1_REVISE_pending_bcsp"
+# The action distribution in the production rollout path. R6/R7 landed the unordered
+# Budget-Conditioned Subset Policy (BCSP) in the graph-mappo production arm (the prior
+# REVISE is resolved); the legacy ema/rloo baselines still use ordered Plackett-Luce.
+ACTION_DISTRIBUTION_VERSION = "bcsp_v1_unordered_subset"
 
 # The four registered comparison arms (v2 plan R0 work-item 3 / R7 fairness table).
 # evaluator_calls_per_scene is the primary fairness budget (Spec §9.8): it must be
