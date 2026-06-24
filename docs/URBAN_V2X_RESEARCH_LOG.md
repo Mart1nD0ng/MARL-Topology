@@ -3988,3 +3988,20 @@ the extra machinery. The open frontier is large-N generalization (N=16 ~0.42; N=
 exact-fault evaluator). Deployment stays fully decentralized (D1): the deployed actor uses only local
 obs + physical-neighbour messages + public protocol params + the torch-free decoder; the critic / SCQ /
 chance / Pareto machinery is training-only.
+
+RELEASE-REVIEW NOTES (Workflow wuvxdxapk, 3 lenses; NO blockers/majors -- D1 contract fully confirmed
+[8 purity gates, zero training-only leaks, decode torch-free, PNA decentralized, train==deploy],
+byte-identity proven [two default smokes byte-identical], full suite 688/0, all opt-ins default-off).
+Four honest-reporting NITS recorded: (a) "recommended production config" is --baseline graph-mappo (the
+arm that won every comparison); the CLI DEFAULT of --baseline is `ema` (byte-identical to the historical
+trunk) -- pass --baseline graph-mappo for production (--actor defaults to mlp). (b) The Phase-8 rho=0.174
+(diagnostic n-scenes=60, n=676) and the Phase-9 matched-baseline rho=0.244 (n-scenes=40, n=452) are the
+SAME no-SCQ 8b-Q at different diagnostic scene counts -- not a contradiction; the Phase-9 matched A/B
+(0.244 vs 0.071, p=0.008) is the SCQ verdict. (c) The corrected headlines (Phase-8 re-review, 9, 11, 12)
+all train/eval on op_corrected/ -- provable from each per-seed run config (config.shards lists the full
+op_corrected paths); the diagnostic JSONs store basenames only (op/ and op_corrected/ share filenames),
+a provenance-readability nit, not a stale-data error. (d) test_scaffold_hygiene fails ONLY if a trunk
+smoke is run (writing __pycache__) before pytest in the same tree without cleaning; the canonical
+`python -m pytest` run is 688/0 -- a known test-ordering fragility (clean __pycache__ after scripts),
+optional hardening (respect .gitignore) left for the owner. NET: v2 release CONFIRMED -- D1-clean, honest,
+byte-identical default, all gates green.

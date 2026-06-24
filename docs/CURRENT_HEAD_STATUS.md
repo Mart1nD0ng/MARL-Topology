@@ -3,8 +3,10 @@
 > ## ⏩ v2 CAMPAIGN COMPLETE (2026-06-24) — supersedes the Phase-0 snapshot below
 > The v2 spec-driven CTDE rebuild (R0–R7 + Phase 8–13) is COMPLETE; see the
 > `v2 CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md` for the full ledger.
-> - **Production default**: `--baseline graph-mappo --actor mlp` (shared-advantage Graph-MAPPO + MLP
->   actor + torch-free local mutual-acceptance decoder). Best in-range AND best-generalizing arm.
+> - **Recommended production config**: `--baseline graph-mappo --actor mlp` (shared-advantage Graph-MAPPO
+>   + MLP actor + torch-free local mutual-acceptance decoder). Best in-range AND best-generalizing arm.
+>   NOTE: the CLI default of `--baseline` is `ema` (kept byte-identical to the historical trunk); pass
+>   `--baseline graph-mappo` explicitly for the recommended production arm. `--actor` does default to `mlp`.
 > - **Dataset**: corrected env-math shards `result_save/campaign/data/op_corrected/` (fixed_set fault +
 >   one_hop_relay + timeout_aware_latency + relay=3). The legacy `result_save/campaign/data/op/`
 >   (2026-06-19) shards are SUPERSEDED (pre-corrected-env-math; kept only for comparison).
