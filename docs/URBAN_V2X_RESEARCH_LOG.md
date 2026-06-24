@@ -3693,3 +3693,35 @@ DECISION: KEEP (mechanism). Phase 9 (SCQ) build COMPLETE (9a loss + 9b selection
 RE-MEASUREMENT -- train an SCQ-calibrated Q (--counterfactual --scq --scq-select topM) on op_corrected,
 re-run coma_credit_resolution Part B (does rho rise from 0.17 with SCQ?), and the 8b+SCQ-vs-R7 headline
 at the HONEST 1+M budget (does better Q fidelity let the COMA credit beat R7?). Then Phases 10-13.
+
+================================================================================
+PHASE 9 RE-MEASUREMENT (2026-06-24): SCQ does NOT improve held Q fidelity at this scale. HONEST NEGATIVE.
+================================================================================
+Clean A/B (identical config + seed 0; only --scq differs). Both Qs trained on op_corrected 3001-3016
+(80 updates, cold-start), credit fidelity measured on held 3017-3024 (coma_credit_resolution Part B,
+n-scenes 40, k-cf 24, seed 0 -- same diagnostic config).
+  no-SCQ 8b-Q : Spearman rho(A_i, Delta_i) = 0.174 (n=676)   [the re-review baseline]
+  SCQ-Q (topM, scq_m=3, scq_coef=0.5) : rho = 0.071 (n=452)  -- LOWER, not higher.
+SCQ did NOT raise held credit fidelity; the point estimate dropped. Corroboration: the SCQ training-set
+critic_difference_error ended at 0.169 (the Q still misses the exact diff by ~0.17 EVEN on the training
+counterfactuals it was supervised on) -- SCQ did not strongly calibrate Q even in-sample at this
+coef/updates, and it does not generalize to held (likely overfitting the Q to training-set
+counterfactuals). Budget: SCQ spent evaluator_calls_per_scene ~1.5 (vs 1.0) -- MORE budget for NO
+fidelity gain. Held raw was unchanged (SCQ-Q 0.625 == 8b-Q 0.625), so SCQ neither helped nor hurt the
+policy outcome, only the (already-modest) Q fidelity, downward.
+
+The 8b+SCQ-vs-R7 headline was NOT run: the prerequisite (SCQ raises Q fidelity) FAILED, so a higher-
+fidelity-Q path to beating R7 does not exist here, and SCQ's extra budget would make any "win" budget-
+unfair. Running it would only confirm a foregone, budget-confounded non-win.
+
+DECISION: SCQ is a VERIFIED-CORRECT mechanism (9a: the consistency loss provably calibrates a Q to exact
+diffs -- small-game test, predicted diff -> exact; 9b: sensitivity top-M selects informative
+counterfactuals; budget honestly accounted) but it does NOT resolve the Q-fidelity bottleneck the
+Phase-8 re-review exposed, at this scale (N<=16, single-step bandit, 80 updates, scq_coef=0.5). => SCQ
+stays OPT-IN (--scq OFF by default); R7 (shared Graph-MAPPO advantage) remains the DEFAULT. This is the
+HONEST "no improvement" outcome (the directive's REVISE/deferred). DEEPER PATTERN (consistent across
+Phase 8 + 9): the per-agent credit machinery (COMA + SCQ) is all correct, but at the realistic
+single-step N<=16 scale the shared advantage is hard to beat -- credit assignment matters less when the
+scene is one joint decision over few agents. DEFERRED (untested, flagged not run): higher scq_coef /
+more updates / larger N / a true multi-step (two-timescale) setting where per-agent temporal credit
+actually accrues. Phase 9 COMPLETE -> Phase 10 (reliability: CVaR / chance constraints).
