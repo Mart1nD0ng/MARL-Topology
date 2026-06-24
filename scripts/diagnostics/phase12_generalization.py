@@ -36,10 +36,14 @@ def _load_trunk():
 
 
 def _pna_delta(T, train_shards):
+    # replicate the trunk's PNA delta EXACTLY: shuffle(split_seed=7), cut at (1-held_frac=0.4), then
+    # the fit set is train minus the 15 val scenes (delta is computed from fit_items, not incl. val).
     pool = T.load_pool(train_shards)
     from random import Random
     Random(7).shuffle(pool)
-    train = T.build_samples(pool[: int(0.6 * len(pool))])
+    cut = int(0.6 * len(pool))
+    fit = pool[:cut][:-15] if cut > 15 else pool[:cut]
+    train = T.build_samples(fit)
     degs = []
     for s in train:
         ei = s["ei"]; deg = [0] * s["nf"].shape[0]
