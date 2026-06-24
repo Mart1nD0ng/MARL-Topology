@@ -85,7 +85,10 @@ from marl_topology.training.scq_supervision import (  # noqa: E402
     scq_counterfactual_targets,
     scq_loss_from_targets,
 )
-from marl_topology.training.reliability_constraints import chance_dual_update  # noqa: E402
+from marl_topology.training.reliability_constraints import (  # noqa: E402
+    chance_dual_update,
+    pareto_archive_select,
+)
 from marl_topology.solvability.status import WITNESS_FEASIBLE  # noqa: E402
 from marl_topology.training.tristate_training import (  # noqa: E402
     assert_split_isolation,
@@ -410,6 +413,15 @@ def parse_args() -> argparse.Namespace:
                    help="allowed reliability failure rate delta for the chance constraint (Phase 10a)")
     p.add_argument("--chance-lr", type=float, default=0.0,
                    help="chance dual learning rate (Phase 10a); 0 -> use --dual-lr")
+    # --- Phase 10c Pareto checkpoint archive ---
+    p.add_argument("--pareto-archive", action="store_true",
+                   help="Phase 10c: select the FINAL checkpoint from a validation Pareto archive (Spec "
+                        "S6.4: reliability-risk -> min violation -> energy-latency non-dominated -> "
+                        "hypervolume -> stability) instead of raw VAL feasibility alone. Opt-in (default "
+                        "off -> the keep-best-on-VAL-raw selection is byte-identical).")
+    p.add_argument("--pareto-risk-budget", type=float, default=0.0,
+                   help="max reliability_violation (1 - VAL raw) for an archive entry to count as "
+                        "reliability-risk satisfied (Phase 10c)")
     return p.parse_args()
 
 
@@ -519,6 +531,7 @@ def main() -> None:
               f"(lr={chance_lr})")
     ws_val = eval_held(actor, val_s, mean, std)["raw"]            # warm-start VAL = keep-best floor
     best_val, best_state = ws_val, {k: v.detach().clone() for k, v in actor.state_dict().items()}
+    pareto_archive: list = []                                     # Phase 10c (Spec S6.4); used iff --pareto-archive
     print(f"[warm-start] VAL raw={ws_val:.3f} (keep-best floor; RL never reported below this)")
     history = []
     rng = Random(args.seed)
@@ -746,6 +759,13 @@ def main() -> None:
             if sel > best_val:
                 best_val = sel
                 best_state = {k: v.detach().clone() for k, v in actor.state_dict().items()}
+            if args.pareto_archive:   # Phase 10c (Spec S6.4): collect a validation Pareto entry per eval
+                pareto_archive.append({
+                    "update": upd, "reliability_violation": 1.0 - ve["raw"],
+                    "energy": ve["mean_energy_feasible_j"] if ve["mean_energy_feasible_j"] is not None else 1e9,
+                    "latency": ve["mean_latency_feasible_s"] if ve["mean_latency_feasible_s"] is not None else 1e9,
+                    "hypervolume": 0.0, "stability": ve["raw"],
+                    "state": {k: v.detach().clone() for k, v in actor.state_dict().items()}})
             chance_tag = (f" | chance frac<tau={chance_frac_below:.3f} res={chance_res:+.3f} "
                           f"lam_chance={lam_chance:.2f}") if args.chance else ""
             print(f"[upd {upd:3d}] temp={temp_now:.2f} train R={fmean(rwds):+.3f} feas={fmean(feas):.3f} "
@@ -775,6 +795,15 @@ def main() -> None:
                 print(f"[ckpt] update {upd} saved (best VAL {best_val:.3f})", flush=True)
 
     final_held = eval_held(actor, held_s, mean, std)   # FINAL-update policy (before keep-best revert)
+    if args.pareto_archive and pareto_archive:   # Phase 10c (Spec S6.4): pick the checkpoint by the
+        # reliability-risk -> min-violation -> non-dominated -> hypervolume -> stability order, NOT raw
+        # feasibility alone. Reported alongside the raw-best for an honest comparison.
+        sel_entry = pareto_archive_select(pareto_archive, risk_budget=args.pareto_risk_budget)
+        print(f"[pareto] S6.4 selected checkpoint from update {sel_entry['update']} "
+              f"(reliability_violation={sel_entry['reliability_violation']:.3f} "
+              f"E={sel_entry['energy']:.3g} L={sel_entry['latency']:.3g}, stability={sel_entry['stability']:.3f}) "
+              f"-- vs raw-best-VAL {best_val:.3f}")
+        best_state = sel_entry["state"]
     actor.load_state_dict(best_state)        # keep-best (never worse than warm-start on VAL)
     rl_held = eval_held(actor, held_s, mean, std)
     print("=" * 78)

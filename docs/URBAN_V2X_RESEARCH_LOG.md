@@ -3779,3 +3779,16 @@ checkpoints/resumes; logged per update (frac<tau, res, lam_chance). SMOKE (--cha
 exits 0, lam_chance ascends 0.40->0.80->1.20 on res=+0.8, the penalty enters from upd2 (chance train R
 -2.549 vs default -2.149). DEFAULT (--chance off): BYTE-IDENTICAL (upd1 identical; `if lam_chance` is
 False at 0.0; the dual block is gated on args.chance). KEEP.
+
+PHASE 10c (Pareto checkpoint archive, Spec S6.4) -- the trunk's keep-best selected the FINAL checkpoint
+by VAL raw alone, which S6.4 forbids ("never raw feasibility alone"). --pareto-archive (opt-in, default
+off -> byte-identical): per VAL eval, append an archive entry {update, reliability_violation = 1 - VAL
+raw, energy, latency (from eval_held, sentinel 1e9 when no feasible topology), hypervolume=0, stability =
+VAL raw, state=clone}; at the end pareto_archive_select picks the checkpoint by reliability-risk (<=
+--pareto-risk-budget) -> min violation -> energy-latency non-dominated -> hypervolume -> stability, and
+logs it vs the raw-best for an honest comparison. test_pareto_archive_trunk_entry_shape_carries_state
+pins the trunk-entry contract (9 reliability tests total). Smoke (--pareto-archive) exits 0 + logs the
+S6.4 selection (degenerate on the no-feasible cold-start smoke -> min-violation fallback, as expected);
+default (off) byte-identical. Phase 10 COMPLETE (10a chance dual + primitives + 10c Pareto archive; CVaR
+a verified primitive available to wire). -> Phase 11 (preference-conditioned recurrent directional PNA
+actor).

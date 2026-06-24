@@ -92,3 +92,18 @@ def test_pareto_not_raw_feasibility() -> None:
 
 def test_pareto_empty_archive() -> None:
     assert pareto_archive_select([]) is None
+
+
+def test_pareto_archive_trunk_entry_shape_carries_state() -> None:
+    # mirrors the trunk's per-eval archive entry (Phase 10c keep-best): the selector must work on the
+    # full dict (incl. an opaque 'state' payload) and return the right checkpoint to restore.
+    archive = [
+        {"update": 20, "reliability_violation": 0.4, "energy": 0.1, "latency": 0.1,
+         "hypervolume": 0.0, "stability": 0.6, "state": "ckpt@20"},     # risky
+        {"update": 40, "reliability_violation": 0.0, "energy": 0.3, "latency": 0.3,
+         "hypervolume": 0.0, "stability": 0.7, "state": "ckpt@40"},     # safe, non-dominated
+        {"update": 60, "reliability_violation": 0.0, "energy": 0.5, "latency": 0.5,
+         "hypervolume": 0.0, "stability": 0.9, "state": "ckpt@60"},     # safe but dominated by @40
+    ]
+    sel = pareto_archive_select(archive, risk_budget=0.05)
+    assert sel["state"] == "ckpt@40"     # reliability-satisfied + non-dominated wins over risky @20 / dominated @60
