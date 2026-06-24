@@ -3548,3 +3548,32 @@ critic regresses forward_q(s, S_actual), per-agent ratio + BCSP entropy unchange
   --counterfactual -> [done]); pinned by test_resume_rejects_critic_architecture_mismatch. NO refutation
   of 8b's correctness -> COMA counterfactual credit CONFIRMED (unbiased, S_i-independent, budget-neutral,
   D1-clean, non-degenerate per-agent credit).
+
+================================================================================
+8b vs R7 CREDIT-RESOLUTION DIAGNOSTIC (2026-06-24): mechanism KEEP, headline DEFERRED.
+================================================================================
+MECHANISM diagnostic (NOT a corrected headline -- op shards pre-corrected-env-math; the corrected
+8b-vs-R7 training headline is gated on the dataset rebuild). scripts/diagnostics/coma_credit_resolution.py
++ training/counterfactual_credit.per_agent_counterfactual_credit (generic Q-oracle core, refactored out
+of counterfactual_advantages -- same verified decode/sample logic; 8b tests still green) +
+within_scene_credit_variance. Tests: test_credit_resolution_8b.py (shared advantage within-scene
+variance == 0 by construction; COMA > 0 when agents differ; degenerate cases). Suite 644p/0f.
+
+PART A (true marginal, evaluator as Q -- DIAGNOSTIC-only calls, training stays 1/scene): the per-agent
+true marginal Delta_i = r(S) - E_{S~_i~pi_i}[r(decode(S~_i,S_-i))] has nonzero WITHIN-SCENE variance,
+which the R7 shared scene advantage A_s=r-V (one scalar/scene -> variance 0 BY CONSTRUCTION) cannot
+represent. Measured frac of scenes with nonzero COMA resolution: cold-start actor 0.20 (20 scenes),
+warm-start BC actor 0.97 (60 scenes), 25-update cold-start-trained actor 0.45 (held shards). So under a
+REALISTIC policy COMA resolves per-agent credit in ~97% of scenes; the shared advantage resolves 0%.
+PART B (learned-Q fidelity, Spec S13 counterfactual rank correlation): the BUDGET-NEUTRAL learned-Q
+COMA advantage A_i vs Delta_i, Spearman over (scene,agent). On pre-corrected data with a 25-update
+cold-start Q: rho = -0.003 (n=492) -- i.e. the learned Q does NOT yet track the true marginal. HONEST
+read: the Q is under-trained on PRE-CORRECTED data; credit fidelity is Q-quality-limited.
+
+DECISION: mechanism KEEP (COMA credit is correct, unbiased, budget-neutral, and provably targets a
+per-agent signal the shared advantage structurally cannot represent -- Part A). The sample-EFFICIENCY
+headline is NOT demonstrated on pre-corrected data (Part B rho~0) -> DEFERRED to the dataset rebuild +
+proper training. No overclaim: 8b ships as a verified mechanism; whether it BEATS R7 on credit/sample
+efficiency is re-tested post-rebuild. (OWNER 2026-06-24: after Phase 8, DO the dataset rebuild, then
+RE-REVIEW Phase 8 against the rebuilt data, then Phase 9+ -- so Part B's rho is re-measured post-rebuild
+as the Phase-8 re-review headline.)
