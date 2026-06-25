@@ -73,6 +73,30 @@ def test_bptt_gradients_flow_across_frames() -> None:
     assert any(p.grad is not None and float(p.grad.abs().sum()) > 0 for p in a.gru.parameters())
 
 
+def test_cross_frame_carry_discriminates_recurrent_from_memoryless() -> None:
+    # The decisive property: under a loss on ONLY the LAST frame, an EARLY frame's input influences
+    # the last frame's output iff the hidden state carries. Recurrent -> nonzero grad of the last
+    # logits w.r.t. the first frame's node features; memoryless (hidden reset) -> exactly zero.
+    a = _actor()
+    frames = [(_graph(seed=t + 1)) for t in range(3)]
+
+    def last_logit_grad_wrt_first_nf(recurrent: bool) -> float:
+        nf0 = frames[0][0].clone().requires_grad_(True)
+        h = None
+        logits = None
+        for t, (nf, ef, ei) in enumerate(frames):
+            x = nf0 if t == 0 else nf
+            logits, h_next = a(x, ef, ei, hidden=h)
+            h = h_next if recurrent else None
+        logits.sum().backward()
+        return 0.0 if nf0.grad is None else float(nf0.grad.abs().sum())
+
+    g_rec = last_logit_grad_wrt_first_nf(recurrent=True)
+    g_mem = last_logit_grad_wrt_first_nf(recurrent=False)
+    assert g_rec > 1e-6, "recurrent: the first frame must influence the last (cross-frame carry)"
+    assert g_mem == 0.0, "memoryless: the last frame must be independent of the first (no carry)"
+
+
 def test_edge_logit_symmetric_in_endpoints() -> None:
     a = _actor()
     nf = torch.randn(3, ND)

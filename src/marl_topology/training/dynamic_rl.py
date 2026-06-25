@@ -15,7 +15,9 @@ sum to the end of the episode; the advantage is ``A_t = G_t - V(s_t)``.
 
 Two arms differ ONLY in whether the actor's per-node hidden state carries across frames (recurrent)
 or is reset each frame (memoryless) -- a controlled ablation of cross-frame memory. Training-only
-(critic + standardization stats); the rollout decoder is the deployed one (train == deploy).
+(critic + standardization stats). The HELD-EVAL decoder is the deployed torch-free
+``local_mutual_assemble``; the ROLLOUT uses the matched stochastic BCSP sampler whose deterministic
+(temperature->0 / MAP) limit IS that decoder -- so train == deploy up to a measure-zero tie set.
 """
 
 from __future__ import annotations
@@ -339,7 +341,10 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
                   "arm": args.dynamic_actor},
         "critic": {"enabled": True, "per_frame_state_value": True},
-        "action": {"distribution": "bcsp", "decoder": "local_mutual_assemble", "per_agent_ratio": True},
+        "action": {"distribution": "bcsp",
+                   "rollout_sampler": "sample_decentralized_bcsp_action (stochastic; MAP == deploy)",
+                   "eval_decoder": "local_mutual_assemble (deployed, torch-free)",
+                   "per_agent_ratio": True},
         "regime": "operating_point urban v2x_37885 shadowing nlosv relay-3 backhaul coverage-gated",
     }
     result = {
