@@ -45,12 +45,15 @@ def _load_trunk():
 
 
 def _candidate_topologies(dyn, T, cap):
-    """A shared, frame-invariant candidate set: the enumerated topology variants (capped) plus the
-    full graph and the empty set. Edges are frame-invariant, so each is valid at every frame."""
+    """A shared, frame-invariant candidate set: the canonical named topology variants (a dict
+    {name: tuple_of_edge_ids} -- empty / single_best / sparse_quorum / greedy_reliability / full_graph
+    / random) plus the full graph. Edges are frame-invariant, so each is valid at every frame."""
     ctx0 = dyn.context(0)
+    tv = getattr(ctx0, "topology_variants", None) or {}
+    values = tv.values() if isinstance(tv, dict) else tv
     variants = []
-    for v in getattr(ctx0, "topology_variants", []) or []:
-        edges = v.edges if hasattr(v, "edges") else v
+    for v in values:
+        edges = v.edges if hasattr(v, "edges") else v   # tuple of edge-id strings
         variants.append(frozenset(str(e) for e in edges))
     full = frozenset(dyn.edge_ids)
     seen, out = set(), []
