@@ -435,6 +435,26 @@ def parse_args() -> argparse.Namespace:
                    help="actor architecture: mlp (default = MessagePassingGraphEdgeScorer, byte-identical) "
                         "or pna (Phase 11 preference-conditioned directional PNA actor). PNA is "
                         "cold-start only (warm-start loads an MLP checkpoint).")
+    # --- Dynamic (two-timescale, T>1) episode RL (owner-authorized; reverses the R5 deferral) ---
+    p.add_argument("--dynamic", action="store_true",
+                   help="route to the DYNAMIC T>1 episode arm (two_timescale_env): moving-vehicle "
+                        "trajectories, per-frame channel, reconfiguration cost, gamma-return, recurrent "
+                        "PPO. Leaves the default T=1 path byte-identical (this branch returns early).")
+    p.add_argument("--dynamic-actor", choices=["recurrent", "memoryless"], default="recurrent",
+                   help="dynamic arm: recurrent (per-node hidden carries across frames) vs memoryless "
+                        "(same architecture, hidden reset each frame) -- a controlled cross-frame-memory ablation")
+    p.add_argument("--frames", type=int, default=8, help="episode length T (macro frames)")
+    p.add_argument("--dt", type=float, default=2.0, help="seconds per macro frame (mobility step)")
+    p.add_argument("--speed-min", type=float, default=15.0, help="min vehicle speed m/s (mobility)")
+    p.add_argument("--speed-max", type=float, default=30.0, help="max vehicle speed m/s (mobility)")
+    p.add_argument("--hold-interval", type=int, default=4, help="PBFT micro-rounds a macro topology is held (H_PBFT)")
+    p.add_argument("--gamma", type=float, default=0.95, help="episode discount (dynamic arm)")
+    p.add_argument("--reconfig-e", type=float, default=0.1, help="reconfiguration energy per toggled edge")
+    p.add_argument("--reconfig-l", type=float, default=0.0, help="reconfiguration latency per toggled edge")
+    p.add_argument("--dyn-train", type=int, default=24, help="dynamic train trajectories")
+    p.add_argument("--dyn-held", type=int, default=24, help="dynamic held trajectories (disjoint seed)")
+    p.add_argument("--dyn-nodes", type=int, nargs="+", default=[8, 12, 16], help="node-count choices (dynamic)")
+    p.add_argument("--tx-power", type=float, default=20.0, help="tx power dBm (operating-point regime)")
     return p.parse_args()
 
 
@@ -457,6 +477,20 @@ def main() -> None:
     if args.actor == "pna" and not args.cold_start:
         raise SystemExit("[actor] --actor pna (Phase 11) is cold-start only (warm-start loads an MLP "
                          "BC checkpoint); pass --cold-start")
+    if args.dynamic:
+        # DYNAMIC T>1 episode arm (two_timescale_env). Reached only here; the T=1 path below is
+        # untouched (byte-identical). The trunk's ONE constrained objective (reward_of + helpers) is
+        # passed in so the dynamic arm shares the exact reward definition (no fork).
+        if args.smoke:
+            args.updates = 3
+            args.dyn_train = 4
+            args.dyn_held = 4
+            args.frames = 4
+        from marl_topology.training.dynamic_rl import run_dynamic_training
+        args._root = str(ROOT)
+        run_dynamic_training(args, reward_of=reward_of, _evaluate=_evaluate, _budgets=_budgets,
+                             _ref_energy=_ref_energy, TAU=TAU)
+        return
     torch.manual_seed(args.seed)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
