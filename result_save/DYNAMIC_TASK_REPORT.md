@@ -107,6 +107,27 @@ The low held feasibility (~0.05) is the average of **two different failures**: o
 
 ---
 
+### 6.4 Stabilized (warm-started) headline — D6
+
+The D4 collapse (seeds 1 & 2) is the campaign's core problem: cold-start RL cannot find the feasible backbone at N≤16. Diagnosed by elimination — advantage-normalization, higher entropy, lower lr, reconfiguration-off, and the barrier reward **all** failed to rescue the dead seeds (the actor freezes on ~2-edge infeasible topologies). The fix (commit `0a6d310`) mirrors the static campaign's BC warm-start: **`--dyn-warmstart K`** runs K supervised epochs pushing the actor's per-edge logits toward the **per-frame myopic-greedy teacher** topology (BCE), applied identically to both arms so the cross-frame-memory ablation stays the only difference.
+
+Re-run with `--dyn-warmstart 25 --normalize-adv` (3 seeds, 24 train / 24 held, T=6, N∈{8,12,16}; `result_save/dynamic_headline_warmstart.json`). **All seeds now train (no collapse).**
+
+| arm | per-seed held feasibility | mean | 95% CI |
+|---|---|---|---|
+| **recurrent** (warm-start + RL) | 0.271, 0.014, 0.062 | **0.116** | [−0.22, +0.45] |
+| **memoryless** (warm-start + RL) | 0.264, 0.083, 0.056 | **0.134** | [−0.15, +0.42] |
+| **myopic-greedy reference** | 0.243, 0.160, 0.347 | **0.250** | [+0.02, +0.48] |
+| **paired (recurrent − memoryless)** | +0.007, −0.069, +0.007 | **−0.019** | **[−0.128, +0.091]** |
+| warm-start ALONE (before RL) | recurrent 0.169 / memoryless 0.148 | | |
+
+**Three robust findings (now over 3 trained seeds, not 1):**
+1. **Recurrence ≈ memoryless** — paired diff −0.019, CI spans 0. The D4 conclusion holds with the thin-base caveat resolved.
+2. **RL degrades the imitation warm-start** — recurrent 0.169→0.116 (−0.053), memoryless 0.148→0.134 (−0.014). On this task at N≤16, RL on top of imitating the myopic teacher does **not** add value and usually subtracts it.
+3. **The myopic-greedy reference (0.250) beats both learned arms** — a non-learned per-frame reactive policy generalizes better than the trained RL, on every aggregate. This is the campaign's "simple baseline wins at N≤16" pattern, now reproduced on the dynamic task with a *stabilized* learner (so it is not an artifact of the cold-start collapse).
+
+---
+
 ## 7. Reproduction (driver / command / config / manifests)
 
 ```bash
@@ -122,9 +143,15 @@ PYTHONPATH=src python scripts/train/train_decentralized_rl.py --dynamic --cold-s
   --reward-mode dense --dynamic-actor recurrent --reconfig-e 0.1 --updates 30 --ppo-epochs 3 \
   --dyn-train 16 --dyn-held 16 --frames 6 --dyn-eval-every 8 --seed 0 --out-dir <dir>
 
-# Full headline (recurrent vs memoryless x 3 seeds + myopic reference)
+# Cold-start headline (D4: recurrent vs memoryless x 3 seeds + myopic reference)
 PYTHONPATH=src python scripts/diagnostics/dynamic_headline.py --seeds 0 1 2 --updates 30 \
-  --ppo-epochs 3 --dyn-train 16 --dyn-held 16 --frames 6 --dyn-eval-every 8 --reconfig-e 0.1
+  --ppo-epochs 3 --dyn-train 16 --dyn-held 16 --frames 6 --dyn-eval-every 8 --reconfig-e 0.1 \
+  --dyn-warmstart 0
+
+# Stabilized warm-started headline (D6: rescues seed collapse; the §6.4 result)
+PYTHONPATH=src python scripts/diagnostics/dynamic_headline.py --seeds 0 1 2 --updates 30 \
+  --ppo-epochs 3 --dyn-train 24 --dyn-held 24 --frames 6 --dyn-eval-every 6 --reconfig-e 0.1 \
+  --dyn-warmstart 25 --dyn-warmstart-lr 5e-4 --out result_save/dynamic_headline_warmstart.json
 ```
 
 **Config (D4 headline):** operating-point urban v2x_37885 regime (tx 20 dBm, 4 RSU, relay-3, shadowing+NLOSv, coverage-gated); N∈{8,12,16}; T=6 frames; dt=2 s; speed 15–30 m/s; hold_interval=4; γ=0.95; reconfig e_edge=0.1; reward dense; cold-start; per-agent BCSP + local_mutual_assemble; per-frame centralized critic; keep-best on a periodic train-decoded eval (never the held set). Artifacts: `result_save/_dyn_headline/{arm}_seed{n}/` + `result_save/dynamic_headline.json` + `result_save/dynamic_data_manifest.json` + `result_save/dynamic_temporal_value.json`.
@@ -137,15 +164,17 @@ PYTHONPATH=src python scripts/diagnostics/dynamic_headline.py --seeds 0 1 2 --up
 
 **What the test shows — three honest conclusions:**
 
-1. **Cross-frame recurrence provides no gain over a memoryless history-aware actor.** Paired recurrent−memoryless = −0.004 (feasibility, CI [−0.018, +0.011]) and −0.072 (return, CI [−0.38, +0.24]) — both span 0; rec ≈ mem on the one trained seed (0.156 vs 0.167) and rec == mem (both 0.0) on the two collapsed seeds. This is consistent with the pre-registered §3 prediction (with full per-frame CSI the task is ~Markov in (current channel, previous topology), both observed by the memoryless actor) and with the Temporal Value Test's bounded headroom (median Δ_H=0; ~21% of scenes positive). **Evidential-base caveat:** only 1 of 3 seeds trained, so this rests largely on one informative seed plus two seeds where both arms collapsed identically — directionally firm and theory-consistent, but a multi-seed claim needs the stability fix below.
+1. **Cross-frame recurrence provides no gain over a memoryless history-aware actor.** D4 (cold-start): paired recurrent−memoryless = −0.004 (CI [−0.018, +0.011]) but rested on 1 trained seed. **D6 (warm-started, all 3 seeds train): paired −0.019, CI [−0.128, +0.091] — spans 0, thin-base caveat resolved.** Consistent with the §3 prediction (full per-frame CSI → ~Markov in (channel, previous topology)) and the bounded Temporal-Value headroom (median Δ_H=0; ~21% positive).
 
-2. **Two distinct failure modes keep absolute performance low — and neither is relieved by temporal structure.** (i) *Generalization gap* (seed 0): both arms learn on train (~0.27 ≈ myopic) but drop to ~0.16 on held — the same N≤16 generalization bottleneck the static campaign named (Phase 12). (ii) *Training instability* (seeds 1 & 2): cold-start dynamic recurrent-PPO diverges to a dead all-infeasible policy (val 0.0 throughout, grad-norm spikes 165–536 pre-clip). The learned RL under-performs even a non-learned per-frame greedy (held 0.22) on every seed. Temporal modeling addresses neither.
+2. **RL adds no value over imitating the myopic teacher — it usually subtracts.** With the warm-start (D6), the imitation-alone held feasibility is 0.169 (recurrent) / 0.148 (memoryless); RL on top moves it to 0.116 / 0.134 — i.e. **RL DEGRADES the imitation baseline** (−0.053 / −0.014). The non-learned **myopic-greedy reference (0.250) beats both learned arms** on every aggregate. This is the campaign's "simple baseline wins at N≤16" pattern, now reproduced on the dynamic task with a *stabilized* learner (so it is not a cold-start-collapse artifact).
 
-3. **The campaign pattern extends to the temporal axis.** Across the v2 campaign, every sophisticated mechanism (COMA counterfactual credit, SCQ, chance/CVaR/Pareto, PNA actor) was verified-correct but did not beat the simple baseline at N≤16 single-step. The **temporal/recurrent actor is now the seventh such mechanism**: correct, genuinely active, but no headline gain over the simpler (memoryless) variant.
+3. **The binding limits are feasibility-region discovery + held-set generalization, not temporal modeling.** Cold-start RL cannot find the feasible backbone at N≤16 (the D4 collapse; rescued only by the imitation warm-start). Even warm-started, the learned policies generalize worse than the per-frame greedy. Temporal structure relieves none of this — confirmed by rec ≈ mem throughout.
 
-**Honest caveats / scope.** (a) The recurrent-vs-memoryless comparison is FAIR (identical architecture/budget/data; only cross-frame memory differs), but the absolute level is limited by the generalization gap (seed 0) and the cold-start instability (seeds 1 & 2), not by temporal structure. (b) e_edge=0.1 is the regime where the Temporal Value Test shows non-trivial Δ_H; at e_edge=0 switching is free and the task is trivially myopic. (c) Heavy O(n⁴) N=16 evaluation caps the budget (30 updates, 16 trajectories). **The path to a firmer claim** is: stabilize cold-start dynamic PPO (lr/entropy schedule, reward scaling, or a BC warm-start for trajectories) and scale seeds + train trajectories. The §3 theory + the seed-0 rec≈mem result predict this would raise the absolute level but **not** overturn the temporal-mechanism conclusion.
+4. **The campaign pattern extends to the temporal axis.** Every sophisticated v2 mechanism (COMA, SCQ, chance/CVaR/Pareto, PNA) was verified-correct but did not beat the simple baseline at N≤16. The **temporal/recurrent actor is the seventh** — correct, genuinely active, no headline gain over the memoryless variant; and the broader dynamic RL is itself beaten by a myopic per-frame baseline.
 
-**Verdict:** the dynamic two-timescale task is now built, wired into the trunk, and honestly tested with full instrumentation. **The temporal/recurrent mechanism is verified-correct and genuinely active but yields no measured gain over a memoryless history-aware actor; the dynamic task under full per-frame CSI is effectively Markov, and the binding limits are held-set generalization and cold-start training stability, not temporal modeling.** Recommendation: keep the dynamic arm **opt-in** (`--dynamic`, default off; T=1 path byte-identical), consistent with every other v2 mechanism, and treat dynamic-PPO stabilization + larger-scale generalization as the open frontier.
+**Honest caveats / scope.** (a) The recurrent-vs-memoryless comparison is FAIR (identical architecture/budget/data/warm-start; only cross-frame memory differs). (b) e_edge=0.1 is the regime where the Temporal Value Test shows non-trivial Δ_H; at e_edge=0 the task is trivially myopic. (c) Heavy O(n⁴) N=16 evaluation caps the budget (30 updates, 24 trajectories, 3 seeds; a 4th seed run was killed mid-execution — the 3-seed result is the headline). (d) The warm-start teacher uses the candidate evaluator (training-only, exactly like the static BC teacher); the deployed actor still uses only local info.
+
+**Verdict:** the dynamic two-timescale task is built, wired into the trunk, and honestly tested with full instrumentation, across both cold-start (D4) and a stabilized warm-started learner (D6). **The temporal/recurrent mechanism is verified-correct and genuinely active but yields no measured gain over a memoryless history-aware actor (now over 3 trained seeds); moreover RL on this task adds no value over imitating the myopic teacher, which a non-learned per-frame greedy beats outright. The dynamic task under full per-frame CSI is effectively Markov; the binding limits are feasibility-region discovery and held-set generalization, not temporal modeling.** Recommendation: keep the dynamic arm **opt-in** (`--dynamic`, default off; T=1 path byte-identical), consistent with every other v2 mechanism; large-scale generalization remains the open frontier.
 
 ---
 
@@ -160,3 +189,5 @@ A 4-lens adversarial Workflow (11 agents, 25 findings, 6 deep refutation passes 
 **Nits recorded (honest):** (N1) §3 stale "ceiling ~0.5" → corrected to the measured ~0.22. (N2) the spans-0 / "Markov" conclusion rests on 1 informative seed → caveat added (§6.1, §8.1). (N3) "rollout uses the deployed decoder" was imprecise — the rollout uses the matched stochastic BCSP sampler (MAP == the decoder); the deployed `local_mutual_assemble` is used at *eval*. Docstring + `mechanism_activation.json` action field corrected. (N4) `hold_interval` scales the per-frame objective only in the sibling `two_timescale_env` (the temporal diagnostic), not in the RL reward (`reward = base − reconfig`, single-round base); ablation-neutral, noted for the owner. (N5) the manifest's `scenario_ids` are name-by-index (identical strings across splits though geometry is disjoint) and `solvability_family` is the intended label suffix (not measured); `observation()['label']` hard-codes `feasible_exists=True` (dead metadata — reward reads feasibility live, so data is uncorrupted). (N6) `test_recurrent_reroll_bptt_reaches_gru` proves GRU reachability but passes in both modes — it does not discriminate cross-frame carry (the capability is real per the N3 probe); a late-frame-only discriminating test is the suggested follow-up.
 
 The verifier's bottom line: data and decentralization are sound, the "recurrence shows no gain" conclusion is not compromised, and with the MAJOR re-aggregation + N1 fix applied (done here) the build is a PASS.
+
+**D6 (warm-start) fairness** — the stabilizer is a fair, leak-free addition by construction (and unit-tested): `warmstart_actor` is called once, identically, before the arm-specific RL, so both arms get the SAME imitation init and the cross-frame-memory ablation stays the only difference; the teacher uses the candidate evaluator (training-only, exactly like the validated static BC teacher — the deployed actor still uses only local info); `warmstart_held` is measurement-only (the held set is never used for checkpoint selection). Tests: `test_frame_teacher_trajectory_is_binary_per_frame`, `test_warmstart_moves_actor_toward_teacher`; suite 714/0.
