@@ -454,6 +454,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dyn-train", type=int, default=24, help="dynamic train trajectories")
     p.add_argument("--dyn-held", type=int, default=24, help="dynamic held trajectories (disjoint seed)")
     p.add_argument("--dyn-nodes", type=int, nargs="+", default=[8, 12, 16], help="node-count choices (dynamic)")
+    p.add_argument("--dyn-eval-every", type=int, default=5,
+                   help="dynamic arm: run the (heavy) decoded val eval every N updates + on the last "
+                        "update (keep-best selection); per-update eval is pathological under the N<=16 "
+                        "operating-point evaluator")
     p.add_argument("--tx-power", type=float, default=20.0, help="tx power dBm (operating-point regime)")
     return p.parse_args()
 

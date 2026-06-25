@@ -96,6 +96,7 @@ class DynamicScene:
     reconfig: ReconfigCost = ReconfigCost()
     hold_interval: int = 1
     gamma: float = 0.95
+    vectorized: bool = True   # float-identical (1e-9) bounded-cache evaluator, ~6x faster -> usable rollout
     _ctx_cache: dict = field(default_factory=dict, repr=False)
     _row_cache: dict = field(default_factory=dict, repr=False)
 
@@ -114,7 +115,8 @@ class DynamicScene:
         if ctx is None:
             spec = _frame_spec(self.scenes[t], self.regime, self.quorum_size,
                                self.reliable_range_m, self.measurements[t])
-            ctx = build_production_context(spec, time_step=t, sequence_id=self.sequence_id)
+            ctx = build_production_context(spec, time_step=t, sequence_id=self.sequence_id,
+                                           vectorized=self.vectorized)
             self._ctx_cache[t] = ctx
         return ctx
 

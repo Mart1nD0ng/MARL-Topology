@@ -107,22 +107,26 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
     return records, e_ref
 
 
-def _reroll_logp(actor, critic, scene, records, mean, std, *, recurrent, temp):
-    """Re-roll the actor over the episode (grad on) -> per-(frame,agent) logp_new + entropy, per-frame
-    V_pred. Recurrent: the hidden state carries WITH gradient (BPTT). The decoded action is the one
-    RECORDED at rollout (off-policy re-scoring), so the topology sequence / hidden inputs match."""
+def _reroll_logp(actor, critic, scene, records, mean, std, *, recurrent, temp,
+                 need_logp=True, need_value=True):
+    """Re-roll the episode (grad on). need_logp -> re-roll the actor with BPTT hidden carry and
+    recompute per-(frame,agent) logp + entropy (the actor PPO loop); need_value -> forward the
+    per-frame critic V_pred (the critic loop). Splitting them avoids the 2x waste of computing both
+    in each loop. The decoded action is the one RECORDED at rollout (off-policy re-scoring)."""
     hidden = None
     logp_new, ent_new, v_pred = [], [], []
     for t, rec in enumerate(records):
-        nf_s, ef_s = _standardize(rec.obs["nf"], rec.obs["ef"], mean, std)
-        logits, h_next = actor(nf_s, ef_s, rec.obs["ei"], hidden=hidden)
-        for (incident, accepted, bud, _lo) in rec.per_agent:
-            logp_new.append(recompute_bcsp_logp(logits, incident, accepted, temp, bud))
-            ent_new.append(recompute_bcsp_entropy(logits, incident, temp, bud))
-        v_pred.append(critic_scene_value(critic, rec.obs["nf"], rec.obs["ef"], rec.obs["ei"],
-                                         node_mean=mean[0], node_std=std[0],
-                                         edge_mean=mean[1], edge_std=std[1]))
-        hidden = h_next if recurrent else None
+        if need_logp:
+            nf_s, ef_s = _standardize(rec.obs["nf"], rec.obs["ef"], mean, std)
+            logits, h_next = actor(nf_s, ef_s, rec.obs["ei"], hidden=hidden)
+            for (incident, accepted, bud, _lo) in rec.per_agent:
+                logp_new.append(recompute_bcsp_logp(logits, incident, accepted, temp, bud))
+                ent_new.append(recompute_bcsp_entropy(logits, incident, temp, bud))
+            hidden = h_next if recurrent else None
+        if need_value:                                          # critic is per-frame (no actor hidden)
+            v_pred.append(critic_scene_value(critic, rec.obs["nf"], rec.obs["ef"], rec.obs["ei"],
+                                             node_mean=mean[0], node_std=std[0],
+                                             edge_mean=mean[1], edge_std=std[1]))
     return logp_new, ent_new, v_pred
 
 
@@ -254,7 +258,7 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             lp_new, ent_new = [], []
             for scene, recs in episodes:
                 lp, en, _vp = _reroll_logp(actor, critic, scene, recs, mean, std,
-                                           recurrent=recurrent, temp=temp)
+                                           recurrent=recurrent, temp=temp, need_value=False)
                 lp_new.extend(lp); ent_new.extend(en)
             if not lp_new:
                 break
@@ -278,7 +282,7 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             v_all = []
             for scene, recs in episodes:
                 _lp, _en, vp = _reroll_logp(actor, critic, scene, recs, mean, std,
-                                            recurrent=recurrent, temp=temp)
+                                            recurrent=recurrent, temp=temp, need_logp=False)
                 v_all.extend(vp)
             v_pred = torch.stack(v_all)
             v_loss = args.critic_coef * (rets - v_pred).pow(2).mean()
@@ -291,11 +295,18 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
         c1 = torch.nn.utils.parameters_to_vector(critic.parameters()).detach()
         cdelta = float((c1 - c0).abs().sum())
 
-        # ---- per-update val (a fresh rollout-quality proxy on TRAIN scenes' decoded eval) ----
-        val = dynamic_eval(actor, train_scenes, mean, std, recurrent=recurrent, temp=temp,
-                           reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c,
-                           lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
-        val_score = val["mean_episode_return"]
+        # ---- periodic val (decoded eval on TRAIN scenes; the heavy evaluator makes per-update eval
+        #      pathological, so eval every --dyn-eval-every updates + always on the last one) ----
+        eval_every = max(1, int(getattr(args, "dyn_eval_every", 5)))
+        do_val = (update % eval_every == 0) or (update == args.updates - 1)
+        if do_val:
+            val = dynamic_eval(actor, train_scenes, mean, std, recurrent=recurrent, temp=temp,
+                               reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c,
+                               lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
+            val_score = val["mean_episode_return"]
+        else:
+            val = {"per_frame_feasibility": float("nan"), "mean_episode_return": float("nan")}
+            val_score = None
         mean_switch = sum(rec.switches for _s, recs in episodes for rec in recs) / max(
             1, sum(len(recs) for _s, recs in episodes))
         mean_card = sum(len(pa[1]) for _s, recs in episodes for rec in recs for pa in rec.per_agent) / max(
@@ -305,10 +316,10 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                    "critic_grad_norm": last_cgn, "critic_parameter_delta": round(cdelta, 5),
                    "per_agent_kl": last["kl"], "clip_fraction": last["clip"], "entropy": last["entropy"],
                    "mean_subset_cardinality": round(mean_card, 3), "mean_switches_per_frame": round(mean_switch, 3),
-                   "val_per_frame_feasibility": round(val["per_frame_feasibility"], 4),
-                   "val_mean_episode_return": round(val_score, 4)}
+                   "val_per_frame_feasibility": (round(val["per_frame_feasibility"], 4) if do_val else None),
+                   "val_mean_episode_return": (round(val_score, 4) if val_score is not None else None)}
         history.append(rec_log)
-        if val_score > best_val:                          # keep-best on TRAIN-eval (never the held set)
+        if val_score is not None and val_score > best_val:   # keep-best on TRAIN-eval (never the held set)
             best_val = val_score
             best_state = {k: v.detach().clone() for k, v in actor.state_dict().items()}
 
