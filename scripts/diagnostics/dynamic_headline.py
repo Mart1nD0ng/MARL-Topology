@@ -111,6 +111,11 @@ def main() -> None:
     ap.add_argument("--entropy-coef", type=float, default=0.01)
     ap.add_argument("--ppo-epochs", type=int, default=3)
     ap.add_argument("--dyn-eval-every", type=int, default=8)
+    ap.add_argument("--dyn-warmstart", type=int, default=25,
+                    help="supervised warm-start epochs toward the per-frame myopic teacher (both arms); "
+                         "0=cold-start. Cold-start RL collapses on most seeds at N<=16.")
+    ap.add_argument("--dyn-warmstart-lr", type=float, default=5e-4)
+    ap.add_argument("--normalize-adv", action="store_true", default=True)
     ap.add_argument("--out", default=str(ROOT / "result_save" / "dynamic_headline.json"))
     ap.add_argument("--run-dir", default=str(ROOT / "result_save" / "_dyn_headline"))
     args = ap.parse_args()
@@ -118,7 +123,7 @@ def main() -> None:
     run_dir = Path(args.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     arms = ["recurrent", "memoryless"]
-    per_arm = {a: {"feas": [], "ret": []} for a in arms}
+    per_arm = {a: {"feas": [], "ret": [], "ws_feas": []} for a in arms}
     paired_feas, paired_ret = [], []
 
     for seed in args.seeds:
@@ -134,8 +139,11 @@ def main() -> None:
                    "--hold-interval", str(args.hold_interval), "--gamma", str(args.gamma),
                    "--lr", str(args.lr), "--entropy-coef", str(args.entropy_coef),
                    "--ppo-epochs", str(args.ppo_epochs), "--dyn-eval-every", str(args.dyn_eval_every),
+                   "--dyn-warmstart", str(args.dyn_warmstart), "--dyn-warmstart-lr", str(args.dyn_warmstart_lr),
                    "--dyn-nodes", *[str(n) for n in args.dyn_nodes], "--seed", str(seed),
                    "--out-dir", str(out)]
+            if args.normalize_adv:
+                cmd.append("--normalize-adv")
             env = {"PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1",
                    "PYTHONIOENCODING": "utf-8"}
             import os
@@ -148,6 +156,8 @@ def main() -> None:
             res = json.loads((out / "dynamic_result.json").read_text())
             per_arm[arm]["feas"].append(res["held_per_frame_feasibility"])
             per_arm[arm]["ret"].append(res["held_mean_episode_return"])
+            if res.get("warmstart_held"):
+                per_arm[arm]["ws_feas"].append(res["warmstart_held"]["per_frame_feasibility"])
             seed_res[arm] = res
         paired_feas.append(seed_res["recurrent"]["held_per_frame_feasibility"]
                            - seed_res["memoryless"]["held_per_frame_feasibility"])
@@ -168,9 +178,11 @@ def main() -> None:
                    "hold_interval": args.hold_interval, "gamma": args.gamma,
                    "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": args.dt},
         "recurrent": {"per_frame_feasibility": _ci(per_arm["recurrent"]["feas"]),
-                      "mean_episode_return": _ci(per_arm["recurrent"]["ret"])},
+                      "mean_episode_return": _ci(per_arm["recurrent"]["ret"]),
+                      "warmstart_alone_feasibility": _ci(per_arm["recurrent"]["ws_feas"])},
         "memoryless": {"per_frame_feasibility": _ci(per_arm["memoryless"]["feas"]),
-                       "mean_episode_return": _ci(per_arm["memoryless"]["ret"])},
+                       "mean_episode_return": _ci(per_arm["memoryless"]["ret"]),
+                       "warmstart_alone_feasibility": _ci(per_arm["memoryless"]["ws_feas"])},
         "myopic_greedy_reference": {"per_frame_feasibility": _ci(myopic["feas"]),
                                     "mean_episode_return": _ci(myopic["ret"])},
         "paired_recurrent_minus_memoryless": {"per_frame_feasibility": _ci(paired_feas),

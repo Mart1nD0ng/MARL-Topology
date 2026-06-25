@@ -458,6 +458,12 @@ def parse_args() -> argparse.Namespace:
                    help="dynamic arm: run the (heavy) decoded val eval every N updates + on the last "
                         "update (keep-best selection); per-update eval is pathological under the N<=16 "
                         "operating-point evaluator")
+    p.add_argument("--dyn-warmstart", type=int, default=0,
+                   help="dynamic arm: supervised warm-start epochs toward the per-frame myopic-greedy "
+                        "teacher BEFORE RL (0=off). Cold-start RL alone cannot find the feasible backbone "
+                        "at N<=16; both arms get the SAME warm-start so the cross-frame-memory ablation "
+                        "stays the only difference.")
+    p.add_argument("--dyn-warmstart-lr", type=float, default=0.0, help="warm-start lr (0 -> use --lr)")
     p.add_argument("--tx-power", type=float, default=20.0, help="tx power dBm (operating-point regime)")
     return p.parse_args()
 

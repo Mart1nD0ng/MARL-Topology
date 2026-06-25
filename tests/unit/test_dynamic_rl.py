@@ -21,7 +21,13 @@ from marl_topology.models.dynamic_recurrent_actor import DynamicRecurrentActor
 from marl_topology.scenario.scene import Node3D, NodeKind, NodeMotion, Scene3D
 from marl_topology.training.decentralized_distillation import feature_standardization
 from marl_topology.training.dynamic_frames import dynamic_scene_from_motion
-from marl_topology.training.dynamic_rl import _reroll_logp, dynamic_eval, episode_rollout
+from marl_topology.training.dynamic_rl import (
+    _frame_teacher_trajectory,
+    _reroll_logp,
+    dynamic_eval,
+    episode_rollout,
+    warmstart_actor,
+)
 from marl_topology.training.two_timescale_env import ReconfigCost
 
 
@@ -103,6 +109,31 @@ def test_recurrent_reroll_bptt_reaches_gru() -> None:
     lp, en, vp = _reroll_logp(actor, critic, scene, recs, mean, std, recurrent=True, temp=1.0)
     torch.stack(lp).sum().backward()
     assert any(p.grad is not None and float(p.grad.abs().sum()) > 0 for p in actor.gru.parameters())
+
+
+def test_frame_teacher_trajectory_is_binary_per_frame() -> None:
+    scene = _scene(num_frames=4)
+    _a, _c, mean, std = _models(scene)
+    traj = _frame_teacher_trajectory(scene, mean, std, reward_of=_reward_fn, ref_energy=_ref_energy,
+                                     lam_c=1.0, lam_b=1.0, beta=0.1, reward_mode="dense")
+    assert len(traj) == scene.n_frames
+    for obs, tgt in traj:
+        assert tgt.shape[0] == len(obs["edge_ids"])
+        assert set(float(x) for x in tgt) <= {0.0, 1.0}     # a 0/1 edge indicator (the teacher topology)
+
+
+def test_warmstart_moves_actor_toward_teacher() -> None:
+    # more warm-start epochs -> lower final BCE toward the per-frame teacher (the warm-start converges).
+    scene = _scene(num_frames=3)
+    a20, _c, mean, std = _models(scene)
+    bce20 = warmstart_actor(a20, [scene], mean, std, recurrent=True, epochs=20, lr=5e-3,
+                            reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0,
+                            beta=0.1, reward_mode="dense")
+    a1, _c2, _m, _s = _models(scene)
+    bce1 = warmstart_actor(a1, [scene], mean, std, recurrent=True, epochs=1, lr=5e-3,
+                           reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0,
+                           beta=0.1, reward_mode="dense")
+    assert bce20 < bce1, f"warm-start should reduce BCE toward the teacher (20ep {bce20} vs 1ep {bce1})"
 
 
 def test_dynamic_eval_metrics_in_range() -> None:

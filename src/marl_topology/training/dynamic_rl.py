@@ -177,6 +177,64 @@ def dynamic_eval(actor, scenes, mean, std, *, recurrent, temp, reward_of, ref_en
     }
 
 
+def _frame_teacher_trajectory(scene, mean, std, *, reward_of, ref_energy, lam_c, lam_b, beta, reward_mode):
+    """Per-frame myopic-greedy best topology over the canonical candidate variants (reward-greedy,
+    feasible-preferring; reconfiguration-blind). The warm-start teacher -- it gives the cold-start
+    actor a FEASIBLE target so it can escape the dead ~2-edge region (cold-start RL alone cannot find
+    the feasible backbone at N<=16; the static campaign needed the same BC warm-start). Training-only;
+    the deployed actor still uses only local info. Returns [(obs_at_frame_t_under_teacher_prev, target)]."""
+    out = []
+    prev = []
+    for t in range(scene.n_frames):
+        obs = scene.observation(t, prev)
+        ctx = obs["context"]
+        tv = getattr(ctx, "topology_variants", None) or {}
+        values = tv.values() if isinstance(tv, dict) else tv
+        cands = [tuple(str(e) for e in (v.edges if hasattr(v, "edges") else v)) for v in values]
+        cands = cands or [tuple(obs["edge_ids"])]
+        e_ref = ref_energy(obs)
+        best, best_r = cands[0], -1e30
+        for cand in cands:
+            r, _gc, _gb, _ok = reward_of(obs, list(cand), e_ref, lam_c, lam_b, beta, reward_mode)
+            if r > best_r:
+                best, best_r = cand, r
+        tset = set(best)
+        tgt = obs["nf"].new_tensor([1.0 if e in tset else 0.0 for e in obs["edge_ids"]])
+        out.append((obs, tgt))
+        prev = list(best)
+    return out
+
+
+def warmstart_actor(actor, scenes, mean, std, *, recurrent, epochs, lr, reward_of, ref_energy,
+                    lam_c, lam_b, beta, reward_mode):
+    """Supervised warm-start: push the actor's per-edge logits toward the per-frame teacher topology
+    (BCE), carrying the hidden state across frames (recurrent) or resetting it (memoryless) to match
+    the arm. Returns the mean final-epoch BCE loss (a convergence signal)."""
+    teachers = [_frame_teacher_trajectory(s, mean, std, reward_of=reward_of, ref_energy=ref_energy,
+                                          lam_c=lam_c, lam_b=lam_b, beta=beta, reward_mode=reward_mode)
+                for s in scenes]
+    opt = torch.optim.Adam(actor.parameters(), lr=lr)
+    bce = torch.nn.BCEWithLogitsLoss()
+    last = 0.0
+    for _ep in range(epochs):
+        tot, n = 0.0, 0
+        for traj in teachers:
+            hidden = None
+            losses = []
+            for obs, tgt in traj:
+                nf_s, ef_s = _standardize(obs["nf"], obs["ef"], mean, std)
+                logits, h_next = actor(nf_s, ef_s, obs["ei"], hidden=hidden)
+                losses.append(bce(logits, tgt))
+                hidden = h_next if recurrent else None
+            loss = torch.stack(losses).mean()
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+            opt.step()
+            tot += float(loss); n += 1
+        last = tot / max(1, n)
+    return last
+
+
 def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, TAU):
     """The --dynamic arm: build moving-vehicle scenes, train the episode-recurrent (or memoryless)
     actor with recurrent PPO + a per-frame critic, eval on a held trajectory set, and emit the full
@@ -228,6 +286,30 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     best_val = -1e30
     best_state = None
     temp = args.temp
+
+    warmstart_bce = None
+    n_warm = int(getattr(args, "dyn_warmstart", 0))
+    if n_warm > 0:
+        # Supervised warm-start toward the per-frame myopic-greedy teacher BEFORE RL -- gives the
+        # cold-start actor a feasible target (both arms get the SAME warm-start; the only difference
+        # stays the cross-frame hidden carry). Critic stays cold (RL trains it).
+        wlr = getattr(args, "dyn_warmstart_lr", 0.0) or args.lr
+        warmstart_bce = warmstart_actor(
+            actor, train_scenes, mean, std, recurrent=recurrent, epochs=n_warm, lr=wlr,
+            reward_of=reward_of, ref_energy=ref_energy,
+            lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
+        print(f"[dynamic:{args.dynamic_actor}] warm-start {n_warm} epochs -> final BCE {warmstart_bce:.4f}",
+              flush=True)
+
+    # measure the warm-start init's HELD quality BEFORE RL (measurement only -> no checkpoint leakage),
+    # so the report can honestly compare warm-start-alone vs warm-start+RL.
+    warmstart_held = None
+    if n_warm > 0:
+        ws = dynamic_eval(actor, held_scenes, mean, std, recurrent=recurrent, temp=temp,
+                          reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c, lam_b=args.lam_b,
+                          beta=args.beta, reward_mode=args.reward_mode)
+        warmstart_held = {"per_frame_feasibility": round(ws["per_frame_feasibility"], 5),
+                          "mean_episode_return": round(ws["mean_episode_return"], 5)}
 
     for update in range(args.updates):
         # ---- rollout all train episodes (no grad) ----
@@ -339,7 +421,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                          "reconfiguration_cost_nonzero": bool(args.reconfig_e or args.reconfig_l),
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
-                  "arm": args.dynamic_actor},
+                  "arm": args.dynamic_actor, "warmstart_epochs": n_warm,
+                  "warmstart_final_bce": warmstart_bce},
         "critic": {"enabled": True, "per_frame_state_value": True},
         "action": {"distribution": "bcsp",
                    "rollout_sampler": "sample_decentralized_bcsp_action (stochastic; MAP == deploy)",
@@ -349,6 +432,7 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     }
     result = {
         "arm": args.dynamic_actor, "seed": args.seed,
+        "warmstart_epochs": n_warm, "warmstart_held": warmstart_held,
         "held_per_frame_feasibility": round(held["per_frame_feasibility"], 5),
         "held_mean_episode_return": round(held["mean_episode_return"], 5),
         "held_mean_switches_per_frame": round(held["mean_switches_per_frame"], 5),
