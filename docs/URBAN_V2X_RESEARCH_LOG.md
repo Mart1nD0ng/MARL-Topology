@@ -4065,3 +4065,26 @@ deployed decoder unchanged, the tests are genuine anti-pseudo-tests. Two nits fi
 TRAIN scenes" comment; added the `dyn_val=0` pilot-fallback test). Headline still deferred (needs
 D5/D6/D7). Artifacts: `docs/dynamic_repair/D3/`. Next: D4 (PBFT phase-message-plan into the production
 Stage-21 evaluator).
+
+## Dynamic-Repair Campaign — D4 (phase-specific PBFT accounting)
+
+**D4 done (commit `715ec19`).** Wired the phase-specific PBFT message plan into the production Stage-21
+evaluator (gap #5). The evaluator reused one all-pairs record set for all three PBFT phases, so energy
+counted pre-prepare as full all-pairs ×3 (it is a primary→backups STAR) and included client links.
+New opt-in `phase_specific_accounting` (default off → byte-identical): `evaluate()` builds a SEPARATE
+`acct_phase_records` (pre_prepare = view-0 primary `validators[0]` star, prepare/commit = validator
+vote, clients excluded) for ENERGY/LATENCY only — the RELIABILITY matrices stay the full validator set
+(the expected-initiator model averages over all primaries internally) so reliability is byte-identical.
+`operating_point_regime` activates it (the production/dynamic path actually uses it). An honest
+`energy_breakdown` is exposed (relay folded into route energy; control/reconfig/view-change deferred —
+so this corrects the PROTOCOL term, NOT a complete energy optimization).
+
+Impact (operating-point scenes, full graph): corrected protocol energy **31–58% lower** (the
+pre-prepare over-count removed); **reliability byte-identical** on↔off. The 4-lens adversarial
+verification caught a **BLOCKER**: the `VectorizedStage21Evaluator` (the dynamic arm's default fast
+path, `DynamicScene.vectorized=True`) ignored the flag → D4 was inert in the dynamic reward and would
+diverge from the canonical evaluator. Fixed by mirroring the phase-specific accounting into the
+vectorized evaluator (reliability still full); re-verified PASS; confirmed active in the dynamic path
+(N=12 → pre_prepare 11 star, prepare/commit 132 vote). Lesson recorded: always update the
+vectorized/fast-path evaluator alongside the canonical one. 8 new tests; unit 666/0, contract 63/0.
+Artifacts: `docs/dynamic_repair/D4/`. Next: D5 (actor motion features).
