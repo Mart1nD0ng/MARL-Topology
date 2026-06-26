@@ -98,6 +98,8 @@ def main() -> None:
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     ap.add_argument("--updates", type=int, default=40)
     ap.add_argument("--dyn-train", type=int, default=24)
+    ap.add_argument("--dyn-val", type=int, default=24,
+                    help="validation trajectories (seed*1000+333); checkpoint selected on val only")
     ap.add_argument("--dyn-held", type=int, default=24)
     ap.add_argument("--frames", type=int, default=8)
     ap.add_argument("--dt", type=float, default=2.0)
@@ -137,7 +139,8 @@ def main() -> None:
             cmd = [sys.executable, str(ROOT / "scripts" / "train" / "train_decentralized_rl.py"),
                    "--dynamic", "--cold-start", "--reward-mode", "dense", "--dynamic-actor", arm,
                    "--reconfig-e", str(args.reconfig_e), "--updates", str(args.updates),
-                   "--dyn-train", str(args.dyn_train), "--dyn-held", str(args.dyn_held),
+                   "--dyn-train", str(args.dyn_train), "--dyn-val", str(args.dyn_val),
+                   "--dyn-held", str(args.dyn_held),
                    "--frames", str(args.frames), "--dt", str(args.dt),
                    "--speed-min", str(args.speed_min), "--speed-max", str(args.speed_max),
                    "--hold-interval", str(args.hold_interval), "--gamma", str(args.gamma),

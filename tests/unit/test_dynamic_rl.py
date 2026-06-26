@@ -201,3 +201,96 @@ def test_dynamic_eval_metrics_in_range() -> None:
     assert out["n_frames_total"] == scene.n_frames
     assert out["mean_switches_per_frame"] >= 0.0
     assert len(out["traces"]) == 1 and len(out["traces"][0]["frames"]) == scene.n_frames
+
+
+# --------------------------------------------------------------------------- #
+# D3: independent train / val / held split; checkpoint selected by VALIDATION only.
+# --------------------------------------------------------------------------- #
+def _split(seed_off, tag, count=4, n=8):
+    from marl_topology.training.dynamic_frames import sample_dynamic_scenes
+    return sample_dynamic_scenes(
+        seed=7 * 1000 + seed_off, count=count, node_count_choices=(n,), regime=PhysicsRegime(),
+        num_frames=3, dt_s=1.0, speed_min_mps=15.0, speed_max_mps=30.0,
+        reconfig=ReconfigCost(e_edge=0.1, l_edge=0.0), hold_interval=4, gamma=0.9, tag=tag)
+
+
+def test_dynamic_train_val_held_seeds_disjoint() -> None:
+    # FAILS on HEAD: sample_dynamic_scenes has no `tag`, so the three splits share name-by-index ids
+    # (N5 nit). With tags train_/val_/held_ the sequence_ids are disjoint, and the distinct seeds give
+    # distinct geometry at the same index.
+    tr, va, he = _split(1, "train_"), _split(333, "val_"), _split(777, "held_")
+    ids = lambda lst: {s.sequence_id for s in lst}
+    assert ids(tr).isdisjoint(ids(va))
+    assert ids(tr).isdisjoint(ids(he))
+    assert ids(va).isdisjoint(ids(he))
+    # distinct rng seeds -> distinct geometry (a moved vehicle's frame-0 position differs across splits)
+    p_tr = tr[0].scenes[0].nodes[1].position
+    p_va = va[0].scenes[0].nodes[1].position
+    assert (p_tr.x_m, p_tr.y_m) != (p_va.x_m, p_va.y_m)
+
+
+def test_split_manifest_records_all_three() -> None:
+    # FAILS on HEAD: build_split_manifest does not exist. The manifest records all three splits with
+    # disjoint ids, the checkpoint-selection split (val), and that held is NOT used for checkpoint.
+    from marl_topology.training.dynamic_rl import build_split_manifest
+    tr, va, he = _split(1, "train_"), _split(333, "val_"), _split(777, "held_")
+    man = build_split_manifest(seed=7, train=tr, val=va, held=he)
+    assert set(man["splits"]) == {"train", "val", "held"}
+    assert man["splits"]["train"]["seed"] == 7 * 1000 + 1
+    assert man["splits"]["val"]["seed"] == 7 * 1000 + 333
+    assert man["splits"]["held"]["seed"] == 7 * 1000 + 777
+    for k in ("train", "val", "held"):
+        assert man["splits"][k]["count"] == len(_split(1, "train_"))
+    assert man["checkpoint_selection_split"] == "val"
+    assert man["checkpoint_selection_metric"] == "val_discounted_episode_return"
+    assert man["held_used_for_checkpoint"] is False
+    # disjointness asserted in the manifest itself
+    assert man["splits_disjoint"] is True
+
+
+def test_split_manifest_pilot_fallback_when_no_validation() -> None:
+    # No validation split (dyn_val=0) -> the manifest must label the run pilot-only and record that the
+    # checkpoint falls back to train (Contract v3 §3.4: a no-validation run is NOT headline-eligible).
+    from marl_topology.training.dynamic_rl import build_split_manifest
+    tr, he = _split(1, "train_"), _split(777, "held_")
+    man = build_split_manifest(seed=7, train=tr, val=[], held=he)
+    assert man["validation_split_present"] is False
+    assert man["pilot_only_no_validation"] is True
+    assert man["checkpoint_selection_split"] == "train"   # fallback, clearly labeled pilot-only
+    assert man["held_used_for_checkpoint"] is False        # held STILL never selects the checkpoint
+    assert man["splits"]["val"]["count"] == 0
+
+
+def test_run_dynamic_training_uses_val_split_for_checkpoint(tmp_path) -> None:
+    # Integration: a tiny in-process run must build train/val/held, select the checkpoint on VAL, and
+    # leave held for final reporting only. FAILS on HEAD (no --dyn-val arg; no split_manifest.json;
+    # keep-best on train).
+    import importlib.util
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location(
+        "trunk_d3", root / "scripts" / "train" / "train_decentralized_rl.py")
+    trunk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trunk)
+    from marl_topology.training.dynamic_rl import run_dynamic_training
+
+    run = tmp_path / "run"
+    args = trunk.parse_args([
+        "--dynamic", "--cold-start", "--reward-mode", "dense", "--dynamic-actor", "memoryless",
+        "--dyn-train", "2", "--dyn-val", "2", "--dyn-held", "2", "--frames", "2",
+        "--updates", "2", "--ppo-epochs", "1", "--dyn-eval-every", "1", "--dyn-nodes", "8",
+        "--seed", "3", "--out-dir", str(run)])
+    args._root = str(root)
+    run_dynamic_training(args, reward_of=trunk.reward_of, _evaluate=trunk._evaluate,
+                         _budgets=trunk._budgets, _ref_energy=trunk._ref_energy, TAU=trunk.TAU)
+
+    man = json.loads((run / "split_manifest.json").read_text())
+    assert set(man["splits"]) == {"train", "val", "held"}
+    assert man["checkpoint_selection_split"] == "val"
+    assert man["held_used_for_checkpoint"] is False
+    assert man["splits_disjoint"] is True
+    result = json.loads((run / "dynamic_result.json").read_text())
+    assert result["checkpoint_selection"]["split"] == "val"
+    assert "held_per_frame_feasibility" in result        # held still reported (final only)

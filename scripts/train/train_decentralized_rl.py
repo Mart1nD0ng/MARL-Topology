@@ -318,7 +318,7 @@ def eval_held(actor, samples, mean, std):
     }
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--shards", nargs="+", default=OP_SHARDS)
     p.add_argument("--artifacts", default=DEFAULT_ARTIFACTS, help="warm-start BC actor artifacts")
@@ -452,7 +452,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--reconfig-e", type=float, default=0.1, help="reconfiguration energy per toggled edge")
     p.add_argument("--reconfig-l", type=float, default=0.0, help="reconfiguration latency per toggled edge")
     p.add_argument("--dyn-train", type=int, default=24, help="dynamic train trajectories")
-    p.add_argument("--dyn-held", type=int, default=24, help="dynamic held trajectories (disjoint seed)")
+    p.add_argument("--dyn-val", type=int, default=24,
+                   help="dynamic VALIDATION trajectories (disjoint seed *1000+333); the ONLY split used "
+                        "for keep-best checkpoint selection (Contract v3 §3.4). 0 disables (pilot-only).")
+    p.add_argument("--dyn-held", type=int, default=24,
+                   help="dynamic held trajectories (disjoint seed *1000+777); FINAL reporting only, "
+                        "never used for checkpoint selection")
     p.add_argument("--dyn-nodes", type=int, nargs="+", default=[8, 12, 16], help="node-count choices (dynamic)")
     p.add_argument("--dyn-eval-every", type=int, default=5,
                    help="dynamic arm: run the (heavy) decoded val eval every N updates + on the last "
@@ -465,7 +470,7 @@ def parse_args() -> argparse.Namespace:
                         "stays the only difference.")
     p.add_argument("--dyn-warmstart-lr", type=float, default=0.0, help="warm-start lr (0 -> use --lr)")
     p.add_argument("--tx-power", type=float, default=20.0, help="tx power dBm (operating-point regime)")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def main() -> None:
@@ -494,6 +499,7 @@ def main() -> None:
         if args.smoke:
             args.updates = 3
             args.dyn_train = 4
+            args.dyn_val = 4
             args.dyn_held = 4
             args.frames = 4
         from marl_topology.training.dynamic_rl import run_dynamic_training

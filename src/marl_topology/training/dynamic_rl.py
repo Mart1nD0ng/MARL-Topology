@@ -240,6 +240,35 @@ def warmstart_actor(actor, scenes, mean, std, *, recurrent, epochs, lr, reward_o
     return last
 
 
+def build_split_manifest(*, seed, train, val, held):
+    """Record the train / val / held three-split (Contract v3 §3.4 + §14 split_manifest.json).
+
+    The checkpoint is selected ONLY on the validation split's discounted episode return; held is
+    final-reporting-only and never enters checkpoint selection. Disjoint seeds (+1 / +333 / +777) +
+    per-split id tags make the three sequence-id sets literally disjoint (also fixes the name-by-index
+    id collision). ``val=[]`` -> pilot-only (no independent validation; not headline-eligible)."""
+    def _ids(scenes):
+        return [s.sequence_id for s in scenes]
+    splits = {
+        "train": {"seed": seed * 1000 + 1, "count": len(train), "sequence_ids": _ids(train)},
+        "val": {"seed": seed * 1000 + 333, "count": len(val), "sequence_ids": _ids(val)},
+        "held": {"seed": seed * 1000 + 777, "count": len(held), "sequence_ids": _ids(held)},
+    }
+    s = {k: set(v["sequence_ids"]) for k, v in splits.items()}
+    disjoint = (s["train"].isdisjoint(s["val"]) and s["train"].isdisjoint(s["held"])
+                and s["val"].isdisjoint(s["held"]))
+    has_val = len(val) > 0
+    return {
+        "splits": splits,
+        "splits_disjoint": bool(disjoint),
+        "checkpoint_selection_split": "val" if has_val else "train",
+        "checkpoint_selection_metric": "val_discounted_episode_return",
+        "held_used_for_checkpoint": False,
+        "validation_split_present": has_val,
+        "pilot_only_no_validation": (not has_val),
+    }
+
+
 def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, TAU):
     """The --dynamic arm: build moving-vehicle scenes, train the episode-recurrent (or memoryless)
     actor with recurrent PPO + a per-frame critic, eval on a held trajectory set, and emit the full
@@ -257,15 +286,24 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     regime = operating_point_regime(args.tx_power)
     reconfig = ReconfigCost(e_edge=float(args.reconfig_e), l_edge=float(args.reconfig_l))
 
-    # deterministic train / held split by disjoint seeds (no held leakage into training)
-    train_scenes = sample_dynamic_scenes(
-        seed=args.seed * 1000 + 1, count=args.dyn_train, node_count_choices=tuple(args.dyn_nodes),
-        regime=regime, num_frames=args.frames, dt_s=args.dt, speed_min_mps=args.speed_min,
-        speed_max_mps=args.speed_max, reconfig=reconfig, hold_interval=args.hold_interval, gamma=args.gamma)
-    held_scenes = sample_dynamic_scenes(
-        seed=args.seed * 1000 + 777, count=args.dyn_held, node_count_choices=tuple(args.dyn_nodes),
-        regime=regime, num_frames=args.frames, dt_s=args.dt, speed_min_mps=args.speed_min,
-        speed_max_mps=args.speed_max, reconfig=reconfig, hold_interval=args.hold_interval, gamma=args.gamma)
+    # deterministic train / val / held split by disjoint seeds (Contract v3 §3.4): keep-best selects
+    # the checkpoint ONLY on val; held is FINAL-reporting-only and never enters checkpoint selection.
+    def _mk(seed_off, count, tag):
+        if count <= 0:
+            return []
+        return sample_dynamic_scenes(
+            seed=args.seed * 1000 + seed_off, count=count, node_count_choices=tuple(args.dyn_nodes),
+            regime=regime, num_frames=args.frames, dt_s=args.dt, speed_min_mps=args.speed_min,
+            speed_max_mps=args.speed_max, reconfig=reconfig, hold_interval=args.hold_interval,
+            gamma=args.gamma, tag=tag)
+    n_val = int(getattr(args, "dyn_val", 0))
+    train_scenes = _mk(1, args.dyn_train, "train_")
+    val_scenes = _mk(333, n_val, "val_")
+    held_scenes = _mk(777, args.dyn_held, "held_")
+    # the keep-best eval set is the VALIDATION split (never held); fall back to train ONLY when no val
+    # split was requested -> that run is pilot-only (not headline-eligible), recorded in the manifest.
+    sel_scenes = val_scenes if val_scenes else train_scenes
+    sel_split = "val" if val_scenes else "train"
 
     # standardization from train observations (frame 0 of each scene); features are already realized
     from marl_topology.training.decentralized_distillation import feature_standardization
@@ -287,6 +325,9 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    split_manifest = build_split_manifest(seed=args.seed, train=train_scenes, val=val_scenes,
+                                          held=held_scenes)
+    (out_dir / "split_manifest.json").write_text(json.dumps(split_manifest, indent=2), encoding="utf-8")
     history = []
     best_val = -1e30
     best_state = None
@@ -384,12 +425,14 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
         c1 = torch.nn.utils.parameters_to_vector(critic.parameters()).detach()
         cdelta = float((c1 - c0).abs().sum())
 
-        # ---- periodic val (decoded eval on TRAIN scenes; the heavy evaluator makes per-update eval
-        #      pathological, so eval every --dyn-eval-every updates + always on the last one) ----
+        # ---- periodic keep-best eval on the VALIDATION split (sel_scenes; train only in the pilot
+        #      fallback). The heavy evaluator makes per-update eval pathological, so eval every
+        #      --dyn-eval-every updates + always on the last one. ----
         eval_every = max(1, int(getattr(args, "dyn_eval_every", 5)))
         do_val = (update % eval_every == 0) or (update == args.updates - 1)
         if do_val:
-            val = dynamic_eval(actor, train_scenes, mean, std, recurrent=recurrent, temp=temp,
+            # keep-best eval on the VALIDATION split (sel_scenes = val; train only in pilot fallback).
+            val = dynamic_eval(actor, sel_scenes, mean, std, recurrent=recurrent, temp=temp,
                                reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c,
                                lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
             val_score = val["mean_episode_return"]
@@ -408,7 +451,7 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                    "val_per_frame_feasibility": (round(val["per_frame_feasibility"], 4) if do_val else None),
                    "val_mean_episode_return": (round(val_score, 4) if val_score is not None else None)}
         history.append(rec_log)
-        if val_score is not None and val_score > best_val:   # keep-best on TRAIN-eval (never the held set)
+        if val_score is not None and val_score > best_val:   # keep-best on the VAL split (never train/held)
             best_val = val_score
             best_state = {k: v.detach().clone() for k, v in actor.state_dict().items()}
 
@@ -427,6 +470,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                          "reward_definition": "hold_interval*base - reconfig",
                          "reward_uses_hold_interval": True,
                          "return_definition": "discounted episode return G_0 = sum gamma^t r_t (train==eval==myopic==TVT)",
+                         "splits": {"train": len(train_scenes), "val": len(val_scenes), "held": len(held_scenes),
+                                    "train_seed": args.seed * 1000 + 1, "val_seed": args.seed * 1000 + 333,
+                                    "held_seed": args.seed * 1000 + 777},
+                         "checkpoint_selection_split": sel_split, "held_used_for_checkpoint": False,
+                         "validation_split_present": bool(val_scenes),
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
                   "arm": args.dynamic_actor, "warmstart_epochs": n_warm,
@@ -445,7 +493,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
         "held_mean_episode_return": round(held["mean_episode_return"], 5),
         "held_mean_switches_per_frame": round(held["mean_switches_per_frame"], 5),
         "best_val_episode_return": round(best_val, 5),
-        "n_train_scenes": len(train_scenes), "n_held_scenes": len(held_scenes),
+        "checkpoint_selection": {"split": sel_split, "metric": "val_discounted_episode_return",
+                                 "held_used_for_checkpoint": False,
+                                 "validation_split_present": bool(val_scenes)},
+        "n_train_scenes": len(train_scenes), "n_val_scenes": len(val_scenes),
+        "n_held_scenes": len(held_scenes),
         "updates": args.updates, "config": {"frames": args.frames, "hold_interval": args.hold_interval,
                                             "gamma": args.gamma, "reconfig_e": args.reconfig_e}}
 

@@ -234,11 +234,15 @@ def sample_dynamic_scenes(
     reconfig: ReconfigCost,
     hold_interval: int,
     gamma: float,
+    tag: str = "",
 ) -> list[DynamicScene]:
     """Deterministic set of moving-vehicle DynamicScenes (cheap path; no per-frame SA).
 
     Mirrors generate_production_trajectories' geometry sampling, but skips the per-frame measurement
     so building a multi-frame dataset is fast. Family cycle keeps a feasible/near/infeasible mix.
+
+    ``tag`` prefixes the ``scenario_id`` (e.g. ``"val_"``) so disjoint-seed splits get literally
+    disjoint sequence ids (the geometry already differs by seed; this makes the ids unambiguous too).
     """
     import random
 
@@ -250,7 +254,7 @@ def sample_dynamic_scenes(
         family = cycle[index % len(cycle)]
         node_count = rng.choice(tuple(node_count_choices))
         quorum = _quorum_for_node_count(node_count)
-        scene = _sample_scene(rng, f"dyn_{index:05d}_{family}", node_count, family, reliable_range_m)
+        scene = _sample_scene(rng, f"{tag}dyn_{index:05d}_{family}", node_count, family, reliable_range_m)
         motions = _sample_vehicle_motions(rng, scene, speed_min_mps, speed_max_mps)
         out.append(dynamic_scene_from_motion(
             scene, motions, regime, quorum, num_frames=num_frames, dt_s=dt_s,
