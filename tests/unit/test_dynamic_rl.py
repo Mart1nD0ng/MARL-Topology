@@ -31,7 +31,7 @@ from marl_topology.training.dynamic_rl import (
 from marl_topology.training.two_timescale_env import ReconfigCost
 
 
-def _scene(num_frames=4, e_edge=0.05):
+def _scene(num_frames=4, e_edge=0.05, hold_interval=1, gamma=0.9):
     regime = PhysicsRegime()
     r = measure_reliable_range_m(regime)
     base = Scene3D(
@@ -46,7 +46,8 @@ def _scene(num_frames=4, e_edge=0.05):
     motions = (NodeMotion("veh_2", (0.4 * r, 0.0, 0.0)),)
     return dynamic_scene_from_motion(base, motions, regime, quorum_size=3, num_frames=num_frames,
                                      dt_s=1.0, reliable_range_m=r,
-                                     reconfig=ReconfigCost(e_edge=e_edge, l_edge=0.0), gamma=0.9)
+                                     reconfig=ReconfigCost(e_edge=e_edge, l_edge=0.0),
+                                     hold_interval=hold_interval, gamma=gamma)
 
 
 def _reward_fn(obs, edges, e_ref, lam_c, lam_b, beta, reward_mode):
@@ -83,8 +84,10 @@ def test_rollout_record_count_and_return_recursion() -> None:
         assert abs(rec.ret - g) < 1e-6
 
 
-def test_reward_decomposes_into_base_minus_reconfig() -> None:
-    scene = _scene(num_frames=4, e_edge=0.05)
+def test_reward_decomposes_into_hold_times_base_minus_reconfig() -> None:
+    # The dynamic per-step reward (Contract v3 §3.2): r_t = H * base_t - reconfig_t, reconfig once,
+    # nothing at t=0. (At H=1 this reduces to base - reconfig.)
+    scene = _scene(num_frames=4, e_edge=0.05, hold_interval=3)
     actor, critic, mean, std = _models(scene)
     recs, _ = episode_rollout(actor, critic, scene, mean, std, recurrent=False, temp=1.0,
                               reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0,
@@ -94,10 +97,63 @@ def test_reward_decomposes_into_base_minus_reconfig() -> None:
         switches = len(frozenset(prev) ^ frozenset(rec.topo)) if t > 0 else 0
         assert rec.switches == switches
         assert abs(rec.reconfig - 0.05 * switches) < 1e-9
-        assert abs(rec.reward - (rec.base_reward - rec.reconfig)) < 1e-9
+        assert abs(rec.reward - (scene.hold_interval * rec.base_reward - rec.reconfig)) < 1e-9
         if t == 0:
             assert rec.reconfig == 0.0          # no reconfiguration charged at the first frame
         prev = rec.topo
+
+
+def test_dynamic_reward_multiplies_base_by_hold_interval() -> None:
+    # FAILS on HEAD (reward = base - reconfig, hold_interval ignored). The macro topology is held for
+    # H PBFT micro-rounds -> the base objective is reaped H times before the one-time switch cost.
+    H = 4
+    scene = _scene(num_frames=4, e_edge=0.05, hold_interval=H)
+    actor, critic, mean, std = _models(scene)
+    recs, _ = episode_rollout(actor, critic, scene, mean, std, recurrent=False, temp=1.0,
+                              reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0,
+                              beta=0.1, reward_mode="dense", generator=torch.Generator().manual_seed(7))
+    # at least one frame has a nonzero base reward, so H*base - reconfig != base - reconfig
+    assert any(abs(rec.base_reward) > 1e-6 for rec in recs)
+    for rec in recs:
+        assert abs(rec.reward - (H * rec.base_reward - rec.reconfig)) < 1e-9
+
+
+def test_temporal_value_and_rl_use_same_reward() -> None:
+    # The RL per-step reward must equal the Temporal-Value-Test env step reward frame-by-frame
+    # (same objective: H*base - reconfig, reconfig once). cost_fn = -base maps TVT cost <-> RL reward.
+    # FAILS on HEAD at H>1 (RL drops the H factor).
+    from marl_topology.training.two_timescale_env import TwoTimescaleTopologyEnv
+    scene = _scene(num_frames=4, e_edge=0.05, hold_interval=4)
+    actor, critic, mean, std = _models(scene)
+    recs, _ = episode_rollout(actor, critic, scene, mean, std, recurrent=False, temp=1.0,
+                              reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0,
+                              beta=0.1, reward_mode="dense", generator=torch.Generator().manual_seed(11))
+    env = TwoTimescaleTopologyEnv(frames=recs, cost_fn=lambda rec, _topo: -rec.base_reward,
+                                  reconfig=scene.reconfig, hold_interval=scene.hold_interval,
+                                  gamma=scene.gamma)
+    state = env.reset()
+    for rec in recs:
+        res = env.step(state, frozenset(rec.topo))
+        assert abs(res.reward - rec.reward) < 1e-6
+        state = res.next_state
+
+
+def test_dynamic_eval_uses_discounted_return() -> None:
+    # dynamic_eval's episode_return must be the discounted, H-scaled return G_0 = sum gamma^t (H*base
+    # - reconfig). FAILS on HEAD (undiscounted sum of base - reconfig). Recompute from the per-frame
+    # traces and compare.
+    scene = _scene(num_frames=4, e_edge=0.05, hold_interval=4, gamma=0.9)
+    actor, critic, mean, std = _models(scene)
+    out = dynamic_eval(actor, [scene], mean, std, recurrent=False, temp=1.0, reward_of=_reward_fn,
+                       ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0, beta=0.1, reward_mode="dense")
+    frames = out["traces"][0]["frames"]
+    discounted = sum((scene.gamma ** t) * (scene.hold_interval * f["base_reward"] - f["reconfig"])
+                     for t, f in enumerate(frames))
+    undiscounted_noH = sum(f["base_reward"] - f["reconfig"] for f in frames)
+    reported = out["traces"][0]["episode_return"]
+    assert abs(reported - discounted) < 5e-3, f"reported {reported} != discounted {discounted}"
+    # guard the test is discriminating: the two definitions actually differ here
+    assert abs(discounted - undiscounted_noH) > 1e-2
 
 
 def test_recurrent_reroll_bptt_reaches_gru() -> None:

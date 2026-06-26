@@ -67,6 +67,7 @@ def _myopic_reference(seed, args, T):
         cands = cands or [frozenset(sc.edge_ids)]
         prev = []
         ep = 0.0
+        discount = 1.0
         for t in range(sc.n_frames):
             obs = sc.observation(t, prev)
             try:
@@ -81,7 +82,10 @@ def _myopic_reference(seed, args, T):
                 if r > best_r:
                     best, best_r, best_ok = cand, r, ok
             switches = len(frozenset(prev) ^ best) if t > 0 else 0
-            ep += best_r - args.reconfig_e * switches
+            reconfig = (sc.reconfig.e_edge + sc.reconfig.l_edge) * switches
+            # SAME discounted, H-scaled objective as the learned arms (Contract v3 §3.3).
+            ep += discount * (sc.hold_interval * best_r - reconfig)
+            discount *= sc.gamma
             n_frames_total += 1; feas += int(best_ok)
             prev = list(best)
         ret_sum += ep

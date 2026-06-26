@@ -86,8 +86,8 @@ sufficiency (D5), warm-start protection (D6), fair baselines (D7), and mechanism
 | Rollout == deploy local mutual-acceptance semantics | **HOLDS** | MAP(BCSP) == decoder up to tie set. |
 | `τ ≥ 0.9`, same reliability def train+eval | **HOLDS** | τ=0.9 constant; same `reward_of`. |
 | Final reliability = closed-form whole-network PBFT quorum-tail | **HOLDS** | `protocol/quorum_tail.py`. |
-| **Same dynamic objective across train / TVT / val / held** | **VIOLATED** | gaps #2 (H factor) + #3 (discount) + #4 (no val). → D2/D3. |
-| `hold_interval·base − reconfig` reward, or stated equivalent | **VIOLATED** | gap #2. → D2. |
+| **Same dynamic objective across train / TVT / val / held** | **PARTIAL** | gaps #2 (H factor) + #3 (discount) **RESOLVED in D2** (`6→` commit); #4 (no val split) still open → D3. |
+| `hold_interval·base − reconfig` reward, or stated equivalent | **RESOLVED (D2)** | `episode_rollout`/`dynamic_eval`/`_myopic_reference` now `H·base − reconfig`, discounted; TVT already matched. |
 | train/val/held three-split; held excluded from checkpoint | **VIOLATED** | gap #4 (only train/held; keep-best on train). → D3. |
 | Data description matches source | **VIOLATED** | gap #1 (single-RSU vs "4-RSU urban"). → D1. |
 | Central evaluator-greedy labeled reference, not deployable baseline | **PARTIAL** | gap #8. → D7. |
@@ -100,9 +100,9 @@ sufficiency (D5), warm-start protection (D6), fair baselines (D7), and mechanism
 
 | stage | scope | status |
 |---|---|---|
-| **D0** | Freeze current dynamic results as the diagnostic baseline | **IN PROGRESS this round** (freeze README + decision) |
+| **D0** | Freeze current dynamic results as the diagnostic baseline | **DONE** (commit `6fafd2d`/`7f238d4`) |
 | D1 | 4-RSU urban-grid dynamic data (roads/buildings/RSUs/motion/stable edge-ids/real Stage-21 frames) | NOT_STARTED (gap #1) |
-| D2 | Dynamic reward: `hold_interval` into base; one discounted objective across train/TVT/val/held | NOT_STARTED (gaps #2,#3) — **highest-priority code fix per Plan §17** |
+| **D2** | Dynamic reward: `hold_interval` into base; one discounted objective across train/TVT/val/held | **DONE** — gaps #2,#3 fixed (`episode_rollout`/`dynamic_eval`/`_myopic_reference` = `H·base−reconfig`, discounted; activation logs it; 4 failing→passing tests; suite 654/0, contract 63/0; smoke exit 0). Headline deferred to post-D3. See `docs/dynamic_repair/D2/`. |
 | D3 | train/val/held three-split; checkpoint by val discounted return only | NOT_STARTED (gap #4) |
 | D4 | Wire phase-specific PBFT message plan into the production Stage-21 evaluator | NOT_STARTED (gap #5) |
 | D5 | Add velocity/heading/relative-velocity/CSI-delta/CSI-age to actor obs; training-only critic state | NOT_STARTED (gap #7) |

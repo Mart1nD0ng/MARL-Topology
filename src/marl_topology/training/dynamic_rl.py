@@ -94,7 +94,9 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
         base_r, _gc, _gb, ok = reward_of(obs, topo, e_ref, lam_c, lam_b, beta, reward_mode)
         switches = len(frozenset(prev_topo) ^ frozenset(topo)) if t > 0 else 0
         reconfig = (scene.reconfig.e_edge + scene.reconfig.l_edge) * switches
-        reward = base_r - reconfig
+        # Contract v3 §3.2 / two_timescale_env: a macro topology is held for H_PBFT micro-rounds, so
+        # the per-frame base objective is reaped H times before the one-time switch cost.
+        reward = scene.hold_interval * base_r - reconfig
         per_agent = [(pa.incident_edge_indices, pa.accepted_local_indices, pa.budget, float(pa.logp))
                      for pa in act.per_agent if pa.incident_edge_indices]
         records.append(FrameRecord(obs, per_agent, act.active_edge_indices, topo, reward, base_r,
@@ -145,6 +147,7 @@ def dynamic_eval(actor, scenes, mean, std, *, recurrent, temp, reward_of, ref_en
         e_ref = None
         frames = []
         ep_ret = 0.0
+        discount = 1.0
         for t in range(scene.n_frames):
             obs = scene.observation(t, prev_topo)
             ctx = obs["context"]
@@ -158,7 +161,9 @@ def dynamic_eval(actor, scenes, mean, std, *, recurrent, temp, reward_of, ref_en
             base_r, _gc, _gb, ok = reward_of(obs, list(topo), e_ref, lam_c, lam_b, beta, reward_mode)
             switches = len(frozenset(prev_topo) ^ frozenset(topo)) if t > 0 else 0
             reconfig = (scene.reconfig.e_edge + scene.reconfig.l_edge) * switches
-            ep_ret += base_r - reconfig
+            # SAME objective as training (Contract v3 §3.2/§3.3): discounted, H-scaled episode return.
+            ep_ret += discount * (scene.hold_interval * base_r - reconfig)
+            discount *= scene.gamma
             n_frames_total += 1; feas_frames += int(ok); switch_sum += switches
             frames.append({"t": t, "topo_size": len(topo), "switches": switches,
                            "feasible": bool(ok), "base_reward": round(float(base_r), 4),
@@ -419,6 +424,9 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                          "hold_interval": int(args.hold_interval), "gamma": float(args.gamma),
                          "reconfig_e_edge": float(args.reconfig_e), "reconfig_l_edge": float(args.reconfig_l),
                          "reconfiguration_cost_nonzero": bool(args.reconfig_e or args.reconfig_l),
+                         "reward_definition": "hold_interval*base - reconfig",
+                         "reward_uses_hold_interval": True,
+                         "return_definition": "discounted episode return G_0 = sum gamma^t r_t (train==eval==myopic==TVT)",
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
                   "arm": args.dynamic_actor, "warmstart_epochs": n_warm,
