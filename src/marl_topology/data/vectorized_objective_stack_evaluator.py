@@ -37,6 +37,7 @@ from marl_topology.data.stage21_objective_stack_evidence import (
     Stage21ObjectiveStackEvaluator,
     _apply_schedule_latency,
     _consensus_completion_latency,
+    _phase_specific_phase_records,
     _resource_assignments,
     _restrict_matrix,
     _stdma_schedule_for,
@@ -320,8 +321,18 @@ class VectorizedStage21Evaluator:
         else:
             probability = 0.0
             per_primary = {validator: 0.0 for validator in validators}
+        # D4: phase-specific energy/latency accounting (mirrors the canonical evaluator so the
+        # vectorized fast-path stays float-identical). Reliability matrices above are untouched.
+        primary = validators[0] if (self.config.phase_specific_accounting and validators) else None
+        if primary is not None:
+            client_ids = tuple(n for n in self.graph.node_ids if n not in set(validators))
+            acct_phase_records = _phase_specific_phase_records(
+                records, tuple(validators), primary, client_ids
+            )
+        else:
+            acct_phase_records = phase_records
         accounting = account_pbft_protocol_latency_energy(
-            node_ids=self.graph.node_ids, phase_records=phase_records, phase_budgets=budgets,
+            node_ids=self.graph.node_ids, phase_records=acct_phase_records, phase_budgets=budgets,
         )
         diagnostics = _topology_diagnostics(
             graph=self.graph, selected=selected, records=records, matrices=matrices,
@@ -329,7 +340,7 @@ class VectorizedStage21Evaluator:
         )
         if self.config.timeout_aware_latency:
             latency_value = _consensus_completion_latency(
-                validators, fault_tolerance, phase_records, self.config.phase_budget_s
+                validators, fault_tolerance, acct_phase_records, self.config.phase_budget_s
             )
         else:
             latency_value = accounting.protocol_latency_s
@@ -340,6 +351,25 @@ class VectorizedStage21Evaluator:
             "energy": accounting.protocol_energy_j,
             "topology_diagnostics": diagnostics,
         }
+        if primary is not None:
+            pa = accounting.phase_accounting
+            metrics["energy_breakdown"] = {
+                "protocol": accounting.protocol_energy_j,
+                "pre_prepare_energy": pa["pre_prepare"].phase_energy_j,
+                "prepare_energy": pa["prepare"].phase_energy_j,
+                "commit_energy": pa["commit"].phase_energy_j,
+                "pre_prepare_messages": pa["pre_prepare"].scheduled_message_count,
+                "prepare_messages": pa["prepare"].scheduled_message_count,
+                "commit_messages": pa["commit"].scheduled_message_count,
+                "validator_count": len(validators),
+                "client_count": len(self.graph.node_ids) - len(validators),
+                "primary": primary,
+                "relay_folded_into_route_energy": True,
+                "control_energy": 0.0,
+                "reconfig_energy": 0.0,
+                "view_change_energy": 0.0,
+                "total": accounting.protocol_energy_j,
+            }
         if self.config.coverage_gated_membership:
             metrics["membership_gated"] = True
             metrics["validator_count"] = len(self.validator_ids)

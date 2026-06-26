@@ -128,6 +128,10 @@ class PhysicsRegime:
     # timeout_aware_latency: quorum-completion timeout-aware latency (Spec S4.10) instead of the
     #   degenerate max-all-pairs; a failed topology pays the phase budget.
     timeout_aware_latency: bool = False
+    # phase_specific_accounting: energy/latency from the phase-specific PBFT message plan (Spec S4.8)
+    #   -- pre_prepare = primary star, prepare/commit = validator vote, clients never vote -- instead of
+    #   reusing one all-pairs record set for all three phases. Reliability untouched. Default off.
+    phase_specific_accounting: bool = False
 
     def channel_config(self) -> ChannelModelConfig:
         return ChannelModelConfig(
@@ -436,6 +440,7 @@ def build_stack_config(regime: PhysicsRegime):
         fault_model=getattr(regime, "fault_model", "remove_largest"),
         one_hop_relay=getattr(regime, "one_hop_relay", False),
         timeout_aware_latency=getattr(regime, "timeout_aware_latency", False),
+        phase_specific_accounting=getattr(regime, "phase_specific_accounting", False),
     )
 
 

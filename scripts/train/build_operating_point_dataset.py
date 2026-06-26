@@ -61,6 +61,9 @@ def operating_point_regime(tx_power_dbm: float) -> PhysicsRegime:
         # (>=2) keeps multi-hop reachability; measured to preserve feasibility (~0.731 vs
         # 0.733) -- see docs/CURRENT_HEAD_STATUS.md S10.
         fault_model="fixed_set", one_hop_relay=True, timeout_aware_latency=True,
+        # D4: phase-specific PBFT message-plan accounting (Spec S4.8) -- pre_prepare = primary star,
+        # prepare/commit = validator vote, clients never vote (replaces the all-pairs-x3 energy reuse).
+        phase_specific_accounting=True,
     )
 
 

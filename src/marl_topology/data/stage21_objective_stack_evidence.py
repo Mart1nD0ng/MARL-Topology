@@ -54,6 +54,7 @@ from marl_topology.protocol import (
     robust_consensus_reliability,
 )
 from marl_topology.protocol.pbft_accounting import PBFT_PROTOCOL_ACCOUNTING_MODEL_ID
+from marl_topology.protocol.pbft_message_plan import build_pbft_message_plan
 from marl_topology.protocol.stdma_scheduler import (
     StdmaSchedule,
     StdmaScheduleConfig,
@@ -149,6 +150,14 @@ class Stage21ObjectiveStackConfig:
     #   consensus time E[min(T,B)] (Spec S4.10) summed over the three phases -- a FAILED topology
     #   pays the full phase budget -- instead of the degenerate min(max_all_pairs, budget).
     timeout_aware_latency: bool = False
+    # phase_specific_accounting: when True the ENERGY/LATENCY accounting uses the phase-specific PBFT
+    #   message plan (Spec S4.8) instead of reusing one all-pairs record set for all three phases --
+    #   pre_prepare = primary->backups STAR, prepare/commit = validator<->validator, clients never vote.
+    #   The pre_prepare star is accounted for the deterministic view-0 primary (validators[0]); a PBFT
+    #   view has ONE primary, and view-change/primary-rotation energy is the deferred view_change term.
+    #   The RELIABILITY matrices are UNCHANGED (the expected-initiator model averages over all primaries
+    #   internally, so its matrices must stay the full validator set). Default off -> byte-identical.
+    phase_specific_accounting: bool = False
     evaluator_id: str = STAGE21_EVALUATOR_ID
 
     def __post_init__(self) -> None:
@@ -428,9 +437,20 @@ class Stage21ObjectiveStackEvaluator:
             fault_model=self.config.fault_model,
             reliability=reliability_result,
         )
+        # Energy/latency ACCOUNTING record sets. Reliability (matrices/phase_records above) is untouched.
+        # phase_specific_accounting: pre_prepare = primary->backups star, prepare/commit = validator
+        # vote, clients excluded (Spec S4.8). Off -> the legacy all-pairs-x3 reuse (byte-identical).
+        primary = validators[0] if (self.config.phase_specific_accounting and validators) else None
+        if primary is not None:
+            client_ids = tuple(n for n in self.graph.node_ids if n not in set(validators))
+            acct_phase_records = _phase_specific_phase_records(
+                records, tuple(validators), primary, client_ids
+            )
+        else:
+            acct_phase_records = phase_records
         accounting = account_pbft_protocol_latency_energy(
             node_ids=self.graph.node_ids,
-            phase_records=phase_records,
+            phase_records=acct_phase_records,
             phase_budgets=budgets,
         )
         diagnostics = _topology_diagnostics(
@@ -444,7 +464,7 @@ class Stage21ObjectiveStackEvaluator:
         )
         if self.config.timeout_aware_latency:
             latency_value = _consensus_completion_latency(
-                validators, fault_tolerance, phase_records, self.config.phase_budget_s
+                validators, fault_tolerance, acct_phase_records, self.config.phase_budget_s
             )
         else:
             latency_value = accounting.protocol_latency_s
@@ -456,6 +476,28 @@ class Stage21ObjectiveStackEvaluator:
             "topology_diagnostics": diagnostics,
             "fault_accounting": fault_accounting,
         }
+        if primary is not None:
+            pa = accounting.phase_accounting
+            metrics["energy_breakdown"] = {
+                "protocol": accounting.protocol_energy_j,
+                "pre_prepare_energy": pa["pre_prepare"].phase_energy_j,
+                "prepare_energy": pa["prepare"].phase_energy_j,
+                "commit_energy": pa["commit"].phase_energy_j,
+                "pre_prepare_messages": pa["pre_prepare"].scheduled_message_count,
+                "prepare_messages": pa["prepare"].scheduled_message_count,
+                "commit_messages": pa["commit"].scheduled_message_count,
+                "validator_count": len(validators),
+                "client_count": len(self.graph.node_ids) - len(validators),
+                "primary": primary,
+                # honest term ledger: relay is folded into the per-link multi-hop route energy;
+                # control (policy-communication) / reconfig / view-change are not modeled here (the
+                # dynamic arm charges reconfiguration separately) -> deferred (Spec S4.9 terms).
+                "relay_folded_into_route_energy": True,
+                "control_energy": 0.0,
+                "reconfig_energy": 0.0,
+                "view_change_energy": 0.0,
+                "total": accounting.protocol_energy_j,
+            }
         if self.config.coverage_gated_membership:
             metrics["membership_gated"] = True
             metrics["validator_count"] = len(self.validator_ids)
@@ -897,6 +939,29 @@ def _build_fault_accounting(
         spec = PBFTQuorumSpec(node_count=len(validators), fault_tolerance=effective_fault_tolerance)
         accounting.update(quorum=int(spec.quorum), external_quorum=int(spec.external_quorum))
     return accounting
+
+
+def _phase_specific_phase_records(
+    records: tuple[NetworkCommunicationRecord, ...],
+    validators: tuple[str, ...],
+    primary: str,
+    clients: tuple[str, ...],
+) -> dict[str, tuple[NetworkCommunicationRecord, ...]]:
+    """Restrict the full directed records to each PBFT phase's plan messages (Spec S4.8).
+
+    pre_prepare = primary->backups (a star); prepare/commit = validator<->validator; clients never
+    send votes. Each record is one directed (source -> single target) pair, so a record is kept for a
+    phase iff its (source, target) is in that phase's plan set. The reliability matrices are built
+    separately from the FULL records (this only changes the energy/latency accounting)."""
+    plan = build_pbft_message_plan(validators, primary, clients=clients)
+    out: dict[str, tuple[NetworkCommunicationRecord, ...]] = {}
+    for phase in PBFT_PHASE_NAMES:
+        pairs = plan.phase_messages(phase)
+        out[phase] = tuple(
+            r for r in records
+            if any((r.source_id, t) in pairs for t in r.target_ids)
+        )
+    return out
 
 
 def _consensus_completion_latency(
