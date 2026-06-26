@@ -4042,3 +4042,26 @@ frozen D4/D6 RETURN numbers are superseded** (they were on `base − reconfig`, 
 feasibility *metric definition* is unchanged (scale-invariant), but the trained policy now optimizes
 the corrected objective. Substantive (H multiplies base but not reconfig → at H=4 the objective is
 weighted 4× vs switching cost). Headline deferred to post-D3. Artifacts: `docs/dynamic_repair/D2/`.
+
+## Dynamic-Repair Campaign — D3 (independent validation split)
+
+**D3 done (commit `5406749`).** Wired an independent validation split into the dynamic arm (gap #4).
+Previously the dynamic arm had only train/held and selected keep-best on TRAIN — Contract v3 §3.4 /
+forbidden §13.7 (a train-keep-best run is pilot-only; a train→held drop must not be called a
+generalization gap). Now: `--dyn-val` (seed `*1000+333`) is the ONLY checkpoint-selection split;
+`sample_dynamic_scenes` gained a `tag` so train/val/held have literally disjoint `sequence_id`s
+(also fixes the prior name-by-index collision); `run_dynamic_training` runs the periodic keep-best
+eval on the val split and evaluates held exactly once at the end (after loading the val-selected
+best_state); `build_split_manifest` writes `split_manifest.json`; result/activation record
+`checkpoint_selection={split:val, held_used_for_checkpoint:false}`. A no-validation run (`--dyn-val 0`)
+falls back to train keep-best and is explicitly labeled `pilot_only_no_validation` (not headline-
+eligible). `parse_args(argv=None)` added for testability (CLI byte-identical).
+
+Verification: 4 failing-first tests + a pilot-fallback test pass; unit **657/0**, contract **63/0**;
+`--dynamic` smoke exit 0 with a 3-disjoint-split manifest, checkpoint on val. A **4-lens adversarial
+Workflow (leakage / disjointness-honesty / T=1 byte-identity / test-adequacy) returned ALL PASS** — no
+held leakage into keep-best, `splits_disjoint` computed (not hard-coded), T=1 path byte-identical,
+deployed decoder unchanged, the tests are genuine anti-pseudo-tests. Two nits fixed (stale "eval on
+TRAIN scenes" comment; added the `dyn_val=0` pilot-fallback test). Headline still deferred (needs
+D5/D6/D7). Artifacts: `docs/dynamic_repair/D3/`. Next: D4 (PBFT phase-message-plan into the production
+Stage-21 evaluator).
