@@ -25,6 +25,7 @@ training-only.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
@@ -97,6 +98,12 @@ class DynamicScene:
     hold_interval: int = 1
     gamma: float = 0.95
     vectorized: bool = True   # float-identical (1e-9) bounded-cache evaluator, ~6x faster -> usable rollout
+    # D5 (opt-in): per-node constant velocity (node_id -> (vx, vy, vz) m/s) + dt, and the flag that
+    # appends LOCAL motion features to the actor observation (own velocity/heading + per-link relative
+    # velocity / distance-delta / CSI-delta). Default off -> the observation is byte-identical.
+    velocities: dict = field(default_factory=dict)
+    dt_s: float = 1.0
+    motion_features: bool = False
     _ctx_cache: dict = field(default_factory=dict, repr=False)
     _row_cache: dict = field(default_factory=dict, repr=False)
 
@@ -156,6 +163,11 @@ class DynamicScene:
         ef = torch.tensor([list(map(float, e)) for e in payload["edge_features"]])
         ei = torch.tensor([list(map(int, p)) for p in payload["edge_index"]], dtype=torch.long)
         edge_ids = [e.edge_id for e in ctx.graph.edges]
+        if self.motion_features:
+            # Append LOCAL motion features (D5): each node's own velocity/heading; per-link relative
+            # velocity / distance-delta / CSI-delta. No global aggregate -> deployment-decentralized.
+            nf = torch.cat([nf, self._motion_node_block(ctx)], dim=1)
+            ef = torch.cat([ef, self._motion_edge_block(ctx, t)], dim=1)
         m = self.measurements[t]
         feasible_exists = bool(m["feasible_exists"]) if m is not None else True
         label = {
@@ -166,6 +178,42 @@ class DynamicScene:
         }
         return {"nf": nf, "ef": ef, "ei": ei, "edge_ids": edge_ids,
                 "context": ctx, "label": label, "time_index": t}
+
+    def _motion_node_block(self, ctx) -> torch.Tensor:
+        """Per-node LOCAL motion features [vx, vy, speed, heading_sin, heading_cos] (each node's OWN
+        velocity), in ctx.graph.node_ids order. Heading is the unit velocity direction (0 when still)."""
+        rows = []
+        for node_id in ctx.graph.node_ids:
+            vx, vy, _vz = self.velocities.get(node_id, (0.0, 0.0, 0.0))
+            speed = math.hypot(vx, vy)
+            hs = vy / speed if speed > 1e-9 else 0.0
+            hc = vx / speed if speed > 1e-9 else 0.0
+            rows.append([float(vx), float(vy), float(speed), float(hs), float(hc)])
+        return torch.tensor(rows, dtype=torch.float32)
+
+    def _motion_edge_block(self, ctx, t: int) -> torch.Tensor:
+        """Per-link LOCAL motion features [relative_velocity_along_link, distance_delta, csi_delta,
+        csi_age], in ctx.graph.edges order. relative_velocity_along_link = d|p_u-p_v|/dt = (p_u-p_v).
+        (v_u-v_v)/|p_u-p_v| (signed: <0 approaching, >0 departing -- a node knows its neighbour's
+        position+velocity via neighbour broadcast). csi_delta = psucc_t - psucc_{t-1} (env-computed,
+        0 at t=0); csi_age = 0 (every frame is freshly measured here -- a placeholder for stale-CSI)."""
+        pos = {n.node_id: n.position for n in self.scenes[t].nodes}
+        prev_ctx = self.context(t - 1) if t > 0 else None
+        rows = []
+        for edge in ctx.graph.edges:
+            u, v = edge.node_u, edge.node_v
+            pu, pv = pos[u], pos[v]
+            vux, vuy, _u = self.velocities.get(u, (0.0, 0.0, 0.0))
+            vvx, vvy, _w = self.velocities.get(v, (0.0, 0.0, 0.0))
+            dx, dy = pu.x_m - pv.x_m, pu.y_m - pv.y_m
+            dist = math.hypot(dx, dy) or 1e-9
+            rel_vel = ((vux - vvx) * dx + (vuy - vvy) * dy) / dist
+            distance_delta = rel_vel * self.dt_s
+            cur = float(ctx.link_records[edge.edge_id].link_success_probability)
+            prev = (float(prev_ctx.link_records[edge.edge_id].link_success_probability)
+                    if prev_ctx is not None else cur)
+            rows.append([float(rel_vel), float(distance_delta), float(cur - prev), 0.0])
+        return torch.tensor(rows, dtype=torch.float32)
 
 
 def dynamic_scene_from_trajectory(
@@ -197,16 +245,19 @@ def dynamic_scene_from_motion(
     reconfig: ReconfigCost = ReconfigCost(),
     hold_interval: int = 1,
     gamma: float = 0.95,
+    motion_features: bool = False,
 ) -> DynamicScene:
     """Roll geometry forward (advance_scene; NO per-frame SA measurement) -> a cheap DynamicScene.
 
     This is the dataset hot path: building the per-frame EVALUATOR (link records) is cheap; the
     expensive best-feasible SA search is NOT run (feasibility is read live from the evaluator during
-    rollout). Frame metadata is a placeholder (unused by the reward).
+    rollout). Frame metadata is a placeholder (unused by the reward). ``motion_features`` appends the
+    LOCAL motion features (D5) to the observation; per-node velocities come from ``motions``.
     """
     if num_frames < 1:
         raise ValueError("num_frames must be >= 1")
     motion_map = {m.node_id: m for m in motions}
+    velocities = {m.node_id: tuple(float(c) for c in m.velocity_mps) for m in motions}
     scenes = []
     scene = initial_scene
     for t in range(num_frames):
@@ -218,6 +269,7 @@ def dynamic_scene_from_motion(
         reliable_range_m=float(reliable_range_m), scenes=tuple(scenes),
         measurements=tuple([None] * num_frames),
         reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
+        velocities=velocities, dt_s=float(dt_s), motion_features=motion_features,
     )
 
 
@@ -235,6 +287,7 @@ def sample_dynamic_scenes(
     hold_interval: int,
     gamma: float,
     tag: str = "",
+    motion_features: bool = False,
 ) -> list[DynamicScene]:
     """Deterministic set of moving-vehicle DynamicScenes (cheap path; no per-frame SA).
 
@@ -258,5 +311,6 @@ def sample_dynamic_scenes(
         motions = _sample_vehicle_motions(rng, scene, speed_min_mps, speed_max_mps)
         out.append(dynamic_scene_from_motion(
             scene, motions, regime, quorum, num_frames=num_frames, dt_s=dt_s,
-            reliable_range_m=reliable_range_m, reconfig=reconfig, hold_interval=hold_interval, gamma=gamma))
+            reliable_range_m=reliable_range_m, reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
+            motion_features=motion_features))
     return out

@@ -470,6 +470,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                         "stays the only difference.")
     p.add_argument("--dyn-warmstart-lr", type=float, default=0.0, help="warm-start lr (0 -> use --lr)")
     p.add_argument("--tx-power", type=float, default=20.0, help="tx power dBm (operating-point regime)")
+    p.add_argument("--motion-features", action="store_true",
+                   help="dynamic arm: append LOCAL motion features (D5) to the actor observation -- each "
+                        "node's velocity/heading + per-link relative velocity / distance-delta / CSI-delta. "
+                        "Default off -> observation byte-identical. The deployed actor stays local/neighbour-only.")
     return p.parse_args(argv)
 
 

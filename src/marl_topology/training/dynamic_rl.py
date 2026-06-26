@@ -288,6 +288,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
 
     # deterministic train / val / held split by disjoint seeds (Contract v3 §3.4): keep-best selects
     # the checkpoint ONLY on val; held is FINAL-reporting-only and never enters checkpoint selection.
+    motion_features = bool(getattr(args, "motion_features", False))
+
     def _mk(seed_off, count, tag):
         if count <= 0:
             return []
@@ -295,7 +297,7 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             seed=args.seed * 1000 + seed_off, count=count, node_count_choices=tuple(args.dyn_nodes),
             regime=regime, num_frames=args.frames, dt_s=args.dt, speed_min_mps=args.speed_min,
             speed_max_mps=args.speed_max, reconfig=reconfig, hold_interval=args.hold_interval,
-            gamma=args.gamma, tag=tag)
+            gamma=args.gamma, tag=tag, motion_features=motion_features)
     n_val = int(getattr(args, "dyn_val", 0))
     train_scenes = _mk(1, args.dyn_train, "train_")
     val_scenes = _mk(333, n_val, "val_")
@@ -475,6 +477,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                                     "held_seed": args.seed * 1000 + 777},
                          "checkpoint_selection_split": sel_split, "held_used_for_checkpoint": False,
                          "validation_split_present": bool(val_scenes),
+                         "motion_features": motion_features,
+                         "motion_node_features": (["velocity_x", "velocity_y", "speed", "heading_sin",
+                                                   "heading_cos"] if motion_features else []),
+                         "motion_edge_features": (["relative_velocity_along_link", "distance_delta",
+                                                   "csi_delta", "csi_age"] if motion_features else []),
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
                   "arm": args.dynamic_actor, "warmstart_epochs": n_warm,
