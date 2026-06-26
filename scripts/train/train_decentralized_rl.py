@@ -469,6 +469,17 @@ def parse_args(argv=None) -> argparse.Namespace:
                         "at N<=16; both arms get the SAME warm-start so the cross-frame-memory ablation "
                         "stays the only difference.")
     p.add_argument("--dyn-warmstart-lr", type=float, default=0.0, help="warm-start lr (0 -> use --lr)")
+    p.add_argument("--dyn-warmstart-mode", choices=["bce", "bcsp"], default="bce",
+                   help="dynamic warm-start objective (D6): bce (legacy per-edge BCE) or bcsp "
+                        "(decoder-aware BCSP-subset likelihood of the teacher proposals -- respects the "
+                        "budget cap + mutual-acceptance the deployed decoder uses). Default bce (byte-identical).")
+    p.add_argument("--dyn-bc-anchor", type=float, default=0.0,
+                   help="dynamic arm (D6): annealed decoder-aware teacher-BC anchor coefficient added to the "
+                        "PPO actor loss (lambda decays linearly to 0) so RL does not destroy the feasible "
+                        "warm-start. 0 -> off (byte-identical).")
+    p.add_argument("--dyn-critic-warmstart", type=int, default=0,
+                   help="dynamic arm (D6): epochs to pretrain the per-frame critic to the teacher's "
+                        "discounted returns G_t^teacher (training-only value warm-start). 0 -> off.")
     p.add_argument("--tx-power", type=float, default=20.0, help="tx power dBm (operating-point regime)")
     p.add_argument("--motion-features", action="store_true",
                    help="dynamic arm: append LOCAL motion features (D5) to the actor observation -- each "

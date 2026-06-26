@@ -294,3 +294,94 @@ def test_run_dynamic_training_uses_val_split_for_checkpoint(tmp_path) -> None:
     result = json.loads((run / "dynamic_result.json").read_text())
     assert result["checkpoint_selection"]["split"] == "val"
     assert "held_per_frame_feasibility" in result        # held still reported (final only)
+
+
+# --------------------------------------------------------------------------- #
+# D6: decoder-aware (BCSP-subset) warm-start + anti-drift teacher anchor + critic warm-start.
+# --------------------------------------------------------------------------- #
+_RW = dict(reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0, beta=0.1, reward_mode="dense")
+
+
+def test_decoder_aware_teacher_reconstructs_topology() -> None:
+    # The decoder-aware teacher's per-agent BCSP proposals must reconstruct (via local mutual
+    # acceptance) the recorded teacher topology, which is a budget-feasible subset of the myopic best.
+    from marl_topology.training.dynamic_rl import _bcsp_teacher_trajectory
+    scene = _scene(num_frames=2)
+    _a, _c, mean, std = _models(scene)
+    traj = _bcsp_teacher_trajectory(scene, mean, std, **_RW)
+    assert len(traj) == scene.n_frames
+    for fr in traj:
+        edges = {e.edge_id: (e.node_u, e.node_v) for e in fr["obs"]["context"].graph.edges}
+        edge_ids = fr["obs"]["edge_ids"]
+        accept = {node: {inc[k] for k in acc} for (node, inc, acc, _b) in fr["proposals"]}
+        mutual = {edge_ids[i] for i, eid in enumerate(edge_ids)
+                  if i in accept.get(edges[eid][0], ()) and i in accept.get(edges[eid][1], ())}
+        assert mutual == set(fr["recon"])                # recon IS the mutual decode of the proposals
+        assert set(fr["recon"]).issubset(set(fr["teacher"]))   # a budget-feasible subset of the teacher
+        for (_node, inc, acc, b) in fr["proposals"]:
+            assert len(acc) <= b                         # every proposal respects the node budget (BCSP support)
+
+
+def test_bcsp_warmstart_increases_teacher_subset_logp() -> None:
+    # more decoder-aware warm-start epochs -> lower teacher-subset NLL (higher BCSP logp).
+    from marl_topology.training.dynamic_rl import warmstart_actor_bcsp
+    scene = _scene(num_frames=3)
+    a20, _c, mean, std = _models(scene)
+    nll20 = warmstart_actor_bcsp(a20, [scene], mean, std, recurrent=True, epochs=20, lr=5e-3, temp=1.0, **_RW)
+    a1, _c2, _m, _s = _models(scene)
+    nll1 = warmstart_actor_bcsp(a1, [scene], mean, std, recurrent=True, epochs=1, lr=5e-3, temp=1.0, **_RW)
+    assert nll20 < nll1, f"decoder-aware warm-start should lower teacher NLL (20ep {nll20} vs 1ep {nll1})"
+
+
+def test_ppo_kl_anchor_limits_drift_from_teacher() -> None:
+    # under an identical drift-inducing (entropy-maximizing) update, the BC anchor (lambda>0) keeps the
+    # actor closer to the teacher (higher teacher subset logp) than no anchor (lambda=0).
+    from marl_topology.training.dynamic_rl import (
+        _bcsp_teacher_trajectory, bcsp_teacher_anchor_loss, warmstart_actor_bcsp)
+
+    def _warm():
+        a, _c, mean, std = _models(scene)
+        warmstart_actor_bcsp(a, [scene], mean, std, recurrent=False, epochs=15, lr=5e-3, temp=1.0, **_RW)
+        return a, mean, std
+
+    scene = _scene(num_frames=3)
+    traj_holder = {}
+
+    def _drift(actor, mean, std, lam):
+        traj = traj_holder.setdefault("t", _bcsp_teacher_trajectory(scene, mean, std, **_RW))
+        opt = torch.optim.Adam(actor.parameters(), lr=1e-2)
+        for _ in range(12):
+            ent, anchor = [], bcsp_teacher_anchor_loss(actor, scene, traj, mean, std, recurrent=False, temp=1.0)
+            for fr in traj:
+                nf_s, ef_s = _standardize_obs(actor, fr["obs"], mean, std)
+                logits, _h = actor(nf_s, ef_s, fr["obs"]["ei"], hidden=None)
+                from marl_topology.training.decentralized_action import recompute_bcsp_entropy
+                for (node, inc, acc, b) in fr["proposals"]:
+                    if inc:
+                        ent.append(recompute_bcsp_entropy(logits, inc, 1.0, b))
+            drift = -torch.stack(ent).mean()             # push toward uniform (away from the peaked teacher)
+            loss = drift + lam * anchor
+            opt.zero_grad(); loss.backward(); opt.step()
+        return float(-bcsp_teacher_anchor_loss(actor, scene, traj, mean, std, recurrent=False, temp=1.0))
+
+    a_free, m, s = _warm()
+    free_logp = _drift(a_free, m, s, lam=0.0)
+    a_anchor, m2, s2 = _warm()
+    anchor_logp = _drift(a_anchor, m2, s2, lam=3.0)
+    assert anchor_logp > free_logp, f"anchor should limit drift (anchor logp {anchor_logp} > free {free_logp})"
+
+
+def test_critic_pretrain_tracks_teacher_return() -> None:
+    # warm-starting the critic toward the teacher's discounted returns lowers its MSE.
+    from marl_topology.training.dynamic_rl import warmstart_critic
+    scene = _scene(num_frames=3)
+    _a, c30, mean, std = _models(scene)
+    mse30 = warmstart_critic(c30, [scene], mean, std, epochs=30, lr=5e-3, **_RW)
+    _a2, c1, _m, _s = _models(scene)
+    mse1 = warmstart_critic(c1, [scene], mean, std, epochs=1, lr=5e-3, **_RW)
+    assert mse30 < mse1, f"critic warm-start should lower MSE to teacher returns (30ep {mse30} vs 1ep {mse1})"
+
+
+def _standardize_obs(actor, obs, mean, std):
+    from marl_topology.training.dynamic_rl import _standardize
+    return _standardize(obs["nf"], obs["ef"], mean, std)

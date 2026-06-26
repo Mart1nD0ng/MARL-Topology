@@ -33,6 +33,7 @@ from marl_topology.models.centralized_graph_critic import CentralizedGraphCritic
 from marl_topology.models.dynamic_recurrent_actor import DynamicRecurrentActor
 from marl_topology.policies.decentralized_mutual_acceptance import local_mutual_assemble
 from marl_topology.training.decentralized_action import (
+    incident_index,
     recompute_bcsp_entropy,
     recompute_bcsp_logp,
     sample_decentralized_bcsp_action,
@@ -269,6 +270,137 @@ def build_split_manifest(*, seed, train, val, held):
     }
 
 
+def _bcsp_teacher_trajectory(scene, mean, std, *, reward_of, ref_energy, lam_c, lam_b, beta, reward_mode):
+    """Decoder-aware teacher (D6): per frame, the per-agent BCSP proposal subsets S_i^teacher (each
+    node's incident edges in the myopic-greedy teacher topology, CAPPED at its budget b_i so |S_i|<=b_i
+    is in the BCSP support -- subset_logp is -inf otherwise) and the topology the local mutual decoder
+    RECONSTRUCTS from them. The teacher prev = its own reconstructed topology. Returns per-frame dicts
+    {obs, proposals=[(node, incident_idxs, accepted_local, budget)], recon, teacher}. Training-only;
+    the teacher uses the candidate evaluator exactly like the BCE teacher."""
+    out = []
+    prev: list[str] = []
+    for t in range(scene.n_frames):
+        obs = scene.observation(t, prev)
+        ctx = obs["context"]
+        tv = getattr(ctx, "topology_variants", None) or {}
+        values = tv.values() if isinstance(tv, dict) else tv
+        cands = [tuple(str(e) for e in (v.edges if hasattr(v, "edges") else v)) for v in values]
+        cands = cands or [tuple(obs["edge_ids"])]
+        e_ref = ref_energy(obs)
+        best, best_r = cands[0], -1e30
+        for cand in cands:
+            r, _gc, _gb, _ok = reward_of(obs, list(cand), e_ref, lam_c, lam_b, beta, reward_mode)
+            if r > best_r:
+                best, best_r = cand, r
+        edge_ids = obs["edge_ids"]
+        budgets, edges = _budgets_edges(ctx)
+        incident = incident_index(edge_ids, edges)
+        tset = set(best)
+        proposals = []
+        accept: dict = {}
+        for node, idxs in incident.items():
+            b = int(budgets.get(node, 0))
+            idxs_t = tuple(idxs)
+            teacher_local = tuple(k for k, gi in enumerate(idxs_t) if edge_ids[gi] in tset)[:b]
+            proposals.append((node, idxs_t, teacher_local, b))
+            accept[node] = {idxs_t[k] for k in teacher_local}
+        recon = [edge_ids[i] for i, eid in enumerate(edge_ids)
+                 if i in accept.get(edges[eid][0], ()) and i in accept.get(edges[eid][1], ())]
+        out.append({"obs": obs, "proposals": proposals, "recon": recon, "teacher": list(best)})
+        prev = list(recon)
+    return out
+
+
+def _teacher_subset_nll(actor, traj, mean, std, *, recurrent, temp):
+    """Mean decoder-aware teacher-subset NLL over a trajectory under the actor's CURRENT logits."""
+    hidden = None
+    losses = []
+    for fr in traj:
+        nf_s, ef_s = _standardize(fr["obs"]["nf"], fr["obs"]["ef"], mean, std)
+        logits, h_next = actor(nf_s, ef_s, fr["obs"]["ei"], hidden=hidden)
+        node_nll = [-recompute_bcsp_logp(logits, inc, acc, temp, b)
+                    for (_node, inc, acc, b) in fr["proposals"] if inc]
+        if node_nll:
+            losses.append(torch.stack(node_nll).mean())
+        hidden = h_next if recurrent else None
+    if not losses:
+        return torch.zeros(())
+    return torch.stack(losses).mean()
+
+
+def bcsp_teacher_anchor_loss(actor, scene, traj, mean, std, *, recurrent, temp):
+    """The annealed BC anchor added to the PPO actor loss (and, negated, the teacher subset logp): the
+    mean decoder-aware teacher-subset NLL. Keeps the actor near the feasible warm-start so PPO does not
+    destroy it (Plan §8.2). ``scene`` is accepted for API symmetry (the trajectory carries the obs)."""
+    return _teacher_subset_nll(actor, traj, mean, std, recurrent=recurrent, temp=temp)
+
+
+def warmstart_actor_bcsp(actor, scenes, mean, std, *, recurrent, epochs, lr, temp, reward_of, ref_energy,
+                         lam_c, lam_b, beta, reward_mode):
+    """Decoder-aware warm-start (D6): maximize the BCSP likelihood of the teacher's per-agent proposal
+    subsets (replaces the per-edge BCE, which ignored the budget cap + mutual-acceptance the deployed
+    decoder uses). Returns the mean final-epoch teacher-subset NLL (a convergence signal)."""
+    teachers = [_bcsp_teacher_trajectory(s, mean, std, reward_of=reward_of, ref_energy=ref_energy,
+                                         lam_c=lam_c, lam_b=lam_b, beta=beta, reward_mode=reward_mode)
+                for s in scenes]
+    opt = torch.optim.Adam(actor.parameters(), lr=lr)
+    last = 0.0
+    for _ep in range(max(1, epochs)):
+        tot, n = 0.0, 0
+        for traj in teachers:
+            loss = _teacher_subset_nll(actor, traj, mean, std, recurrent=recurrent, temp=temp)
+            if not loss.requires_grad:
+                continue
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+            opt.step()
+            tot += float(loss); n += 1
+        last = tot / max(1, n)
+    return last
+
+
+def warmstart_critic(critic, scenes, mean, std, *, epochs, lr, reward_of, ref_energy,
+                     lam_c, lam_b, beta, reward_mode):
+    """Pretrain the per-frame critic to the teacher's discounted returns G_t^teacher (a value
+    warm-start; training-only). Returns the mean final-epoch MSE to the teacher returns."""
+    data = []
+    for s in scenes:
+        traj = _bcsp_teacher_trajectory(s, mean, std, reward_of=reward_of, ref_energy=ref_energy,
+                                        lam_c=lam_c, lam_b=lam_b, beta=beta, reward_mode=reward_mode)
+        e_ref, rewards, prev = None, [], []
+        for fr in traj:
+            obs, recon = fr["obs"], fr["recon"]
+            if e_ref is None:
+                e_ref = ref_energy(obs)
+            base_r, _gc, _gb, _ok = reward_of(obs, list(recon), e_ref, lam_c, lam_b, beta, reward_mode)
+            switches = len(frozenset(prev) ^ frozenset(recon)) if rewards else 0
+            reconfig = (s.reconfig.e_edge + s.reconfig.l_edge) * switches
+            rewards.append(s.hold_interval * base_r - reconfig)
+            prev = recon
+        rets = [0.0] * len(rewards)
+        g = 0.0
+        for i in range(len(rewards) - 1, -1, -1):
+            g = rewards[i] + s.gamma * g
+            rets[i] = g
+        data.append([(fr["obs"], rets[i]) for i, fr in enumerate(traj)])
+    opt = torch.optim.Adam(critic.parameters(), lr=lr)
+    last = 0.0
+    for _ep in range(max(1, epochs)):
+        tot, n = 0.0, 0
+        for traj_data in data:
+            preds = [critic_scene_value(critic, obs["nf"], obs["ef"], obs["ei"],
+                                        node_mean=mean[0], node_std=std[0], edge_mean=mean[1], edge_std=std[1])
+                     for obs, _gt in traj_data]
+            targets = torch.tensor([gt for _obs, gt in traj_data])
+            loss = (torch.stack(preds) - targets).pow(2).mean()
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
+            opt.step()
+            tot += float(loss); n += 1
+        last = tot / max(1, n)
+    return last
+
+
 def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, TAU):
     """The --dynamic arm: build moving-vehicle scenes, train the episode-recurrent (or memoryless)
     actor with recurrent PPO + a per-frame critic, eval on a held trajectory set, and emit the full
@@ -336,18 +468,45 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     temp = args.temp
 
     warmstart_bce = None
+    warmstart_final = None
+    warmstart_mode = str(getattr(args, "dyn_warmstart_mode", "bce"))   # bce (legacy) | bcsp (decoder-aware)
+    bc_anchor = float(getattr(args, "dyn_bc_anchor", 0.0))             # annealed teacher-BC anchor in PPO
+    n_critic_warm = int(getattr(args, "dyn_critic_warmstart", 0))
     n_warm = int(getattr(args, "dyn_warmstart", 0))
+    # decoder-aware teacher trajectories (built once): used by the BCSP warm-start AND the BC anchor.
+    train_teachers = None
+    if (n_warm > 0 and warmstart_mode == "bcsp") or bc_anchor > 0.0:
+        train_teachers = [_bcsp_teacher_trajectory(s, mean, std, reward_of=reward_of, ref_energy=ref_energy,
+                                                   lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta,
+                                                   reward_mode=args.reward_mode) for s in train_scenes]
     if n_warm > 0:
         # Supervised warm-start toward the per-frame myopic-greedy teacher BEFORE RL -- gives the
-        # cold-start actor a feasible target (both arms get the SAME warm-start; the only difference
-        # stays the cross-frame hidden carry). Critic stays cold (RL trains it).
+        # cold-start actor a feasible target (both arms get the SAME warm-start). Critic stays cold
+        # unless --dyn-critic-warmstart. The teacher uses the candidate evaluator (training-only).
         wlr = getattr(args, "dyn_warmstart_lr", 0.0) or args.lr
-        warmstart_bce = warmstart_actor(
-            actor, train_scenes, mean, std, recurrent=recurrent, epochs=n_warm, lr=wlr,
-            reward_of=reward_of, ref_energy=ref_energy,
-            lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
-        print(f"[dynamic:{args.dynamic_actor}] warm-start {n_warm} epochs -> final BCE {warmstart_bce:.4f}",
-              flush=True)
+        if warmstart_mode == "bcsp":
+            warmstart_final = warmstart_actor_bcsp(
+                actor, train_scenes, mean, std, recurrent=recurrent, epochs=n_warm, lr=wlr, temp=temp,
+                reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c, lam_b=args.lam_b,
+                beta=args.beta, reward_mode=args.reward_mode)
+            print(f"[dynamic:{args.dynamic_actor}] decoder-aware warm-start {n_warm} ep -> teacher NLL "
+                  f"{warmstart_final:.4f}", flush=True)
+        else:
+            warmstart_bce = warmstart_actor(
+                actor, train_scenes, mean, std, recurrent=recurrent, epochs=n_warm, lr=wlr,
+                reward_of=reward_of, ref_energy=ref_energy,
+                lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
+            warmstart_final = warmstart_bce
+            print(f"[dynamic:{args.dynamic_actor}] warm-start {n_warm} ep -> final BCE {warmstart_bce:.4f}",
+                  flush=True)
+    critic_warm_mse = None
+    if n_critic_warm > 0:
+        critic_warm_mse = warmstart_critic(
+            critic, train_scenes, mean, std, epochs=n_critic_warm, lr=args.critic_lr,
+            reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c, lam_b=args.lam_b,
+            beta=args.beta, reward_mode=args.reward_mode)
+        print(f"[dynamic:{args.dynamic_actor}] critic warm-start {n_critic_warm} ep -> teacher-return MSE "
+              f"{critic_warm_mse:.4f}", flush=True)
 
     # measure the warm-start init's HELD quality BEFORE RL (measurement only -> no checkpoint leakage),
     # so the report can honestly compare warm-start-alone vs warm-start+RL.
@@ -397,6 +556,16 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             ppo_loss, info = ppo_clip_actor_loss(torch.stack(lp_new), logp_old_flat,
                                                  adv_flat.detach(), clip_eps=args.clip_epsilon)
             loss = ppo_loss - args.entropy_coef * torch.stack(ent_new).mean()
+            anchor_val = 0.0
+            if bc_anchor > 0.0 and train_teachers is not None:
+                # annealed decoder-aware BC anchor: keep the actor near the feasible warm-start so PPO
+                # does not destroy it (Plan §8.2). lambda decays linearly to 0 over training.
+                lam_bc = bc_anchor * max(0.0, 1.0 - update / max(1, args.updates))
+                if lam_bc > 0.0:
+                    anchor = torch.stack([_teacher_subset_nll(actor, tr, mean, std, recurrent=recurrent,
+                                                              temp=temp) for tr in train_teachers]).mean()
+                    loss = loss + lam_bc * anchor
+                    anchor_val = float(anchor)
             opt.zero_grad(); loss.backward()
             gnorm = float(torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0))
             opt.step()
@@ -485,17 +654,33 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
                   "arm": args.dynamic_actor, "warmstart_epochs": n_warm,
-                  "warmstart_final_bce": warmstart_bce},
-        "critic": {"enabled": True, "per_frame_state_value": True},
+                  "warmstart_mode": warmstart_mode,            # bce (legacy) | bcsp (decoder-aware, D6)
+                  "warmstart_final_bce": warmstart_bce,
+                  "warmstart_final_metric": warmstart_final,
+                  "bc_anchor_lambda": bc_anchor,               # annealed teacher-BC anchor in PPO (D6)
+                  "teacher_source": "myopic-greedy over canonical candidate variants",
+                  "teacher_uses_evaluator": True, "teacher_uses_held": False},
+        "critic": {"enabled": True, "per_frame_state_value": True,
+                   "warmstart_epochs": n_critic_warm, "warmstart_teacher_return_mse": critic_warm_mse},
         "action": {"distribution": "bcsp",
                    "rollout_sampler": "sample_decentralized_bcsp_action (stochastic; MAP == deploy)",
                    "eval_decoder": "local_mutual_assemble (deployed, torch-free)",
                    "per_agent_ratio": True},
         "regime": "operating_point urban v2x_37885 shadowing nlosv relay-3 backhaul coverage-gated",
     }
+    # post-RL drift (Contract §10.3): how much RL moved the warm-start-alone HELD return.
+    post_rl_drift = None
+    if warmstart_held is not None:
+        post_rl_drift = round(float(held["mean_episode_return"]) - float(warmstart_held["mean_episode_return"]), 5)
     result = {
         "arm": args.dynamic_actor, "seed": args.seed,
-        "warmstart_epochs": n_warm, "warmstart_held": warmstart_held,
+        "warmstart_epochs": n_warm, "warmstart_mode": warmstart_mode, "bc_anchor_lambda": bc_anchor,
+        "critic_warmstart_epochs": n_critic_warm,
+        "teacher": {"source": "myopic-greedy over canonical candidate variants",
+                    "uses_evaluator": True, "uses_held": False},
+        "warmstart_held": warmstart_held, "warmstart_alone_return": (
+            warmstart_held["mean_episode_return"] if warmstart_held is not None else None),
+        "post_rl_drift_held_return": post_rl_drift,   # held_return - warmstart_alone_return (RL effect)
         "held_per_frame_feasibility": round(held["per_frame_feasibility"], 5),
         "held_mean_episode_return": round(held["mean_episode_return"], 5),
         "held_mean_switches_per_frame": round(held["mean_switches_per_frame"], 5),
