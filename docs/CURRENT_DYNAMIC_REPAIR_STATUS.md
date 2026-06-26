@@ -1,0 +1,129 @@
+# CURRENT_DYNAMIC_REPAIR_STATUS — HEAD vs. Contract-v3 + Dynamic-Repair-Plan
+
+> Document type: gap analysis / repair-campaign status of record.
+> Authority: `docs/MARL-Topology-Development-Contract-v3.md` (the contract) and
+> `docs/MARL-Topology-Dynamic-Repair-Engineering-Plan.md` (the plan) are the highest-priority
+> binding documents. Where this file, old code/comments, or any report conflicts with those two,
+> **they win**.
+> Iron rule (inherited from `CURRENT_HEAD_STATUS.md`): every claim cites an artifact
+> (file:line, test id, command output). Anything not so grounded is marked `UNVERIFIED`.
+
+| field | value | source |
+|---|---|---|
+| git HEAD | `e450cb7` "D6: stabilized warm-started 3-seed headline + report update" | `git rev-parse HEAD` |
+| branch | `decentralized-marl-trunk` | session git status |
+| date | 2026-06-26 | session |
+| dynamic entry | `scripts/train/train_decentralized_rl.py --dynamic` → `training/dynamic_rl.run_dynamic_training` | code |
+
+This file answers the loop's first task: **does HEAD differ from the contract + the plan, and where?**
+It is grounded in direct reads of the dynamic code path (not the reports). It is a frozen snapshot
+to drive the D0→D14 repair; it is not an architecture redesign.
+
+---
+
+## 0. Method
+
+The dynamic task is reached only via `--dynamic` (`train_decentralized_rl.py`) → `run_dynamic_training`
+(`src/marl_topology/training/dynamic_rl.py`). Its data comes from `sample_dynamic_scenes`
+(`src/marl_topology/training/dynamic_frames.py:224`). Every claim below was read from those files +
+`two_timescale_env.py`, `stage31_scenario_generator.py`, `graph_payload.py`, and the production
+evaluator. The 10 loop-flagged gaps are each confirmed or refuted against code.
+
+---
+
+## 1. The 10 flagged gaps — code-grounded verdicts
+
+State vocabulary per Contract §1.
+
+| # | Claim under test | Verdict | Code evidence | Contract / Plan ref | Fix stage |
+|---|---|---|---|---|---|
+| 1 | Dynamic data is single-RSU random geometry, **not** 4-RSU urban grid | **CONFIRMED gap** | `dynamic_frames.sample_dynamic_scenes` → `_sample_scene` (`stage31_scenario_generator.py:380`) → `_node` (`:358`) builds exactly **`rsu_0` + `veh_*`** = 1 RSU + (N−1) vehicles on a random connected core (`_connected_core_positions :364`). The 4-RSU urban-grid sampler (`_sample_urban_grid_scene :733`, honors `urban_rsu_count`) is **never called** by the dynamic path. | Contract §4.1, §16.8; Plan D1 | **D1** |
+| 2 | `hold_interval` does **not** enter the RL reward; Temporal-Value-Test uses a different objective | **CONFIRMED gap** | RL: `dynamic_rl.episode_rollout:94-97` → `reward = base_r − reconfig` (no `H` factor). TVT: `two_timescale_env.step:104` → `base_objective = cost_fn(...) * hold_interval`. The two objectives differ by the `H` multiplier. (Report §9 N4 already admits this.) | Contract §3.2, §3.3, §16.9; Plan D2 | **D2** |
+| 3 | Training optimizes discounted return but eval/keep-best uses undiscounted return | **CONFIRMED gap** | Train advantage + critic target are discounted `G_t` (`dynamic_rl.py:105-108`). But `dynamic_eval` accumulates **undiscounted** `ep_ret += base_r − reconfig` (`:161`), and keep-best uses that (`val_score = val["mean_episode_return"]` `:390`, `best_val` `:406-407`). Train ≠ eval objective. | Contract §3.3, forbidden §13.9; Plan D2 | **D2** |
+| 4 | No independent validation trajectories; checkpoint selected on train | **CONFIRMED gap** | Only two splits built: `train_scenes` seed`*1000+1` (`:256`) and `held_scenes` seed`*1000+777` (`:260`). **No `val_scenes` (seed`*1000+333`).** Keep-best runs `dynamic_eval(actor, train_scenes, …)` (`:387`) → checkpoint chosen on **train** eval. Report §7 confirms "keep-best on a periodic train-decoded eval". Per Contract §3.4 this makes the result *pilot-only, not headline-eligible*, and per forbidden §13.7 the seed-0 "generalization gap" framing (train keep-best → blame held drop on generalization) is itself disallowed. | Contract §3.4, forbidden §13.7/§13.10; Plan D3 | **D3** |
+| 5 | Phase-specific PBFT message accounting is a primitive, **not** wired into the production evaluator | **CONFIRMED gap** | `protocol/pbft_message_plan.py` exists, but `build_pbft_message_plan` is referenced only by that file + its unit test + one contract test — **never** by `data/stage21_objective_stack_evidence.py` (the production `evaluate()`). Confirms `CURRENT_HEAD_STATUS.md` fact 10. | Contract §2.1, §5.3, §16.6; Plan D4 | **D4** |
+| 6 | Dynamic branch has no COMA/SCQ/chance/CVaR/Pareto/PNA wired | **CONFIRMED gap** | `dynamic_rl.py` imports only `CentralizedGraphCritic`, `DynamicRecurrentActor`, BCSP action, `local_mutual_assemble`, and `graph_mappo` (V-critic value + PPO-clip). No `--counterfactual`, `--scq`, `--chance`, `--pareto`, `--actor pna` reach this path. Report §8.4 correctly states "tested dynamic recurrent-PPO only, not full Phase 8-11". | Contract §16.7; Plan D9–D12 | **D9–D12** |
+| 7 | Actor observation lacks velocity/heading/relative-velocity/CSI-derivative → "Markov" claim unproven | **CONFIRMED gap** | `graph_payload.py` has **zero** velocity/heading/speed/relative-velocity/CSI-age/CSI-delta features (grep: no matches). The dynamic obs (`dynamic_frames.observation:145`) is current-channel + previous-topology flag + step index only. The report's §3 "~Markov in (current channel, previous topology)" is therefore an **unproven** claim (Contract §3.5: must demonstrate the actor sees enough to predict the next frame). | Contract §3.5, forbidden §13... ; Plan D5 | **D5** |
+| 8 | myopic-greedy is a **central reference** (calls evaluator over named candidates), not a deployable baseline | **CONFIRMED (partly mitigated)** | `_frame_teacher_trajectory:180` enumerates `ctx.topology_variants` and scores each via `reward_of` (the central evaluator). The report mostly labels it "myopic-greedy **reference**" (good), but §6.4 finding 3 ("simple baseline wins at N≤16") borderline-conflates it with a deployable baseline, and **no fair deployable non-learned baseline exists yet**. | Contract §10.1, §16.10, forbidden §13.11; Plan D7 | **D7** |
+| 9 | Warm-start is plain per-edge BCE, not decoder-aware; no teacher-KL/BC anchor protects it during PPO | **CONFIRMED gap** | `warmstart_actor:208` does `BCEWithLogitsLoss` toward the teacher's per-edge 0/1 target (`:227`), run once **before** RL. PPO then runs free (`:341-359`) — no BCSP-subset likelihood, no KL/BC anchor. Result (report §6.4): "RL DEGRADES the imitation warm-start". | Contract §10.3; Plan D6 | **D6** |
+| 10 | 3 seeds / 24 trajectories / 30 updates is diagnostic, not a final-failure headline | **CONFIRMED** | Report §6 config: 3 seeds, 24 train/24 held, 30 updates, 1/3 cold-start seeds trained. Per Contract §0, §13.15-16: must be `ACTIVE_IN_PILOT`/diagnostic, not `VALIDATED_NEGATIVE` for "dynamic MARL". | Contract §0, §12, §13.15-16; Plan D8/D13 | **D8, D13** |
+
+**Net:** all 10 flagged gaps are real and confirmed in code. The DYNAMIC_TASK_REPORT.md is *largely
+honest* about #6, #8, #10 (it scopes them), but its **data description (§6/§7 "4 RSU urban") contradicts
+the generator code (#1)**, and #2/#3/#4 are口径 (objective-consistency) defects that make the current
+recurrence/RL conclusions diagnostic, not final.
+
+---
+
+## 2. What is already correct (do not re-do)
+
+Grounded, to avoid re-building working pieces:
+
+- **T>1 episode rollout, BCSP per-agent action, `local_mutual_assemble` eval decoder, per-agent PPO
+  ratio, per-frame centralized critic, discounted returns in training, cross-frame recurrent vs
+  memoryless ablation** are all genuinely wired (`dynamic_rl.py`) and the `--dynamic` branch leaves
+  the T=1 path byte-identical (verified by the prior adversarial pass, report §9).
+- **Reconfiguration cost** `(e_edge+l_edge)·|E_t △ E_{t−1}|` with no t=0 charge is correct
+  (`dynamic_rl.py:95-97`, `two_timescale_env.cost:46`).
+- **Train==deploy decoder / decentralization (D1)**: rollout uses the matched stochastic BCSP whose
+  MAP limit is the deployed torch-free decoder; critic is training-only.
+- **Mechanism activation + instrumentation** (`mechanism_activation.json`, `training_history.json`,
+  `held_traces.json`, `dynamic_result.json`) are emitted per run (`dynamic_rl.py:417-447`).
+- **Data manifest + content hashes** exist (`result_save/dynamic_data_manifest.json`).
+
+The repair is therefore mostly about **objective口径 (D2/D3), data realism (D1), observation
+sufficiency (D5), warm-start protection (D6), fair baselines (D7), and mechanism coverage
+(D4/D9–D12)** — not a from-scratch rebuild.
+
+---
+
+## 3. Hard-constraint (loop) compliance snapshot
+
+| constraint | status at HEAD | note |
+|---|---|---|
+| Deployment fully decentralized (no critic/global decoder/evaluator at inference) | **HOLDS** | critic + teacher evaluator are training-only; eval uses `local_mutual_assemble`. |
+| Training-only centralized critic/evaluator clearly marked | **HOLDS** | `CentralizedGraphCritic` training-only; teacher uses evaluator (training-only). |
+| Rollout == deploy local mutual-acceptance semantics | **HOLDS** | MAP(BCSP) == decoder up to tie set. |
+| `τ ≥ 0.9`, same reliability def train+eval | **HOLDS** | τ=0.9 constant; same `reward_of`. |
+| Final reliability = closed-form whole-network PBFT quorum-tail | **HOLDS** | `protocol/quorum_tail.py`. |
+| **Same dynamic objective across train / TVT / val / held** | **VIOLATED** | gaps #2 (H factor) + #3 (discount) + #4 (no val). → D2/D3. |
+| `hold_interval·base − reconfig` reward, or stated equivalent | **VIOLATED** | gap #2. → D2. |
+| train/val/held three-split; held excluded from checkpoint | **VIOLATED** | gap #4 (only train/held; keep-best on train). → D3. |
+| Data description matches source | **VIOLATED** | gap #1 (single-RSU vs "4-RSU urban"). → D1. |
+| Central evaluator-greedy labeled reference, not deployable baseline | **PARTIAL** | gap #8. → D7. |
+| default-off mechanisms not called "full model tested" | **HOLDS** | report §8.4 scopes this. |
+| Every mechanism has runtime activation artifact | **HOLDS** | `mechanism_activation.json`. |
+
+---
+
+## 4. Stage status (D0–D14)
+
+| stage | scope | status |
+|---|---|---|
+| **D0** | Freeze current dynamic results as the diagnostic baseline | **IN PROGRESS this round** (freeze README + decision) |
+| D1 | 4-RSU urban-grid dynamic data (roads/buildings/RSUs/motion/stable edge-ids/real Stage-21 frames) | NOT_STARTED (gap #1) |
+| D2 | Dynamic reward: `hold_interval` into base; one discounted objective across train/TVT/val/held | NOT_STARTED (gaps #2,#3) — **highest-priority code fix per Plan §17** |
+| D3 | train/val/held three-split; checkpoint by val discounted return only | NOT_STARTED (gap #4) |
+| D4 | Wire phase-specific PBFT message plan into the production Stage-21 evaluator | NOT_STARTED (gap #5) |
+| D5 | Add velocity/heading/relative-velocity/CSI-delta/CSI-age to actor obs; training-only critic state | NOT_STARTED (gap #7) |
+| D6 | Decoder-aware BCSP-subset warm-start + teacher-KL/BC anchor; critic warm-start | NOT_STARTED (gap #9) |
+| D7 | Fair deployable baselines + separate central-reference group | NOT_STARTED (gap #8) |
+| D8 | Re-test recurrent vs memoryless across {current-CSI, velocity, recurrent, velocity+recurrent} | NOT_STARTED |
+| D9–D12 | Dynamic COMA/Q-critic, SCQ, chance/CVaR/Pareto, PNA/vector critic | NOT_STARTED (gap #6) |
+| D13 | Multi-seed / multi-N / multi-param dynamic campaign with CI + scope | NOT_STARTED |
+| D14 | Docs / report / README / AGENTS reconciliation | NOT_STARTED |
+
+**Execution order (Plan §17, compute-limited):** D0 → D2 → D3 → D5 → D6 → D7 → D8, with D1 and D4
+proceeding in parallel but mandatory before any final headline.
+
+---
+
+## 5. Conclusion scope
+
+This status proves only **where HEAD diverges from the contract + plan**. It does **not** re-run any
+experiment or revise any result. The existing dynamic negative result (recurrence ≈ memoryless; RL ≤
+myopic teacher) is **diagnostic and scope-limited** — it was measured under (a) single-RSU random
+geometry (not urban), (b) a reward without `hold_interval`, (c) a train/eval objective mismatch, (d)
+no validation split, (e) an observation without motion features, and (f) without any Phase-8–11
+mechanism — so it cannot be promoted to "dynamic MARL failed". The repair plan D0–D14 fixes each
+defect before any such claim is admissible.
