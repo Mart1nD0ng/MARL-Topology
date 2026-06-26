@@ -4109,3 +4109,26 @@ Adversarial verification (focused single agent, 4 lenses) PASS, no gaps: localit
 leakage; csi_delta carries no future/teacher info); single observation path (D4 lesson applied). The
 Markovness A/B (current-CSI vs velocity, ± recurrence) is D8, not claimed here. Artifacts:
 `docs/dynamic_repair/D5/`. Next: D6 (warm-start protection).
+
+## Dynamic-Repair Campaign — D6 (warm-start protection)
+
+**D6 done (commit `70eeb7e`).** Protected the dynamic warm-start (gap #9). The warm-start was per-edge
+BCE toward the teacher's 0/1 indicator — NOT decoder-aware (it ignores the BCSP budget cap +
+mutual-acceptance the deployed decoder uses) — and PPO then ran free, drifting off the feasible
+warm-start (report §6.4: "RL DEGRADES the imitation warm-start"). Three opt-in mechanisms:
+(a) `--dyn-warmstart-mode bcsp` — decoder-aware warm-start that maximizes the BCSP-subset likelihood of
+the teacher's per-agent proposals (each node's incident-in-teacher edges, capped at its budget so
+`|S_i|≤b_i` is in the BCSP support; the reconstructed teacher = the local mutual decode of those
+proposals). (b) `--dyn-bc-anchor λ` — an annealed teacher-BC anchor `λ(u)=λ0·(1−u/U)` added to the PPO
+actor loss so RL stays near the feasible warm-start. (c) `--dyn-critic-warmstart K` — pretrain the
+critic to the teacher's discounted returns. All default off → byte-identical. Reports (Contract §10.3):
+teacher source (myopic-greedy over canonical variants), `teacher_uses_evaluator=true`,
+`teacher_uses_held=false`, `warmstart_alone_return`, and `post_rl_drift_held_return`.
+
+4 failing-first tests (decoder-aware reconstruct / BCSP warm-start converges / anchor limits drift /
+critic tracks teacher return). Unit 675/0, contract 63/0, D6 smoke exit 0. Adversarial verification
+(focused single agent, 4 lenses) PASS, no gaps: no teacher/held leakage (teacher from train only, held
+measurement-only), byte-identical off, no over-claim. **The warm-start-vs-RL A/B (warm-start-only / +PPO
+/ +PPO+BC / +PPO+KL) is a DEFERRED PILOT (D8), not a result here** (the tiny smoke showed post-RL drift
+0.0, but that is smoke params). Artifacts: `docs/dynamic_repair/D6/`. Next: D7 (fair deployable
+baselines + separate central references).
