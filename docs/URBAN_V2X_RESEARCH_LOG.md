@@ -4005,3 +4005,26 @@ smoke is run (writing __pycache__) before pytest in the same tree without cleani
 `python -m pytest` run is 688/0 -- a known test-ordering fragility (clean __pycache__ after scripts),
 optional hardening (respect .gitignore) left for the owner. NET: v2 release CONFIRMED -- D1-clean, honest,
 byte-identical default, all gates green.
+
+---
+
+## Dynamic-Repair Campaign (2026-06-26, owner /loop) — D0
+
+Owner launched an autonomous repair loop bound by `docs/MARL-Topology-Development-Contract-v3.md`
++ `docs/MARL-Topology-Dynamic-Repair-Engineering-Plan.md` (these override open-ended redesign).
+**D0 (freeze + gap analysis) complete** — see `docs/CURRENT_DYNAMIC_REPAIR_STATUS.md`.
+
+All 10 flagged gaps confirmed against source (file:line): (1) dynamic data is single-RSU random
+geometry via `_sample_scene`/`_node`, NOT the 4-RSU urban grid; (2) RL reward omits `hold_interval`
+while the Temporal Value Test multiplies by it; (3) train discounted vs eval/keep-best undiscounted;
+(4) no validation split, keep-best on train; (5) `build_pbft_message_plan` not wired into the
+production Stage-21 evaluator; (6) no COMA/SCQ/chance/CVaR/Pareto/PNA in the dynamic branch; (7) no
+motion features in `graph_payload` (so "Markov" is unproven); (8) myopic-greedy is a central
+reference, not a deployable baseline; (9) warm-start is plain BCE with no decoder-aware/KL anchor;
+(10) 3-seed/30-update result is diagnostic, not a final-failure headline.
+
+The frozen D4/D6 dynamic result is therefore a **diagnostic negative**, scope-limited; it is NOT
+evidence that dynamic MARL / recurrence / temporal modeling fails. Frozen artifacts +
+exact numbers: `result_save/dynamic_baseline_frozen/README.md`. Round artifacts:
+`docs/dynamic_repair/D0/`. Decision: KEEP, proceed to **D2** (reward `H·base−reconfig` + one
+discounted objective across train/TVT/val/held; failing-test-first). Commit `6fafd2d`.
