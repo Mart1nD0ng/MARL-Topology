@@ -4088,3 +4088,24 @@ vectorized evaluator (reliability still full); re-verified PASS; confirmed activ
 (N=12 → pre_prepare 11 star, prepare/commit 132 vote). Lesson recorded: always update the
 vectorized/fast-path evaluator alongside the canonical one. 8 new tests; unit 666/0, contract 63/0.
 Artifacts: `docs/dynamic_repair/D4/`. Next: D5 (actor motion features).
+
+## Dynamic-Repair Campaign — D5 (local motion features)
+
+**D5 done (commit `fb01645`).** Added LOCAL motion features to the dynamic actor observation (gap #7).
+The observation was current-CSI + previous-topology + step only, so the report's "~Markov in (current
+CSI, previous topology)" claim was unproven (Contract §3.5). Opt-in `--motion-features` appends: node
+[velocity_x, velocity_y, speed, heading_sin, heading_cos] (each node's OWN velocity); edge
+[relative_velocity_along_link = (p_u−p_v)·(v_u−v_v)/|p_u−p_v| (signed closing rate: <0 approaching, >0
+departing — neighbour-broadcast local), distance_delta = rel_vel·dt, csi_delta = psucc_t − psucc_{t−1}
+(env-computed, 0 at t=0; locally measurable), csi_age = 0 (freshly measured here — honest placeholder
+for stale-CSI)]. Appended in `dynamic_frames.observation` (the single dynamic obs builder); the SHARED
+`graph_payload` featurizer is untouched → the static T=1 path is byte-identical. Default off →
+byte-identical. The actor auto-sizes from the obs dims; the centralized critic gets all nodes'
+velocities (training-only global view); the deployed actor stays local/neighbour-only.
+
+5 failing-first tests (velocity present / rel-vel sign / approach-vs-depart distinguishable / critic
+ingests / locality-no-global). Unit 671/0, contract 63/0, `--dynamic --motion-features` smoke exit 0.
+Adversarial verification (focused single agent, 4 lenses) PASS, no gaps: locality confirmed (no global
+leakage; csi_delta carries no future/teacher info); single observation path (D4 lesson applied). The
+Markovness A/B (current-CSI vs velocity, ± recurrence) is D8, not claimed here. Artifacts:
+`docs/dynamic_repair/D5/`. Next: D6 (warm-start protection).
