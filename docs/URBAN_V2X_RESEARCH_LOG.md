@@ -4028,3 +4028,17 @@ evidence that dynamic MARL / recurrence / temporal modeling fails. Frozen artifa
 exact numbers: `result_save/dynamic_baseline_frozen/README.md`. Round artifacts:
 `docs/dynamic_repair/D0/`. Decision: KEEP, proceed to **D2** (reward `H·base−reconfig` + one
 discounted objective across train/TVT/val/held; failing-test-first). Commit `6fafd2d`.
+
+## Dynamic-Repair Campaign — D2 (reward口径 fix)
+
+**D2 done (commit `27ab147`).** Fixed the dynamic objective (gaps #2/#3): the RL reward dropped the
+`hold_interval` factor and eval/keep-best used an undiscounted sum while training optimized a
+discounted return — so train/eval/myopic disagreed with each other and with the Temporal-Value-Test.
+Now `reward = hold_interval*base − reconfig` (episode_rollout) and eval/keep-best/myopic all use the
+discounted, H-scaled episode return `G_0 = Σ γ^t (H·base − reconfig)`; `two_timescale_env` (TVT) already
+did this, so the RL/eval sites were brought to match it. `mechanism_activation.json` now logs the
+objective. 4 failing-first tests pass; unit 654/0, contract 63/0; `--dynamic` smoke exit 0. **The
+frozen D4/D6 RETURN numbers are superseded** (they were on `base − reconfig`, undiscounted); per-frame
+feasibility *metric definition* is unchanged (scale-invariant), but the trained policy now optimizes
+the corrected objective. Substantive (H multiplies base but not reconfig → at H=4 the objective is
+weighted 4× vs switching cost). Headline deferred to post-D3. Artifacts: `docs/dynamic_repair/D2/`.
