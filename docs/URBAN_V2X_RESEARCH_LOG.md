@@ -4132,3 +4132,27 @@ measurement-only), byte-identical off, no over-claim. **The warm-start-vs-RL A/B
 / +PPO+BC / +PPO+KL) is a DEFERRED PILOT (D8), not a result here** (the tiny smoke showed post-RL drift
 0.0, but that is smoke params). Artifacts: `docs/dynamic_repair/D6/`. Next: D7 (fair deployable
 baselines + separate central references).
+
+## Dynamic-Repair Campaign — D7 (fair deployable baselines)
+
+**D7 done (commit `f6dbbf7`).** Built a fair-baseline framework (gap #8). The dynamic comparison only
+had the myopic-greedy CENTRAL reference (it calls the evaluator to search named candidates each frame);
+there was no fair DEPLOYABLE non-learned baseline, so "the learned actor is beaten" risked reading as
+"beaten by a simple deployable baseline" (Contract §10.1). New `training/dynamic_baselines.py`:
+DEPLOYABLE `local_threshold_action`/`local_hysteresis_action` (each node proposes a budget-capped subset
+of its incident edges from LOCAL psucc features; edge active iff both endpoints propose — mutual
+acceptance == the deployed decoder; ZERO evaluator calls at action time) via
+`evaluate_deployable_baseline` (group=deployable_policy); the myopic-greedy via
+`evaluate_central_reference` (its action calls the evaluator; group=central_reference); both scored with
+the SAME dynamic metric (the one metric eval/frame is identical for all methods and is NOT an action
+call). `baseline_budget_report` groups them and records the per-method action-evaluator-call budget.
+
+3 failing-first tests; unit 678/0, contract 63/0; adversarial verify (single agent, 4 lenses) PASS.
+**DIAGNOSTIC smoke (4 operating-point scenes N∈{8,12}, NOT a headline): the DEPLOYABLE local baselines
+(feasibility 0.94, 0 eval calls) BEAT the CENTRAL myopic-greedy reference (0.69, 96 eval calls).** This
+directly motivates the §10.1 separation: the prior campaign's "myopic-greedy beats the learned actor /
+simple baseline wins" must NOT be read as "a deployable baseline wins" — the myopic-greedy is a weak
+*central* reference (reconfig-blind, 6 named candidates), while the local threshold/hysteresis baselines
+(which ARE deployable) are stronger here. 4-scene smoke, not a result. Artifacts:
+`docs/dynamic_repair/D7/`. Next: D8 (the 4-arm recurrent×velocity retest on the corrected pipeline — the
+first comparative result stage).
