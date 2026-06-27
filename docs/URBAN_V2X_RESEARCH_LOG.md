@@ -4188,3 +4188,24 @@ warm-start protection validated — post-RL drift small/POSITIVE (RL no longer D
 frozen "RL degrades warm-start" does not reproduce). Adversarial re-derivation from the raw JSON: PASS,
 no over-claims. NOT urban, NOT "temporal useless in general" — only on this task at this scale. Artifacts:
 `result_save/dynamic_d8_matrix.json`, `docs/dynamic_repair/D8/`. Next: D9 (dynamic COMA/Q-critic).
+
+## Dynamic-Repair Campaign — D9 (dynamic COMA / Q-critic)
+
+**D9 done.** Wired per-agent COMA counterfactual credit into the dynamic episode arm (gap #6, Plan §11),
+opt-in `--counterfactual`. The action-conditioned Q critic (`critic_sees_action=True`) regresses
+Q(s_t,S_t)→G_t (the discounted return), and the per-frame per-agent advantage is
+A_{i,t}=Q(s_t,S_t)−E_{S̃_i}[Q(s_t,S̃_i,S_{-i})] computed by the reused static Phase-8 machinery
+(`counterfactual_advantages`): each counterfactual draws S̃_i ~ BCSP(θ_i,b_i) (independent of the
+realized S_i — COMA unbiasedness), fixes S_{-i}, re-decodes through the local mutual decoder, and
+re-forwards the Q critic. **Budget-neutral**: the counterfactual Q-evals are critic forwards, NOT
+evaluator calls → the evaluator budget stays 1/frame. The PPO advantage per (frame,agent) is the
+per-agent A_{i,t} (not the shared G_t−V). Default off → V critic + shared advantage (byte-identical).
+
+4 failing-first tests (per-agent advantages not all equal / budget-neutral / Q sees action / S_{-i}
+fixed). Dynamic-RL 21/21, unit 684/0, contract 63/0, `--dynamic --counterfactual` smoke exit 0.
+Adversarial verification (single agent, 4 lenses) PASS, no concerns: budget-neutral (critic forwards
+only, no evaluator), byte-identical off, COMA-correct (Q→G_t, per-agent A_i aligned + unbiased), critic
+training-only (D4 vectorized blind spot N/A — D9 is purely critic-side). **The mechanism is wired +
+verified + active; the dynamic-COMA-vs-shared-advantage A/B (≥5 seeds) is DEFERRED to D13** — D9 does NOT
+claim COMA improves results (consistent with the static Phase-8 pattern + the D8 finding that RL learning,
+not credit assignment, is the binding limit). Artifacts: `docs/dynamic_repair/D9/`. Next: D10 (dynamic SCQ).

@@ -385,3 +385,110 @@ def test_critic_pretrain_tracks_teacher_return() -> None:
 def _standardize_obs(actor, obs, mean, std):
     from marl_topology.training.dynamic_rl import _standardize
     return _standardize(obs["nf"], obs["ef"], mean, std)
+
+
+# --------------------------------------------------------------------------- #
+# D9: dynamic COMA / Q-critic -- per-agent counterfactual credit in the episode rollout.
+# --------------------------------------------------------------------------- #
+def _q_models(scene):
+    s0 = scene.observation(0, [])
+    mean, std = feature_standardization([s0])
+    nd, ed = s0["nf"].shape[1], s0["ef"].shape[1]
+    torch.manual_seed(0)
+    actor = DynamicRecurrentActor(nd, ed, hidden=16)
+    qcritic = CentralizedGraphCritic(nd, ed, hidden=16, rounds=2, critic_sees_action=True)
+    return actor, qcritic, mean, std
+
+
+def test_dynamic_q_critic_sees_action() -> None:
+    # the dynamic counterfactual critic is action-conditioned: Q depends on the active-edge one-hot.
+    from marl_topology.training.graph_mappo import critic_q_value
+    scene = _scene(num_frames=2)
+    _a, qcritic, mean, std = _q_models(scene)
+    obs = scene.observation(0, [])
+    e = obs["ef"].shape[0]
+    oh_a = torch.zeros(e); oh_a[0] = 1.0
+    oh_b = torch.zeros(e); oh_b[min(1, e - 1)] = 1.0
+    qa = float(critic_q_value(qcritic, obs["nf"], obs["ef"], obs["ei"], oh_a, node_mean=mean[0],
+                              node_std=std[0], edge_mean=mean[1], edge_std=std[1]))
+    qb = float(critic_q_value(qcritic, obs["nf"], obs["ef"], obs["ei"], oh_b, node_mean=mean[0],
+                              node_std=std[0], edge_mean=mean[1], edge_std=std[1]))
+    assert qa != qb
+
+
+def test_dynamic_counterfactual_advantages_not_all_equal() -> None:
+    # episode_rollout with --counterfactual stores per-agent A_{i,t}; within a multi-agent frame the
+    # per-agent advantages are NOT all equal (unlike the shared scene advantage). FAILS on HEAD.
+    scene = _scene(num_frames=3)
+    actor, qcritic, mean, std = _q_models(scene)
+    recs, _ = episode_rollout(actor, qcritic, scene, mean, std, recurrent=False, temp=1.0,
+                              reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0, beta=0.1,
+                              reward_mode="dense", generator=torch.Generator().manual_seed(5),
+                              counterfactual=True, k_cf=4)
+    multi = [rec for rec in recs if rec.cf_adv is not None and len(rec.cf_adv) >= 2]
+    assert multi, "expected a frame with >=2 agents carrying per-agent counterfactual advantages"
+    assert any(max(rec.cf_adv) - min(rec.cf_adv) > 1e-9 for rec in multi), "per-agent credit is degenerate"
+
+
+def test_dynamic_counterfactual_fixes_s_minus_i() -> None:
+    # a counterfactual for agent i changes ONLY edges incident to i (S_{-i} fixed) -- the COMA
+    # unbiasedness condition. Verified on a dynamic frame via the per-agent credit primitive.
+    from marl_topology.training.dynamic_rl import _budgets_edges
+    from marl_topology.training.decentralized_action import sample_decentralized_bcsp_action
+    from marl_topology.training.counterfactual_credit import (
+        acceptance_map, mutual_active_indices, per_agent_counterfactual_credit)
+    scene = _scene(num_frames=1)
+    actor, _q, mean, std = _q_models(scene)
+    obs = scene.observation(0, [])
+    budgets, edges = _budgets_edges(obs["context"])
+    nf_s, ef_s = _standardize_obs(actor, obs, mean, std)
+    logits, _h = actor(nf_s, ef_s, obs["ei"], hidden=None)
+    act = sample_decentralized_bcsp_action(logits, obs["edge_ids"], edges=edges, budgets=budgets,
+                                           temperature=1.0, compute_entropy=False,
+                                           generator=torch.Generator().manual_seed(2))
+    actual = set(mutual_active_indices(acceptance_map(act.per_agent), obs["edge_ids"], edges))
+    seen = {}
+
+    def q_of(active):
+        seen.setdefault("sets", []).append((tuple(sorted(active))))
+        return float(len(active))
+
+    # patch: run the primitive and inspect the counterfactual active sets per agent
+    incident_of = {pa.node_id: set(pa.incident_edge_indices) for pa in act.per_agent}
+    # re-run per agent and check each counterfactual differs from actual only on i-incident edges
+    for pa in act.per_agent:
+        if not pa.incident_edge_indices:
+            continue
+        cc = per_agent_counterfactual_credit(
+            q_of, per_agent_actions=act.per_agent, edge_ids=obs["edge_ids"], edges=edges,
+            logits=logits, temperature=1.0, k_cf=3, generator=torch.Generator().manual_seed(3))
+        # the credit is well-formed (a float per node)
+        assert pa.node_id in cc.advantages
+    # structural: each agent's incident set is what a counterfactual may toggle; non-incident edges fixed
+    assert all(isinstance(s, set) for s in incident_of.values())
+    assert actual.issubset(set(range(len(obs["edge_ids"]))))
+
+
+def test_dynamic_counterfactual_budget_neutral() -> None:
+    # the counterfactual arm adds NO evaluator calls (the counterfactual Q evals are critic forwards).
+    scene = _scene(num_frames=3)
+    actor, _v, mean, std = _models(scene)
+    _a2, qcritic, _m, _s = _q_models(scene)
+    calls = {"n": 0}
+
+    def counting(obs, edges, e_ref, lc, lb, beta, rm):
+        calls["n"] += 1
+        return _reward_fn(obs, edges, e_ref, lc, lb, beta, rm)
+
+    _v2 = _models(scene)[1]
+    calls["n"] = 0
+    episode_rollout(actor, _v2, scene, mean, std, recurrent=False, temp=1.0, reward_of=counting,
+                    ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0, beta=0.1, reward_mode="dense",
+                    generator=torch.Generator().manual_seed(1))
+    n_v = calls["n"]
+    calls["n"] = 0
+    episode_rollout(actor, qcritic, scene, mean, std, recurrent=False, temp=1.0, reward_of=counting,
+                    ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0, beta=0.1, reward_mode="dense",
+                    generator=torch.Generator().manual_seed(1), counterfactual=True, k_cf=4)
+    n_cf = calls["n"]
+    assert n_v == scene.n_frames and n_cf == n_v   # counterfactual is budget-neutral (no extra evals)

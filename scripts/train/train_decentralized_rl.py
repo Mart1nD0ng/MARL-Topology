@@ -498,9 +498,10 @@ def main() -> None:
     if args.baseline == "rloo" and args.samples_per_scene < 2:
         raise SystemExit("[graph-mappo] --baseline rloo requires --samples-per-scene >= 2 "
                          "(RLOO needs M>=2 rollouts for the leave-one-out baseline)")
-    if args.counterfactual and args.baseline != "graph-mappo":
+    if args.counterfactual and not args.dynamic and args.baseline != "graph-mappo":
         raise SystemExit("[counterfactual] --counterfactual (Phase 8b) requires --baseline graph-mappo "
-                         "(the action-conditioned Q critic lives in the graph-mappo arm)")
+                         "(the action-conditioned Q critic lives in the graph-mappo arm); the --dynamic "
+                         "arm has its own COMA wiring (D9)")
     if args.scq and not args.counterfactual:
         raise SystemExit("[scq] --scq (Phase 9) requires --counterfactual (SCQ supervises the action-"
                          "conditioned Q critic, which exists only in the counterfactual arm)")

@@ -38,7 +38,8 @@ from marl_topology.training.decentralized_action import (
     recompute_bcsp_logp,
     sample_decentralized_bcsp_action,
 )
-from marl_topology.training.graph_mappo import critic_scene_value, ppo_clip_actor_loss
+from marl_topology.training.counterfactual_credit import _active_onehot, counterfactual_advantages
+from marl_topology.training.graph_mappo import critic_q_value, critic_scene_value, ppo_clip_actor_loss
 
 DYNAMIC_RL_MODEL_ID = "two_timescale_dynamic_rl_v1"
 
@@ -66,11 +67,26 @@ class FrameRecord:
     feasible: bool
     value: float
     ret: float = 0.0          # G_t, filled after the episode
+    cf_adv: list | None = None  # D9: per-agent COMA counterfactual advantages (aligned with per_agent)
+
+
+def _critic_value(critic, obs, active_indices, mean, std):
+    """V(s_t) or, for an action-conditioned (counterfactual) critic, Q(s_t, S_t) over the recorded
+    active-edge one-hot. Dispatches on ``critic.critic_sees_action`` (D9)."""
+    if getattr(critic, "critic_sees_action", False):
+        oh = _active_onehot(active_indices, obs["ef"].shape[0], device=obs["ef"].device,
+                            dtype=obs["ef"].dtype)
+        return critic_q_value(critic, obs["nf"], obs["ef"], obs["ei"], oh, node_mean=mean[0],
+                              node_std=std[0], edge_mean=mean[1], edge_std=std[1])
+    return critic_scene_value(critic, obs["nf"], obs["ef"], obs["ei"], node_mean=mean[0],
+                              node_std=std[0], edge_mean=mean[1], edge_std=std[1])
 
 
 def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_of, ref_energy,
-                    lam_c, lam_b, beta, reward_mode, generator=None):
-    """One no-grad episode: carry hidden across frames (recurrent) or reset (memoryless)."""
+                    lam_c, lam_b, beta, reward_mode, generator=None, counterfactual=False, k_cf=4):
+    """One no-grad episode: carry hidden across frames (recurrent) or reset (memoryless). With
+    ``counterfactual`` (D9), the action-conditioned Q critic also produces per-agent COMA advantages
+    A_{i,t}=Q(s_t,S_t)-E_{S~_i}Q(s_t,S~_i,S_{-i}) (budget-neutral: critic forwards, no evaluator call)."""
     actor.eval()
     records: list[FrameRecord] = []
     prev_topo: list[str] = []
@@ -88,9 +104,15 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
             act = sample_decentralized_bcsp_action(logits, obs["edge_ids"], edges=edges,
                                                    budgets=budgets, temperature=temp,
                                                    compute_entropy=False, generator=generator)
-            v = float(critic_scene_value(critic, obs["nf"], obs["ef"], obs["ei"],
-                                         node_mean=mean[0], node_std=std[0],
-                                         edge_mean=mean[1], edge_std=std[1]))
+            v = float(_critic_value(critic, obs, act.active_edge_indices, mean, std))
+            cf_adv = None
+            if counterfactual:
+                cc = counterfactual_advantages(
+                    critic, node_features=obs["nf"], edge_features=obs["ef"], edge_index=obs["ei"],
+                    edge_ids=obs["edge_ids"], edges=edges, per_agent_actions=act.per_agent,
+                    logits=logits, temperature=temp, k_cf=k_cf, node_mean=mean[0], node_std=std[0],
+                    edge_mean=mean[1], edge_std=std[1], generator=generator)
+                cf_adv = [cc.advantages[pa.node_id] for pa in act.per_agent if pa.incident_edge_indices]
         topo = [obs["edge_ids"][j] for j in act.active_edge_indices]
         base_r, _gc, _gb, ok = reward_of(obs, topo, e_ref, lam_c, lam_b, beta, reward_mode)
         switches = len(frozenset(prev_topo) ^ frozenset(topo)) if t > 0 else 0
@@ -101,7 +123,7 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
         per_agent = [(pa.incident_edge_indices, pa.accepted_local_indices, pa.budget, float(pa.logp))
                      for pa in act.per_agent if pa.incident_edge_indices]
         records.append(FrameRecord(obs, per_agent, act.active_edge_indices, topo, reward, base_r,
-                                   reconfig, switches, bool(ok), v))
+                                   reconfig, switches, bool(ok), v, cf_adv=cf_adv))
         prev_topo = topo
         hidden = h_next if recurrent else None           # the ONLY difference between the two arms
     # discounted returns to episode end
@@ -129,9 +151,7 @@ def _reroll_logp(actor, critic, scene, records, mean, std, *, recurrent, temp,
                 ent_new.append(recompute_bcsp_entropy(logits, incident, temp, bud))
             hidden = h_next if recurrent else None
         if need_value:                                          # critic is per-frame (no actor hidden)
-            v_pred.append(critic_scene_value(critic, rec.obs["nf"], rec.obs["ef"], rec.obs["ei"],
-                                             node_mean=mean[0], node_std=std[0],
-                                             edge_mean=mean[1], edge_std=std[1]))
+            v_pred.append(_critic_value(critic, rec.obs, rec.active, mean, std))   # V or action-cond Q (D9)
     return logp_new, ent_new, v_pred
 
 
@@ -421,6 +441,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     # deterministic train / val / held split by disjoint seeds (Contract v3 §3.4): keep-best selects
     # the checkpoint ONLY on val; held is FINAL-reporting-only and never enters checkpoint selection.
     motion_features = bool(getattr(args, "motion_features", False))
+    counterfactual = bool(getattr(args, "counterfactual", False))   # D9: per-agent COMA credit
+    k_cf = int(getattr(args, "k_cf", 4))
 
     def _mk(seed_off, count, tag):
         if count <= 0:
@@ -446,7 +468,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     node_dim, edge_dim = stat_samples[0]["nf"].shape[1], stat_samples[0]["ef"].shape[1]
 
     actor = DynamicRecurrentActor(node_dim, edge_dim, hidden=args.hidden)
-    critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden, rounds=args.critic_rounds)
+    critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden,
+                                    rounds=args.critic_rounds, critic_sees_action=counterfactual)
     opt = torch.optim.Adam(actor.parameters(), lr=args.lr)
     opt_c = torch.optim.Adam(critic.parameters(), lr=args.critic_lr)
 
@@ -525,18 +548,19 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             recs, _eref = episode_rollout(
                 actor, critic, scene, mean, std, recurrent=recurrent, temp=temp, reward_of=reward_of,
                 ref_energy=ref_energy, lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta,
-                reward_mode=args.reward_mode)
+                reward_mode=args.reward_mode, counterfactual=counterfactual, k_cf=k_cf)
             if any(r.per_agent for r in recs):
                 episodes.append((scene, recs))
         if not episodes:
             continue
-        # advantages A_t = G_t - V_t (rollout values), flattened per (scene, frame, agent)
+        # advantage per (scene, frame, agent): COMA per-agent A_{i,t} (D9) when counterfactual, else the
+        # shared scene advantage A_t = G_t - V_t.
         adv_flat, logp_old_flat = [], []
         for _scene, recs in episodes:
             for rec in recs:
-                a = rec.ret - rec.value
-                for _pa in rec.per_agent:
-                    adv_flat.append(a)
+                a_shared = rec.ret - rec.value
+                for k, _pa in enumerate(rec.per_agent):
+                    adv_flat.append(rec.cf_adv[k] if (counterfactual and rec.cf_adv is not None) else a_shared)
                     logp_old_flat.append(_pa[3])
         adv_flat = torch.tensor(adv_flat)
         logp_old_flat = torch.tensor(logp_old_flat)
@@ -660,7 +684,10 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                   "bc_anchor_lambda": bc_anchor,               # annealed teacher-BC anchor in PPO (D6)
                   "teacher_source": "myopic-greedy over canonical candidate variants",
                   "teacher_uses_evaluator": True, "teacher_uses_held": False},
-        "critic": {"enabled": True, "per_frame_state_value": True,
+        "critic": {"enabled": True, "per_frame_state_value": not counterfactual,
+                   "critic_sees_action": counterfactual,        # D9: action-conditioned Q critic
+                   "counterfactual": counterfactual, "k_cf": (k_cf if counterfactual else None),
+                   "counterfactual_budget_neutral": True,       # CF Q-evals are critic forwards, no evaluator call
                    "warmstart_epochs": n_critic_warm, "warmstart_teacher_return_mse": critic_warm_mse},
         "action": {"distribution": "bcsp",
                    "rollout_sampler": "sample_decentralized_bcsp_action (stochastic; MAP == deploy)",
