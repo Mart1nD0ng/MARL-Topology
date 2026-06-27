@@ -1,6 +1,40 @@
 # Dynamic (Two-Timescale, T>1) MARL — Build + Honest Test Report
 
-**Date:** 2026-06-25 · **Branch:** decentralized-marl-trunk · **Scope:** owner-authorized build that wires `two_timescale_env` into the trunk, generates genuine multi-frame channel data, and tests the full (recurrent) model. This **reverses the documented R5 deferral** (the v2 campaign had kept the task at a static T=1 bandit). Every claim here is measured on real code/data; negatives are stated plainly.
+> ## ⚠️ SUPERSEDED — read this correction first (Dynamic-Repair Campaign D0–D14, 2026-06-26/27)
+> This 2026-06-25 report is the **PRE-REPAIR diagnostic**. An owner-authorized Dynamic-Repair Campaign
+> (D0–D14, binding `MARL-Topology-Development-Contract-v3.md` + `…-Dynamic-Repair-Engineering-Plan.md`)
+> grounded 10 gaps in this report's pipeline and fixed them. **The corrected headline is the D13 entry in
+> `docs/URBAN_V2X_RESEARCH_LOG.md` + `docs/dynamic_repair/D13/decision.md`**; the gap ledger is
+> `docs/CURRENT_DYNAMIC_REPAIR_STATUS.md`. Three specific claims below must be read with these corrections:
+>
+> 1. **Data was SINGLE-RSU random geometry, NOT a 4-RSU urban grid.** The §2/§7 "urban v2x_37885" / "4 RSU"
+>    refers to the **channel/physics regime** (shadowing + NLOSv parameters), but the actual frozen scene
+>    *geometry* was `_sample_scene` = **1 RSU + (N−1) vehicles on random connected geometry** — NOT a
+>    4-RSU urban street grid (gap #1). The real 4-RSU urban-grid geometry (RSUs at intersections,
+>    buildings, road-constrained motion) was built only in **D1** (`sample_dynamic_urban_scenes`,
+>    `--dyn-data urban`); the D13 campaign ran **both** single-RSU random and real 4-RSU urban.
+> 2. **"Full (recurrent) model" / "full-model dynamic test" = recurrent-vs-memoryless ONLY.** At this
+>    report's date the dynamic branch had **no** COMA / SCQ / chance / CVaR / Pareto / PNA (gap #6); §8.4's
+>    "every sophisticated v2 mechanism … did not beat the simple baseline" was the **static** campaign.
+>    Those mechanisms were ported to the dynamic task in **D9–D12** (each opt-in, default-off,
+>    individually verified) and A/B-tested in **D13** (all CIs span 0 — no headline gain). The default
+>    dynamic headline contains **no** sophisticated mechanism.
+> 3. **The pipeline this report measured was itself corrected (D2–D7).** D2: `hold_interval` enters the
+>    RL reward + one discounted objective across train/eval/TVT (this report's §N4 flagged its absence).
+>    D3: a real train/**val**/held split (keep-best on val only; this report kept-best on a train-decoded
+>    eval). D4: phase-specific PBFT energy/latency accounting. D5: local motion features. D6: decoder-aware
+>    BCSP warm-start. D7: a **fair deployable baseline** distinct from the central myopic *reference*
+>    (this report's §6 "myopic-greedy reference" is a **central** reference, not a deployable baseline —
+>    do not conflate).
+>
+> **Net:** this report's central conclusion (recurrence ≈ memoryless; the learned RL is beaten by a simple
+> per-frame policy; the task is ~Markov; the binding limit is feasibility-region learning, not temporal
+> modeling) **SURVIVES and is strengthened** by the corrected D13 campaign on genuinely 4-RSU urban data.
+> But its **data description (single-RSU, not 4-RSU urban grid)** and **"full model" scope** were corrected;
+> cite D13, not this report, for any current/urban claim. Scope of the corrected negative: single-RSU
+> random + 4-RSU urban grid, N∈{8,12,16}, 5 seeds — NOT urban-at-scale / NOT N≥24.
+
+**Date:** 2026-06-25 · **Branch:** decentralized-marl-trunk · **Scope:** owner-authorized build that wires `two_timescale_env` into the trunk, generates genuine multi-frame channel data, and tests the recurrent-vs-memoryless actor ablation (NOT the full mechanism suite — see the SUPERSEDED banner above). This **reverses the documented R5 deferral** (the v2 campaign had kept the task at a static T=1 bandit). Every claim here is measured on real code/data; negatives are stated plainly.
 
 > **STATUS:** §1–§5, §7 (data/infra/temporal-test/architecture/instrumentation/manifest) are final. §6 (headline results) and §8 (verdict) are filled from the D4 run + adversarial verification.
 

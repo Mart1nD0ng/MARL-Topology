@@ -1,5 +1,32 @@
 # CURRENT HEAD STATUS — Phase 0 freeze (spec-driven reconstruction)
 
+> ## ⏩ DYNAMIC-REPAIR CAMPAIGN COMPLETE (2026-06-27) — supersedes the dynamic claims of the frozen report
+> The owner-authorized Dynamic-Repair Campaign (D0–D14, binding `MARL-Topology-Development-Contract-v3.md`
+> + `…-Dynamic-Repair-Engineering-Plan.md`) repaired the dynamic (T>1) MARL task. **All 10 gaps in the
+> pre-repair `result_save/DYNAMIC_TASK_REPORT.md` are closed.** Full ledger: the `Dynamic-Repair` entries
+> in `docs/URBAN_V2X_RESEARCH_LOG.md`; gap status: `docs/CURRENT_DYNAMIC_REPAIR_STATUS.md`; per-stage
+> `experiment_plan.md` + `decision.md` under `docs/dynamic_repair/`.
+> - **Pipeline corrected**: hold_interval into the RL reward + one discounted objective (D2); real
+>   train/**val**/held split, keep-best on val only (D3); phase-specific PBFT energy/latency accounting (D4);
+>   local motion features (D5); decoder-aware BCSP warm-start (D6); fair **deployable** baseline distinct
+>   from the **central** myopic reference (D7).
+> - **Real 4-RSU urban data (D1)**: `sample_dynamic_urban_scenes` (`--dyn-data urban`) — 4 RSUs at
+>   intersections + building NLOS + road-constrained motion + provenance manifest/content-hash. The old
+>   single-RSU random geometry is kept as the `--dyn-data random` ablation. (The frozen report's data was
+>   single-RSU random — its "4-RSU urban" was the channel regime, not the geometry.)
+> - **All Phase-8–11 mechanisms ported to dynamic (opt-in, default-off, byte-identical, each verified)**:
+>   `--counterfactual` COMA (D9), `--scq` (D10), `--chance`/CVaR/`--pareto-archive` (D11),
+>   `--dynamic-actor-arch pna` (D12).
+> - **D13 headline (5 seeds × N{8,12,16}, urban + random)**: every mechanism A/B (temporal / COMA / SCQ /
+>   chance / Pareto / PNA) paired-vs-baseline feasibility CI **spans 0** — no significant gain. On BOTH data
+>   the learned arms (0.15–0.32) sit **below** the zero-eval-call deployable heuristics (0.37 random / 0.71
+>   urban), which trail the central myopic reference (0.37 / 0.79). **Binding limit = RL feasibility-region
+>   learning**, not data realism / temporal / credit / reliability / architecture. Adversarial 4-lens
+>   re-derivation from raw per-seed JSON PASS (incl. byte-identical urban-data-hash regeneration).
+> - **Recommended dynamic config**: the corrected baseline (`--dynamic` graph-MAPPO spine + MLP memoryless
+>   actor + bcsp warm-start + torch-free local decoder); all D9–D12 mechanisms stay **opt-in** (verified,
+>   no headline gain). Same pattern as the v2 static campaign. Suite 706 unit / 63 contract passed, 0 failed.
+
 > ## ⏩ v2 CAMPAIGN COMPLETE (2026-06-24) — supersedes the Phase-0 snapshot below
 > The v2 spec-driven CTDE rebuild (R0–R7 + Phase 8–13) is COMPLETE; see the
 > `v2 CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md` for the full ledger.

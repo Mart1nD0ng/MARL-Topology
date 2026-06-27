@@ -4357,3 +4357,68 @@ gain) — same pattern as the v2 static campaign. Open frontier: RL feasibility-
 (PNA's bimodal trend is the one lead worth more seeds); large-N still needs the cheaper exact-fault
 evaluator. Artifacts: `docs/dynamic_repair/D13/`, `result_save/dynamic_d13_campaign.json`. Next: D14
 (docs/report/README收口 — the final stage).
+
+---
+
+# DYNAMIC-REPAIR CAMPAIGN SUMMARY (D0–D14) — 2026-06-26/27. COMPLETE.
+
+Owner-authorized `/loop` campaign (binding `MARL-Topology-Development-Contract-v3.md` +
+`MARL-Topology-Dynamic-Repair-Engineering-Plan.md`) that took the pre-repair dynamic report
+(`result_save/DYNAMIC_TASK_REPORT.md`, 2026-06-25) from a DIAGNOSTIC negative to a corrected,
+adversarially-verified headline. **All 10 grounded gaps closed.** Per-stage `experiment_plan.md` +
+`decision.md` under `docs/dynamic_repair/`; gap status `docs/CURRENT_DYNAMIC_REPAIR_STATUS.md`.
+
+**The 10 gaps (all real, all closed):** (1) data single-RSU random, not 4-RSU urban → D1; (2) reward
+missing hold_interval → D2; (3) train-discounted / eval-undiscounted objective → D2; (4) no val split,
+keep-best on train → D3; (5) PBFT message-plan unwired in the Stage-21 evaluator → D4; (6) no
+COMA/SCQ/chance/CVaR/Pareto/PNA in the dynamic branch → D9–D12; (7) zero motion features → D5; (8) central
+myopic-greedy conflated with a deployable baseline → D7; (9) warm-start not decoder-aware, RL degrades it →
+D6; (10) 3 seeds / diagnostic only → D8/D13.
+
+## STAGE LEDGER (what / commit / verified / result)
+| stage | what | commit | verified | result |
+|---|---|---|---|---|
+| D0 | freeze baseline + ground 10 gaps in file:line | 6fafd2d/7f238d4 | — | DIAGNOSTIC negative (not "dynamic failed") |
+| D2 | hold_interval into RL reward + one discounted objective (train/eval/TVT/myopic) | 27ab147 | suite 654/0 | frozen returns superseded |
+| D3 | train/val/held split; keep-best on VAL only; held final-only; split_manifest | 5406749 | 4-lens adversarial PASS no leakage; 657/0 | headline-eligible |
+| D4 | phase-specific PBFT energy/latency accounting (canonical + vectorized) | 715ec19/2d3e737 | adversarial caught BLOCKER (vectorized ignored flag), fixed+reverified; 666/0 | corrected energy 31–58% lower |
+| D5 | local motion features (node velocity/heading + edge rel-velocity/Δdist/Δcsi) | fb01645 | adversarial PASS locality; 671/0 | obs richer, deployed actor local-only |
+| D6 | decoder-aware BCSP warm-start + annealed BC anchor + critic warm-start | 70eeb7e | adversarial PASS; 675/0 | reports leakage/warmstart-alone/post-RL drift |
+| D7 | deployable local_threshold/hysteresis (0 eval calls) vs central myopic ref grouped | f6dbbf7 | adversarial PASS; 678/0 | smoke: deployable BEATS central ref → must not conflate |
+| D8 | 2×2 {motion×recurrence} retest on corrected pipeline (5 seed, N{8,12,16}) | cc5c342/df9ad2e | adversarial re-derivation from raw JSON PASS; 680/0 | velocity & recurrence no significant gain; learned < deployable ≈ central; binding limit = RL learning (scope single-RSU) |
+| D9 | dynamic COMA / action-conditioned Q critic (`--counterfactual`) | 3c9cdc4 | adversarial PASS; 684/0 | budget-neutral; opt-in default byte-identical; A/B → D13 |
+| D10 | dynamic SCQ (`--scq`) one-step Δy=ΔR+γ(V−Ṽ) | bc09019 | adversarial PASS; 688/0 | NOT budget-neutral (calls reported); opt-in; A/B → D13 |
+| D11 | dynamic chance dual / CVaR / Pareto archive (`--chance`/`--pareto-archive`) | b42b744 | adversarial PASS; 692/0 | sign-flexible dual; Pareto from VAL not raw-feasibility; A/B → D13 |
+| D12 | PNA / preference-conditioned dynamic actor (`--dynamic-actor-arch pna`) | a4bb937 | adversarial PASS; 697/0 | DEPLOYED-path decentralized (local+nbr+public ω); opt-in; A/B → D13 |
+| D1 | real 4-RSU urban-grid dynamic data (`--dyn-data urban`) | 9ef3de3 | adversarial PASS genuinely-4-RSU; 703/0 | buildings + road-constrained motion + stable ids + provenance manifest; random kept as ablation. **ALL 10 GAPS CLOSED** |
+| D13 | full campaign: 5 seed × 8 arm × N{8,12,16}, urban + random + mechanism A/Bs | 01ec369 (40d840e infra) | adversarial 4-lens re-derivation from raw JSON PASS (incl. byte-identical urban-hash regen) | HONEST NEGATIVE (see below) |
+| D14 | docs / report / README / AGENTS reconciliation | (this stage) | claims-vs-evidence verify | corrected the frozen report's data/full-model claims; CTDE README |
+
+## D13 CENTRAL RESULT (the corrected headline)
+On the corrected dynamic pipeline with genuinely 4-RSU urban data (5 seeds, N∈{8,12,16}, 6 frames),
+**no mechanism — temporal / COMA / SCQ / chance / Pareto / PNA — produces a statistically significant
+held-feasibility gain** (all paired-vs-baseline CIs span 0), and on BOTH urban and random every learned
+arm (0.15–0.32) falls below the zero-eval-call deployable heuristics (random 0.36–0.37, urban 0.70–0.71),
+which trail the central myopic reference (random 0.374, urban 0.793) — so **the binding limit is RL
+feasibility-region learning**, not temporal structure, credit assignment, reliability shaping, actor
+architecture, or data realism. PNA has the largest positive mean (+0.125) but a bimodal seed-0 collapse
+kills significance; chance hurts return without a feasibility gain. Budget honest (SCQ 43 calls/upd, Pareto
+144 — both flagged non-budget-neutral; COMA/PNA budget-neutral). Caveat: deployable ≈ central is tight on
+random (Δ<0.01) but loose on urban (0.711 vs 0.793). Scope: single-RSU random + 4-RSU urban, N≤16, 5 seeds
+— NOT urban-at-scale / NOT N≥24.
+
+## MECHANISM LEDGER (dynamic, final) — all verified-correct, all OPT-IN, none in the default headline
+| flag | mechanism | budget | D13 A/B (paired Δfeas vs urban baseline) |
+|---|---|---|---|
+| `--dynamic-actor recurrent` | cross-frame recurrence | neutral | −0.092 [−0.385,+0.202] (D8 too) |
+| `--counterfactual` | COMA per-agent credit | budget-neutral | −0.039 [−0.117,+0.039] |
+| `--scq` | closed-form one-step counterfactual supervision | 43 calls/upd | −0.008 [−0.059,+0.043] |
+| `--chance` (+ CVaR metric) | sign-flexible chance dual | neutral | −0.046 [−0.127,+0.035]; also hurts return |
+| `--pareto-archive` | reliability→non-dominated checkpoint from VAL | 144 held calls | +0.018 [−0.013,+0.049] |
+| `--dynamic-actor-arch pna` | directional PNA + ω-preference actor | budget-neutral | +0.125 [−0.297,+0.547] (bimodal, not significant) |
+| `--dyn-data urban` | real 4-RSU urban-grid data (D1) | — | data axis: urban harder for learned, easier for deployable heuristics |
+
+**CONSISTENCY WITH v2:** identical pattern to the static campaign (Phase 8–13) — every sophisticated CTDE
+mechanism is correct but no headline gain at N≤16; the simple baseline + closed-form local decoder is the
+default. The dynamic task adds the temporal axis and confirms: temporal modeling relieves none of the
+N≤16 feasibility-region bottleneck. Suite 706 unit / 63 contract, 0 failed. Branch ahead of origin (unpushed — owner's decision).
