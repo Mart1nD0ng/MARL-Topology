@@ -570,7 +570,24 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     mean, std = feature_standardization(stat_samples)
     node_dim, edge_dim = stat_samples[0]["nf"].shape[1], stat_samples[0]["ef"].shape[1]
 
-    actor = DynamicRecurrentActor(node_dim, edge_dim, hidden=args.hidden)
+    actor_arch = str(getattr(args, "dynamic_actor_arch", "mlp"))    # D12: mlp (default) | pna
+    if actor_arch == "pna":
+        from collections import Counter
+
+        from marl_topology.models.dynamic_pna_actor import DynamicPNAActor
+        from marl_topology.models.pna_aggregation import training_degree_delta
+        degs = []                                                   # incident degree over the train graphs
+        for s in stat_samples:
+            inc = Counter()
+            for a, b in s["ei"].tolist():
+                inc[a] += 1; inc[b] += 1
+            degs.extend(inc.get(i, 0) for i in range(s["nf"].shape[0]))
+        delta = training_degree_delta(degs) or 1.0
+        actor = DynamicPNAActor(node_dim, edge_dim, hidden=args.hidden, delta=delta)
+        actor.set_preference(float(getattr(args, "dyn_pref_energy", 0.0)),
+                             float(getattr(args, "dyn_pref_latency", 0.0)))
+    else:
+        actor = DynamicRecurrentActor(node_dim, edge_dim, hidden=args.hidden)
     critic = CentralizedGraphCritic(node_dim, edge_dim, hidden=args.critic_hidden,
                                     rounds=args.critic_rounds, critic_sees_action=counterfactual)
     opt = torch.optim.Adam(actor.parameters(), lr=args.lr)
@@ -823,7 +840,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                                                    "csi_delta", "csi_age"] if motion_features else []),
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
-                  "arm": args.dynamic_actor, "warmstart_epochs": n_warm,
+                  "arm": args.dynamic_actor, "actor_arch": actor_arch,   # D12: mlp | pna
+                  "preference_omega": ([float(getattr(args, "dyn_pref_energy", 0.0)),
+                                        float(getattr(args, "dyn_pref_latency", 0.0))]
+                                       if actor_arch == "pna" else None),
+                  "warmstart_epochs": n_warm,
                   "warmstart_mode": warmstart_mode,            # bce (legacy) | bcsp (decoder-aware, D6)
                   "warmstart_final_bce": warmstart_bce,
                   "warmstart_final_metric": warmstart_final,

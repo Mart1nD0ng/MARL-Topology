@@ -4256,3 +4256,33 @@ budget-neutral, CVaR matches the oracle, Pareto val-only + budget-honest, byte-i
 only. The dynamic task now genuinely optimizes reliability/energy/latency (not just feasibility). **A/B
 (chance residual / CVaR / Pareto hypervolume, per-seed/CI) DEFERRED to D13.** Artifacts:
 `docs/dynamic_repair/D11/`. Next: D12 (PNA / preference-conditioned dynamic actor).
+
+## Dynamic-Repair Campaign — D12 (PNA / preference-conditioned dynamic actor)
+
+**D12 done.** Added a decentralized PNA directional dynamic actor (gap #6, Plan §14) as an opt-in drop-in
+for the MLP actor — the LAST Phase-8–11 mechanism ported to the dynamic task. `models/dynamic_pna_actor.py`
+`DynamicPNAActor` upgrades the single mean-aggregation message round to the full PNA readout (4 aggregators
+× 3 degree scalers, reusing the verified Phase-11a `pna_combine` + the gradient-safe `scatter_directional_pna`)
+over DIRECTIONAL physical-neighbour messages, with a SHARED cross-frame GRUCell carrying per-node state
+across episode frames. The deployment preference ω=(ω_E,ω_L) is a per-node PUBLIC input (broadcast) so a
+single policy can sweep the energy-latency trade-off (consumes the D11 preference primitive). It is a
+drop-in (identical forward(nf,ef,ei,hidden)->(logits,h) contract); `--dynamic-actor-arch {mlp,pna}`
+(default mlp → byte-identical) is ORTHOGONAL to `--dynamic-actor` (recurrence), so all four
+{mlp,pna}×{recurrent,memoryless} arms are expressible.
+
+CRITICAL: the actor is the DEPLOYED path → DECENTRALIZED (D1): each node uses only its own
+preference-augmented features + its physical in-neighbours' directed messages + its per-node cross-frame
+hidden; NO global state / global decoder / argsort / node ids / critic / evaluator at inference; ω is a
+public scalar pair (deploy-legal); the activation stays owned by the torch-free local_mutual_assemble
+decoder (train==deploy). NaN-safe at isolated/single-neighbour nodes (reused std clamp_min + degree-0
+scaler mask); logits softly bounded.
+
+5 failing-first tests (signature-compatible / cross-frame hidden changes output / preference changes
+output / backward-no-NaN-isolated / decentralized). Unit 697/0, contract 63/0, `--dynamic
+--dynamic-actor-arch pna` smoke exit 0 (PNA trains end-to-end; activation actor_arch=pna,
+preference_omega=[0.5,0.5]). Adversarial verification (single agent, 4 claims) PASS, no gaps:
+decentralization (local+neighbour+public ω, no global leak), NaN-safety, drop-in + byte-identical off,
+critic training-only. The MLP-vs-PNA A/B is DEFERRED to D13. **All Phase-8–11 mechanisms (COMA/SCQ/chance/
+CVaR/Pareto/PNA) are now ported to the dynamic task, each opt-in/verified/budget-honest.** Artifacts:
+`docs/dynamic_repair/D12/`. Next: D1 (the deferred REAL 4-RSU urban-grid dynamic data — mandatory before
+any urban headline), then D13 (campaign), D14 (docs).

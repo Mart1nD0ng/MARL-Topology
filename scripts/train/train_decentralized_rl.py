@@ -443,6 +443,14 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--dynamic-actor", choices=["recurrent", "memoryless"], default="recurrent",
                    help="dynamic arm: recurrent (per-node hidden carries across frames) vs memoryless "
                         "(same architecture, hidden reset each frame) -- a controlled cross-frame-memory ablation")
+    p.add_argument("--dynamic-actor-arch", choices=["mlp", "pna"], default="mlp",
+                   help="dynamic actor backbone (D12): mlp (DynamicRecurrentActor, default -> byte-identical) "
+                        "or pna (PNA directional + preference-conditioned drop-in). Orthogonal to "
+                        "--dynamic-actor (recurrence). Deployed actor -- stays local/decentralized.")
+    p.add_argument("--dyn-pref-energy", type=float, default=0.0,
+                   help="dynamic PNA actor (D12): the energy preference omega_E input (a public param)")
+    p.add_argument("--dyn-pref-latency", type=float, default=0.0,
+                   help="dynamic PNA actor (D12): the latency preference omega_L input (a public param)")
     p.add_argument("--frames", type=int, default=8, help="episode length T (macro frames)")
     p.add_argument("--dt", type=float, default=2.0, help="seconds per macro frame (mobility step)")
     p.add_argument("--speed-min", type=float, default=15.0, help="min vehicle speed m/s (mobility)")
