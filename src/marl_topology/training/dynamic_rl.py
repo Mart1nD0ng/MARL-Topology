@@ -39,6 +39,11 @@ from marl_topology.training.decentralized_action import (
     sample_decentralized_bcsp_action,
 )
 from marl_topology.training.counterfactual_credit import _active_onehot, counterfactual_advantages
+from marl_topology.training.dynamic_reliability import (
+    dynamic_pareto_select,
+    episode_chance_dual_step,
+    episode_cvar_shortfall,
+)
 from marl_topology.training.graph_mappo import critic_q_value, critic_scene_value, ppo_clip_actor_loss
 from marl_topology.training.scq_supervision import scq_counterfactual_targets
 
@@ -86,7 +91,7 @@ def _critic_value(critic, obs, active_indices, mean, std):
 
 def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_of, ref_energy,
                     lam_c, lam_b, beta, reward_mode, generator=None, counterfactual=False, k_cf=4,
-                    scq=False):
+                    scq=False, lam_chance=0.0):
     """One no-grad episode: carry hidden across frames (recurrent) or reset (memoryless). With
     ``counterfactual`` (D9), the action-conditioned Q critic also produces per-agent COMA advantages
     A_{i,t}=Q(s_t,S_t)-E_{S~_i}Q(s_t,S~_i,S_{-i}) (budget-neutral: critic forwards, no evaluator call)."""
@@ -122,8 +127,9 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
         switches = len(frozenset(prev_topo) ^ frozenset(topo)) if t > 0 else 0
         reconfig = (scene.reconfig.e_edge + scene.reconfig.l_edge) * switches
         # Contract v3 §3.2 / two_timescale_env: a macro topology is held for H_PBFT micro-rounds, so
-        # the per-frame base objective is reaped H times before the one-time switch cost.
-        reward = scene.hold_interval * base_r - reconfig
+        # the per-frame base objective is reaped H times before the one-time switch cost. The D11 chance
+        # dual subtracts a per-frame penalty when the frame is below tau (sign-flexible dual, opt-in).
+        reward = scene.hold_interval * base_r - reconfig - lam_chance * (0.0 if ok else 1.0)
         per_agent = [(pa.incident_edge_indices, pa.accepted_local_indices, pa.budget, float(pa.logp))
                      for pa in act.per_agent if pa.incident_edge_indices]
         records.append(FrameRecord(obs, per_agent, act.active_edge_indices, topo, reward, base_r,
@@ -220,11 +226,16 @@ def dynamic_scq_loss(critic, records, targets, mean, std):
 
 
 def dynamic_eval(actor, scenes, mean, std, *, recurrent, temp, reward_of, ref_energy,
-                 lam_c, lam_b, beta, reward_mode):
-    """Deterministic-ish held eval: per-frame feasibility, episode return, switching, energy."""
+                 lam_c, lam_b, beta, reward_mode, lam_chance=0.0, evaluate=None):
+    """Deterministic-ish held eval: per-frame feasibility, episode return, switching; D11 also reports the
+    reliability tail (CVaR over consensus margins) + chance frac-below-tau, and (when ``evaluate`` is
+    given) energy/latency for the Pareto archive (extra evaluator calls -- NOT budget-neutral)."""
     actor.eval()
     n_frames_total = feas_frames = 0
     ret_sum = switch_sum = 0.0
+    energy_sum = latency_sum = 0.0
+    el_frames = 0
+    cons_margins: list[float] = []
     per_scene = []
     for scene in scenes:
         prev_topo: list[str] = []
@@ -243,28 +254,43 @@ def dynamic_eval(actor, scenes, mean, std, *, recurrent, temp, reward_of, ref_en
             with torch.no_grad():
                 logits, h_next = actor(nf_s, ef_s, obs["ei"], hidden=hidden)
             topo = local_mutual_assemble(logits, obs["edge_ids"], ctx)   # the DEPLOYED decoder
-            base_r, _gc, _gb, ok = reward_of(obs, list(topo), e_ref, lam_c, lam_b, beta, reward_mode)
+            base_r, gc, _gb, ok = reward_of(obs, list(topo), e_ref, lam_c, lam_b, beta, reward_mode)
             switches = len(frozenset(prev_topo) ^ frozenset(topo)) if t > 0 else 0
             reconfig = (scene.reconfig.e_edge + scene.reconfig.l_edge) * switches
+            chance_pen = lam_chance * (0.0 if ok else 1.0)   # D11: chance dual penalty (same objective)
             # SAME objective as training (Contract v3 §3.2/§3.3): discounted, H-scaled episode return.
-            ep_ret += discount * (scene.hold_interval * base_r - reconfig)
+            ep_ret += discount * (scene.hold_interval * base_r - reconfig - chance_pen)
             discount *= scene.gamma
             n_frames_total += 1; feas_frames += int(ok); switch_sum += switches
+            cons_margins.append(float(gc))                   # D11: per-frame reliability shortfall (CVaR)
+            if evaluate is not None:                         # D11: energy/latency for the Pareto archive
+                try:
+                    _c, e_j, lat_s = evaluate(obs, list(topo))
+                    energy_sum += float(e_j) / e_ref; latency_sum += float(lat_s); el_frames += 1
+                except Exception:
+                    pass
             frames.append({"t": t, "topo_size": len(topo), "switches": switches,
                            "feasible": bool(ok), "base_reward": round(float(base_r), 4),
-                           "reconfig": round(float(reconfig), 4)})
+                           "consensus_margin": round(float(gc), 4), "reconfig": round(float(reconfig), 4)})
             prev_topo = list(topo)
             hidden = h_next if recurrent else None
         ret_sum += ep_ret
         per_scene.append({"sequence_id": scene.sequence_id, "n_frames": scene.n_frames,
                           "episode_return": round(float(ep_ret), 4), "frames": frames})
-    return {
+    out = {
         "per_frame_feasibility": feas_frames / max(1, n_frames_total),
         "mean_episode_return": ret_sum / max(1, len(scenes)),
         "mean_switches_per_frame": switch_sum / max(1, n_frames_total),
+        "chance_frac_below_tau": 1.0 - feas_frames / max(1, n_frames_total),
+        "cvar_shortfall": episode_cvar_shortfall(cons_margins, alpha=0.9),   # D11: reliability tail
         "n_scenes": len(scenes), "n_frames_total": n_frames_total,
         "traces": per_scene,
     }
+    if evaluate is not None:
+        out["mean_energy_norm"] = energy_sum / max(1, el_frames)
+        out["mean_latency_s"] = latency_sum / max(1, el_frames)
+        out["pareto_evaluator_calls"] = el_frames           # extra eval calls (NOT budget-neutral)
+    return out
 
 
 def _frame_teacher_trajectory(scene, mean, std, *, reward_of, ref_energy, lam_c, lam_b, beta, reward_mode):
@@ -512,6 +538,14 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     scq_coef = float(getattr(args, "scq_coef", 0.5))
     scq_select = str(getattr(args, "scq_select", "simple"))
     scq_gen = torch.Generator().manual_seed(args.seed + 7) if scq else None
+    chance = bool(getattr(args, "chance", False))                  # D11: episode chance dual
+    chance_delta = float(getattr(args, "chance_delta", 0.1))
+    chance_lr = float(getattr(args, "chance_lr", 0.0)) or float(getattr(args, "lr", 3e-4)) * 100.0
+    pareto = bool(getattr(args, "pareto_archive", False))          # D11: Pareto checkpoint selection
+    pareto_risk = float(getattr(args, "pareto_risk_budget", 0.0))
+    lam_chance = 0.0
+    chance_residual_last = 0.0
+    val_archive, val_states = [], {}
 
     def _mk(seed_off, count, tag):
         if count <= 0:
@@ -619,10 +653,16 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             recs, _eref = episode_rollout(
                 actor, critic, scene, mean, std, recurrent=recurrent, temp=temp, reward_of=reward_of,
                 ref_energy=ref_energy, lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta,
-                reward_mode=args.reward_mode, counterfactual=counterfactual, k_cf=k_cf, scq=scq)
+                reward_mode=args.reward_mode, counterfactual=counterfactual, k_cf=k_cf, scq=scq,
+                lam_chance=lam_chance)
             if any(r.per_agent for r in recs):
                 episodes.append((scene, recs))
                 episode_erefs.append(_eref)
+        # D11: sign-flexible chance dual step from this rollout's per-frame feasibility (no extra eval).
+        if chance:
+            flags = [rec.feasible for _s, recs in episodes for rec in recs]
+            lam_chance, chance_residual_last = episode_chance_dual_step(
+                lam_chance, flags, delta=chance_delta, lr=chance_lr)
         if not episodes:
             continue
         # advantage per (scene, frame, agent): COMA per-agent A_{i,t} (D9) when counterfactual, else the
@@ -717,8 +757,16 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             # keep-best eval on the VALIDATION split (sel_scenes = val; train only in pilot fallback).
             val = dynamic_eval(actor, sel_scenes, mean, std, recurrent=recurrent, temp=temp,
                                reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c,
-                               lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
+                               lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode,
+                               lam_chance=lam_chance, evaluate=(_evaluate if pareto else None))
             val_score = val["mean_episode_return"]
+            if pareto:    # D11: seed the Pareto archive from VAL metrics (Contract §3.4/§6.4)
+                val_archive.append({"split": "val", "update": update,
+                                    "reliability_violation": round(val["chance_frac_below_tau"], 5),
+                                    "energy": round(val.get("mean_energy_norm", 0.0), 5),
+                                    "latency": round(val.get("mean_latency_s", 0.0), 6),
+                                    "hypervolume": round(val["per_frame_feasibility"], 5)})
+                val_states[update] = {k: v.detach().clone() for k, v in actor.state_dict().items()}
         else:
             val = {"per_frame_feasibility": float("nan"), "mean_episode_return": float("nan")}
             val_score = None
@@ -741,12 +789,19 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             best_val = val_score
             best_state = {k: v.detach().clone() for k, v in actor.state_dict().items()}
 
-    # ---- final held eval with the kept-best actor ----
-    if best_state is not None:
+    # ---- final checkpoint: Pareto archive selection (D11, §6.4) when on, else keep-best-on-val ----
+    pareto_choice = None
+    if pareto and val_archive:
+        pareto_choice = dynamic_pareto_select(val_archive, risk_budget=pareto_risk)
+        if pareto_choice is not None and pareto_choice["update"] in val_states:
+            actor.load_state_dict(val_states[pareto_choice["update"]])   # NEVER by raw feasibility alone
+    elif best_state is not None:
         actor.load_state_dict(best_state)
+    # ---- final held eval (energy/latency reported when the Pareto/energy path is on) ----
     held = dynamic_eval(actor, held_scenes, mean, std, recurrent=recurrent, temp=temp,
                         reward_of=reward_of, ref_energy=ref_energy, lam_c=args.lam_c,
-                        lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode)
+                        lam_b=args.lam_b, beta=args.beta, reward_mode=args.reward_mode,
+                        lam_chance=lam_chance, evaluate=(_evaluate if pareto else None))
 
     activation = {
         "dynamic_task": {"enabled": True, "episode_length": int(args.frames),
@@ -788,6 +843,14 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                    "rollout_sampler": "sample_decentralized_bcsp_action (stochastic; MAP == deploy)",
                    "eval_decoder": "local_mutual_assemble (deployed, torch-free)",
                    "per_agent_ratio": True},
+        "reliability": {                                 # D11: episode chance/CVaR/Pareto (opt-in)
+            "chance": chance, "chance_delta": (chance_delta if chance else None),
+            "chance_lambda": round(lam_chance, 5), "chance_residual": round(chance_residual_last, 5),
+            "chance_budget_neutral": True,               # chance uses the recorded feasibility (no extra eval)
+            "cvar_alpha": 0.9, "held_cvar_shortfall": round(held.get("cvar_shortfall", 0.0), 5),
+            "pareto_archive": pareto, "pareto_budget_neutral": (not pareto),
+            "pareto_checkpoint_update": (pareto_choice["update"] if pareto_choice else None),
+            "pareto_evaluator_calls_held": held.get("pareto_evaluator_calls", 0)},
         "regime": "operating_point urban v2x_37885 shadowing nlosv relay-3 backhaul coverage-gated",
     }
     # post-RL drift (Contract §10.3): how much RL moved the warm-start-alone HELD return.
@@ -808,6 +871,10 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
         "held_per_frame_feasibility": round(held["per_frame_feasibility"], 5),
         "held_mean_episode_return": round(held["mean_episode_return"], 5),
         "held_mean_switches_per_frame": round(held["mean_switches_per_frame"], 5),
+        "held_cvar_shortfall": round(held.get("cvar_shortfall", 0.0), 5),
+        "held_chance_frac_below_tau": round(held.get("chance_frac_below_tau", 0.0), 5),
+        "chance_lambda": round(lam_chance, 5),
+        "pareto_checkpoint_update": (pareto_choice["update"] if pareto_choice else None),
         "best_val_episode_return": round(best_val, 5),
         "checkpoint_selection": {"split": sel_split, "metric": "val_discounted_episode_return",
                                  "held_used_for_checkpoint": False,

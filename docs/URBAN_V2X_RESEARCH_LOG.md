@@ -4231,3 +4231,28 @@ critic only, byte-identical off + duplicate-cf caching + critic training-only. *
 verified + active; the SCQ-vs-no-SCQ A/B (held Q fidelity, per-seed/CI) is DEFERRED to D13** — D10 does
 NOT claim an SCQ gain (consistent with the static Phase-9 pattern + the D8 binding-limit finding).
 Artifacts: `docs/dynamic_repair/D10/`. Next: D11 (chance/CVaR/Pareto into the dynamic task).
+
+## Dynamic-Repair Campaign — D11 (chance/CVaR/Pareto into the dynamic task)
+
+**D11 done.** Wired episode-level reliability constraints into the --dynamic arm (gap #6, Plan §13). New
+`training/dynamic_reliability.py` thinly wraps the verified static Phase-10 primitives at the episode
+level: (a) **chance** (`--chance`) — the sign-flexible dual λ_chance ascends when the per-frame failure
+rate Pr(C_t<τ) exceeds δ and FALLS (to ≥0) when met; reward gains −λ_chance·1[C_t<τ] applied in BOTH the
+training rollout AND the eval (train==eval objective preserved); the dual updates from the RECORDED
+feasibility flags → budget-neutral. (b) **CVaR** — held_cvar_shortfall = the tail mean of per-frame
+reliability shortfalls (over the recorded consensus margins) is reported (budget-neutral risk metric).
+(c) **Pareto** (`--pareto-archive`) — the val archive is seeded ONLY at VAL checkpoints with
+{reliability_violation, energy, latency}; the final checkpoint is selected by reliability-risk → min
+violation → energy-latency non-dominated (NEVER raw feasibility); the energy/latency are an EXTRA
+evaluator call at val/held → NOT budget-neutral (pareto_budget_neutral=False, pareto_evaluator_calls
+reported). (d) **preference** — preference_weighted_objective is a VERIFIED primitive (a preference flips
+the reward-best topology); the preference-CONDITIONED policy is D12 (PNA). Default off → trained-policy
+behavior byte-identical (CVaR/margin are report-only free metrics).
+
+4 failing-first tests; dynamic-RL+reliability 29/29, unit 692/0, contract 63/0, `--dynamic --chance
+--pareto-archive` smoke exit 0 (λ_chance/residual + CVaR + Pareto-selected checkpoint + extra eval calls
+all reported). Adversarial verification (single agent, 4 claims) PASS, no gaps: chance sign-flexible +
+budget-neutral, CVaR matches the oracle, Pareto val-only + budget-honest, byte-identical off + training-
+only. The dynamic task now genuinely optimizes reliability/energy/latency (not just feasibility). **A/B
+(chance residual / CVaR / Pareto hypervolume, per-seed/CI) DEFERRED to D13.** Artifacts:
+`docs/dynamic_repair/D11/`. Next: D12 (PNA / preference-conditioned dynamic actor).
