@@ -4156,3 +4156,35 @@ simple baseline wins" must NOT be read as "a deployable baseline wins" — the m
 (which ARE deployable) are stronger here. 4-scene smoke, not a result. Artifacts:
 `docs/dynamic_repair/D7/`. Next: D8 (the 4-arm recurrent×velocity retest on the corrected pipeline — the
 first comparative result stage).
+
+## Dynamic-Repair Campaign — D8 (2×2 motion×recurrence retest, FIRST corrected-pipeline result)
+
+**D8 done.** The first comparative result on the fully-corrected pipeline (D2 hold/discount objective +
+D3 val split + D4 phase-specific energy + D5 motion features + D6 decoder-aware bcsp warm-start). 5 seeds
+× the 2×2 {motion × recurrence} matrix, N∈{8,12,16}, 30 updates, 24 train/24 val/24 held, warm-start
+bcsp 25, BC-anchor off. Single-RSU random geometry (D1 urban data NOT yet built — conclusion does not
+extrapolate to urban).
+
+**Learned arms (held, 5 seeds):** memoryless_csi feas 0.151 [0.012,0.291]; memoryless_velocity 0.110
+[−0.051,0.271]; recurrent_csi 0.197 [0.038,0.356]; recurrent_velocity 0.050 [0.028,0.072]. No 0.0 seed
+collapse (D6 fixed the cold-start collapse the frozen baseline had).
+
+**Paired ablation — every CI spans 0:** velocity−csi (memoryless) feas −0.042 [−0.303,+0.220];
+recurrent−memoryless (csi) +0.046 [−0.026,+0.117]; recurrent−memoryless (velocity) −0.060
+[−0.226,+0.106]. → **neither velocity features nor cross-frame recurrence gives a significant gain** on
+this task.
+
+**Baselines (held, 5 seeds, grouped per §10.1):** DEPLOYABLE local_threshold 0.364 [0.307,0.420] (0 eval
+calls); local_hysteresis 0.369 [0.303,0.436] (0 eval calls, switches 1.05 < threshold's 1.60); CENTRAL
+myopic_greedy 0.374 [0.276,0.471] (864 eval calls).
+
+**Honest conclusions (scope: single-RSU, corrected env-math, N∈{8,12,16}, 5 seeds):** (1) velocity = no
+significant gain; (2) recurrence = no significant gain (confirms §3 prediction); (3) the learned RL arms
+(0.05–0.20) underperform BOTH the deployable baselines (0.36–0.37) AND the central reference (0.37) → the
+binding limit is RL feasibility-region learning, not temporal modeling (the decoder-aware warm-start
+reaches only ~0.15 vs the teacher's ~0.37 — the learned local GNN+BCSP actor is the weak link); (4) the
+deployable local baselines ≈ the central myopic (0 vs 864 eval calls) — confirms D7 at 5 seeds; (5) D6
+warm-start protection validated — post-RL drift small/POSITIVE (RL no longer DEGRADES the warm-start; the
+frozen "RL degrades warm-start" does not reproduce). Adversarial re-derivation from the raw JSON: PASS,
+no over-claims. NOT urban, NOT "temporal useless in general" — only on this task at this scale. Artifacts:
+`result_save/dynamic_d8_matrix.json`, `docs/dynamic_repair/D8/`. Next: D9 (dynamic COMA/Q-critic).
