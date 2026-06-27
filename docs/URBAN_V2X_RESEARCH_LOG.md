@@ -4317,3 +4317,43 @@ corrected (objective/split/energy/observation/warm-start/baselines/data) and all
 are ported (COMA/SCQ/chance·CVaR·Pareto/PNA), each opt-in+verified. Artifacts: `docs/dynamic_repair/D1/`.
 Next: D13 (full multi-seed campaign on urban data + the D9-D12 mechanism A/Bs + dynamic_random_geometry vs
 dynamic_urban_4rsu contrast), then D14 (docs/report/README reconciliation).
+
+## Dynamic-Repair Campaign — D13 (the full dynamic campaign) — HONEST NEGATIVE on real 4-RSU urban
+
+**D13 done.** The headline campaign on the corrected pipeline: `dynamic_d13_campaign.py`, 5 seeds × 8 arms
+× N∈{8,12,16}, 30 updates, 25-ep decoder-aware bcsp warm-start, on BOTH the real 4-RSU urban grid
+(`--dyn-data urban`) and the single-RSU random-geometry ablation (`--dyn-data random`). Each arm is a
+single-variable A/B vs the urban baseline; the D7 deployable heuristics + central myopic reference are
+evaluated per data source and grouped separately (never mixed).
+
+**RESULT (honest negative, now on genuinely-urban data):**
+- Learned baseline held feasibility: random 0.151, urban 0.196. Every learned arm (0.15–0.32) sits BELOW
+  the zero-eval-call deployable heuristics on BOTH data (random local_threshold/hysteresis 0.364/0.369;
+  urban 0.696/0.711), which themselves trail the central myopic reference (random 0.374, urban 0.793).
+  Per-seed cherry-picked: the best-of-7 learned arm beats the best deployable on NO seed of either data.
+  → **the binding limit is RL feasibility-region learning**, not data realism, temporal structure, credit
+  assignment, reliability shaping, or actor architecture.
+- Mechanism A/Bs (paired vs urban baseline, df=4, all six CIs span 0 → no significant gain at 5 seeds):
+  recurrent+velocity −0.092, COMA −0.039, SCQ −0.008, chance −0.046, Pareto +0.018, PNA +0.125. PNA has
+  the largest positive mean and highest absolute feasibility (0.321) but is bimodal (seed-0 collapse
+  −0.431 vs +0.30/+0.37) → a trend, not a win. Chance does NOT help feasibility (0.150<0.196) and badly
+  hurts return (−35.9 vs −14.9, λ→4.46, drift −20.2).
+- Budget honest: SCQ NOT budget-neutral (43.2 evaluator calls/update reported), Pareto NOT budget-neutral
+  (144 held eval calls reported); COMA and PNA genuinely budget-neutral (0 extra); central reference 864
+  calls vs deployables' 0. No dropped/hidden seed (all 40 runs present).
+
+**Adversarial re-derivation (workflow `wfqnd72do`, 4 independent lenses from the raw per-seed JSON) =
+PASS, no refutation.** Highlights: lens-1 independently REGENERATED seed-0's urban content hash
+byte-identically from source and confirmed `NodeKind.RSU==4` in the actual scenes (the 4-RSU data is
+genuine, not relabeled single-RSU); lens-2 recomputed every paired CI exact-match; lens-3 verified
+learned<deployable per-seed + the grouping integrity (0 vs 864 eval calls); lens-4 verified the
+non-budget-neutral calls are reported and no seed is hidden. Caveats recorded: "deployable ≈ central" is
+tight on random (Δ<0.01) but loose on urban (0.711 vs 0.793) → write learned<deployable<central (urban) /
+learned<deployable≈central (random); scope = single-RSU random vs 4-RSU urban, N≤16, NOT at-scale.
+
+**DECISION:** default production arm = the corrected baseline (graph-MAPPO + MLP memoryless actor + bcsp
+warm-start + torch-free local decoder); all D9–D12 mechanisms stay OPT-IN (verified-correct, no headline
+gain) — same pattern as the v2 static campaign. Open frontier: RL feasibility-region learning at N≤16
+(PNA's bimodal trend is the one lead worth more seeds); large-N still needs the cheaper exact-fault
+evaluator. Artifacts: `docs/dynamic_repair/D13/`, `result_save/dynamic_d13_campaign.json`. Next: D14
+(docs/report/README收口 — the final stage).
