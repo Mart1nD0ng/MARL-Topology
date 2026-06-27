@@ -517,7 +517,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     dynamic-task instrumentation set. Reached only from the trunk when args.dynamic is set."""
     import sys
 
-    from marl_topology.training.dynamic_frames import sample_dynamic_scenes
+    from marl_topology.training.dynamic_frames import (
+        dynamic_urban_manifest,
+        sample_dynamic_scenes,
+        sample_dynamic_urban_scenes,
+    )
     from marl_topology.training.two_timescale_env import ReconfigCost
 
     sys.path.insert(0, str(Path(args.__dict__.get("_root", ".")) / "scripts" / "train"))
@@ -547,14 +551,21 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     chance_residual_last = 0.0
     val_archive, val_states = [], {}
 
+    dyn_data = str(getattr(args, "dyn_data", "random"))             # D1: random | urban (4-RSU grid)
+
     def _mk(seed_off, count, tag):
         if count <= 0:
             return []
-        return sample_dynamic_scenes(
+        common = dict(
             seed=args.seed * 1000 + seed_off, count=count, node_count_choices=tuple(args.dyn_nodes),
             regime=regime, num_frames=args.frames, dt_s=args.dt, speed_min_mps=args.speed_min,
             speed_max_mps=args.speed_max, reconfig=reconfig, hold_interval=args.hold_interval,
             gamma=args.gamma, tag=tag, motion_features=motion_features)
+        if dyn_data == "urban":
+            return sample_dynamic_urban_scenes(
+                rsu_count=int(getattr(args, "dyn_urban_rsu", 4)),
+                blocks_per_side=int(getattr(args, "dyn_urban_blocks", 3)), **common)
+        return sample_dynamic_scenes(**common)
     n_val = int(getattr(args, "dyn_val", 0))
     train_scenes = _mk(1, args.dyn_train, "train_")
     val_scenes = _mk(333, n_val, "val_")
@@ -605,6 +616,12 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     split_manifest = build_split_manifest(seed=args.seed, train=train_scenes, val=val_scenes,
                                           held=held_scenes)
     (out_dir / "split_manifest.json").write_text(json.dumps(split_manifest, indent=2), encoding="utf-8")
+    if dyn_data == "urban":   # D1: provenance the data description is verified against (Contract §4.2)
+        data_manifest = dynamic_urban_manifest(
+            train_scenes, seed=args.seed, rsu_count=int(getattr(args, "dyn_urban_rsu", 4)),
+            blocks_per_side=int(getattr(args, "dyn_urban_blocks", 3)), block_size_m=60.0,
+            street_width_m=20.0, speed_min_mps=args.speed_min, speed_max_mps=args.speed_max, dt_s=args.dt)
+        (out_dir / "dynamic_data_manifest.json").write_text(json.dumps(data_manifest, indent=2), encoding="utf-8")
     history = []
     best_val = -1e30
     best_state = None
@@ -825,6 +842,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                          "hold_interval": int(args.hold_interval), "gamma": float(args.gamma),
                          "reconfig_e_edge": float(args.reconfig_e), "reconfig_l_edge": float(args.reconfig_l),
                          "reconfiguration_cost_nonzero": bool(args.reconfig_e or args.reconfig_l),
+                         "data_source": dyn_data,                  # D1: random (single-RSU) | urban (4-RSU grid)
+                         "urban_rsu_count": (int(getattr(args, "dyn_urban_rsu", 4)) if dyn_data == "urban" else None),
                          "reward_definition": "hold_interval*base - reconfig",
                          "reward_uses_hold_interval": True,
                          "return_definition": "discounted episode return G_0 = sum gamma^t r_t (train==eval==myopic==TVT)",

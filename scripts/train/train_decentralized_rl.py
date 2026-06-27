@@ -467,6 +467,12 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="dynamic held trajectories (disjoint seed *1000+777); FINAL reporting only, "
                         "never used for checkpoint selection")
     p.add_argument("--dyn-nodes", type=int, nargs="+", default=[8, 12, 16], help="node-count choices (dynamic)")
+    p.add_argument("--dyn-data", choices=["random", "urban"], default="random",
+                   help="dynamic data source (D1): random (single-RSU random geometry, default -> "
+                        "byte-identical) or urban (real 4-RSU urban grid + buildings + road-constrained "
+                        "motion). Per Contract §4.1 'urban' results require --dyn-data urban.")
+    p.add_argument("--dyn-urban-rsu", type=int, default=4, help="RSUs in the urban dynamic grid (D1)")
+    p.add_argument("--dyn-urban-blocks", type=int, default=3, help="urban grid blocks-per-side (D1)")
     p.add_argument("--dyn-eval-every", type=int, default=5,
                    help="dynamic arm: run the (heavy) decoded val eval every N updates + on the last "
                         "update (keep-best selection); per-update eval is pathological under the N<=16 "

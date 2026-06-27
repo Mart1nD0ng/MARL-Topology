@@ -314,3 +314,112 @@ def sample_dynamic_scenes(
             reliable_range_m=reliable_range_m, reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
             motion_features=motion_features))
     return out
+
+
+def _road_constrained_motions(rng, scene, grid, speed_min_mps, speed_max_mps):
+    """Axis-aligned grid-street motion (Plan §3 "road-constrained"): each vehicle moves ALONG the street
+    it sits on -- ``+/- x`` on a horizontal street, ``+/- y`` on a vertical street -- at a constant
+    velocity (so ``advance_scene`` keeps it on the lane). A vehicle at an intersection picks one axis.
+    Constant-velocity (no mid-trajectory turns); RSUs get no entry (fixed). NOT free-heading."""
+    from marl_topology.scenario.scene import NodeKind, NodeMotion
+    streets = {round(k * grid.pitch_m, 6) for k in range(grid.blocks_per_side + 1)}
+    motions = []
+    for node in scene.nodes:
+        if node.kind is not NodeKind.VEHICLE:
+            continue
+        x, y = round(node.position.x_m, 6), round(node.position.y_m, 6)
+        speed = rng.uniform(speed_min_mps, speed_max_mps)
+        direction = 1.0 if rng.random() < 0.5 else -1.0
+        on_horizontal = y in streets        # y is a street centerline -> drive along x
+        on_vertical = x in streets          # x is a street centerline -> drive along y
+        if on_horizontal and on_vertical:   # intersection -> choose an axis
+            on_horizontal = rng.random() < 0.5
+            on_vertical = not on_horizontal
+        if on_vertical and not on_horizontal:
+            vx, vy = 0.0, direction * speed
+        else:                               # horizontal street (or off-grid fallback) -> along x
+            vx, vy = direction * speed, 0.0
+        motions.append(NodeMotion(node.node_id, (vx, vy, 0.0)))
+    return tuple(motions)
+
+
+def sample_dynamic_urban_scenes(
+    *,
+    seed: int,
+    count: int,
+    node_count_choices: Sequence[int],
+    regime: PhysicsRegime,
+    num_frames: int,
+    dt_s: float,
+    speed_min_mps: float,
+    speed_max_mps: float,
+    reconfig: ReconfigCost,
+    hold_interval: int,
+    gamma: float,
+    tag: str = "",
+    motion_features: bool = False,
+    rsu_count: int = 4,
+    blocks_per_side: int = 3,
+    block_size_m: float = 60.0,
+    street_width_m: float = 20.0,
+    vehicle_los_bias: float = 0.5,
+) -> list[DynamicScene]:
+    """D1: real URBAN-GRID moving-vehicle DynamicScenes -- ``rsu_count`` RSUs (DEFAULT 4) (Plan §3). Each
+    scene is a city grid: ``rsu_count`` RSUs at distinct intersections, ``G*G`` building blocks (real NLOS
+    canyons), a street grid -- with vehicles driving ALONG the streets (road-constrained constant
+    velocity). Frame 0 is the
+    static urban scene; node + candidate-edge ids are invariant across frames; each frame is the real
+    Stage-21 channel measurement on the moved geometry. This REPLACES the single-RSU random geometry of
+    :func:`sample_dynamic_scenes` (kept as the ``dynamic_random_geometry`` ablation)."""
+    import random
+
+    from marl_topology.scenario.urban_grid import UrbanGridConfig, build_urban_grid_scene
+
+    rng = random.Random(seed)
+    reliable_range_m = measure_reliable_range_m(regime)
+    out = []
+    for index in range(count):
+        node_count = rng.choice(tuple(node_count_choices))
+        if node_count <= rsu_count:
+            raise ValueError(f"node_count {node_count} must exceed rsu_count {rsu_count} (need >=1 vehicle)")
+        quorum = _quorum_for_node_count(node_count)
+        grid = UrbanGridConfig(
+            blocks_per_side=blocks_per_side, block_size_m=block_size_m, street_width_m=street_width_m,
+            rsu_count=rsu_count, vehicle_count=node_count - rsu_count, vehicle_los_bias=vehicle_los_bias)
+        scene = build_urban_grid_scene(f"{tag}urban_{index:05d}", grid, rng)
+        motions = _road_constrained_motions(rng, scene, grid, speed_min_mps, speed_max_mps)
+        out.append(dynamic_scene_from_motion(
+            scene, motions, regime, quorum, num_frames=num_frames, dt_s=dt_s,
+            reliable_range_m=reliable_range_m, reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
+            motion_features=motion_features))
+    return out
+
+
+def dynamic_urban_manifest(scenes, *, seed, rsu_count, blocks_per_side, block_size_m, street_width_m,
+                           speed_min_mps, speed_max_mps, dt_s) -> dict:
+    """Provenance manifest for a 4-RSU urban dynamic dataset (Contract §4.2): records the REAL generator
+    config (rsu_count, grid, buildings, roads, mobility, speeds) + a content hash, so the data
+    description can be verified against the source (no single-RSU-written-as-urban)."""
+    import hashlib
+    import json as _json
+    s0 = scenes[0].scenes[0] if scenes else None
+    geom = []
+    for sc in scenes:
+        for frame in sc.scenes:
+            geom.append([(n.node_id, round(n.position.x_m, 4), round(n.position.y_m, 4)) for n in frame.nodes])
+    content_hash = hashlib.sha256(_json.dumps(geom, sort_keys=True).encode()).hexdigest()
+    return {
+        "scene_sampler": "sample_dynamic_urban_scenes",
+        "rsu_count": rsu_count,
+        "urban_grid_config": {"blocks_per_side": blocks_per_side, "block_size_m": block_size_m,
+                              "street_width_m": street_width_m},
+        "building_count": (len(s0.buildings) if s0 is not None else 0),
+        "road_segment_count": (len(s0.roads) if s0 is not None else 0),
+        "lane_count": (len(s0.lanes) if s0 is not None else 0),
+        "mobility_model": "axis-aligned grid-street constant-velocity (road-constrained)",
+        "speed_distribution_mps": [speed_min_mps, speed_max_mps],
+        "dt_s": dt_s, "num_scenes": len(scenes),
+        "node_count_distribution": sorted({s.scenes[0].nodes.__len__() for s in scenes}),
+        "trajectory_length": (scenes[0].n_frames if scenes else 0),
+        "seed": seed, "content_hash": content_hash,
+    }

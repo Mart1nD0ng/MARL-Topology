@@ -4286,3 +4286,34 @@ critic training-only. The MLP-vs-PNA A/B is DEFERRED to D13. **All Phase-8–11 
 CVaR/Pareto/PNA) are now ported to the dynamic task, each opt-in/verified/budget-honest.** Artifacts:
 `docs/dynamic_repair/D12/`. Next: D1 (the deferred REAL 4-RSU urban-grid dynamic data — mandatory before
 any urban headline), then D13 (campaign), D14 (docs).
+
+## Dynamic-Repair Campaign — D1 (real 4-RSU urban-grid dynamic data) — ALL GAPS CLOSED
+
+**D1 done.** Built the real 4-RSU urban-grid DYNAMIC data (gap #1 — the campaign's FOUNDING gap: the
+dynamic data was single-RSU random geometry mislabeled as 4-RSU urban). New
+`dynamic_frames.sample_dynamic_urban_scenes` builds each scene via `build_urban_grid_scene` with
+`UrbanGridConfig(rsu_count=4 default)` → exactly `rsu_count` RSUs at distinct intersections, G×G building
+blocks (real NLOS canyons), a street grid (roads+lanes); vehicles drive ALONG the streets via
+`_road_constrained_motions` (axis-aligned grid-street CONSTANT velocity — exactly one of vx/vy is 0;
+genuinely different from the free-heading `_sample_vehicle_motions`; honestly described, NO lane-change/
+turn dynamics). Advanced via the existing `dynamic_scene_from_motion` (node-id + candidate-edge-id sets
+invariant; frame 0 = the static urban scene; each frame is the real Stage-21 measurement on the moved
+geometry). `dynamic_urban_manifest` records the REAL config (rsu_count, urban grid, building/road/lane
+counts, mobility model, speed dist, content hash) FROM the scenes — so the description is verifiable
+against the source (Contract §4.2). `--dyn-data {random,urban}` opt-in (default random → byte-identical;
+the single-RSU `sample_dynamic_scenes` is kept as the `dynamic_random_geometry` ablation).
+
+6 failing-first tests (4 RSUs / grid+buildings / road-constrained motion / stable edge-ids / frame-0
+static / channel evolves). Unit 703/0, contract 63/0, `--dyn-data urban` smoke exit 0 (manifest rsu=4,
+buildings=9, road-constrained mobility, content hash). Adversarial verification (single agent, 4 claims)
+PASS, no blockers: genuinely 4-RSU urban (no silent 1-RSU fallback), road-constrained axis-aligned motion
+(honestly scoped), manifest matches source, byte-identical off, NO urban RESULT claimed (D1 is DATA
+infrastructure; the urban headline is D13). The urban smoke feasibility 0.0 (urban NLOS is genuinely
+harder than single-RSU random) is reported, not hidden. One nit fixed (docstring "4-RSU" → "rsu_count
+default 4").
+
+**ALL 10 GAPS FROM CURRENT_DYNAMIC_REPAIR_STATUS.md ARE NOW CLOSED.** The dynamic pipeline is fully
+corrected (objective/split/energy/observation/warm-start/baselines/data) and all Phase-8-11 mechanisms
+are ported (COMA/SCQ/chance·CVaR·Pareto/PNA), each opt-in+verified. Artifacts: `docs/dynamic_repair/D1/`.
+Next: D13 (full multi-seed campaign on urban data + the D9-D12 mechanism A/Bs + dynamic_random_geometry vs
+dynamic_urban_4rsu contrast), then D14 (docs/report/README reconciliation).
