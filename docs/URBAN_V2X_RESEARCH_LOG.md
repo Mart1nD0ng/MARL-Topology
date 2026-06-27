@@ -4209,3 +4209,25 @@ training-only (D4 vectorized blind spot N/A — D9 is purely critic-side). **The
 verified + active; the dynamic-COMA-vs-shared-advantage A/B (≥5 seeds) is DEFERRED to D13** — D9 does NOT
 claim COMA improves results (consistent with the static Phase-8 pattern + the D8 finding that RL learning,
 not credit assignment, is the binding limit). Artifacts: `docs/dynamic_repair/D9/`. Next: D10 (dynamic SCQ).
+
+## Dynamic-Repair Campaign — D10 (dynamic SCQ)
+
+**D10 done.** Wired DYNAMIC SCQ (closed-form one-step counterfactual supervision of the Q critic) into
+the --dynamic arm (gap #6, Plan §12), opt-in `--scq` (requires `--counterfactual`). The target is the
+ONE-STEP RETURN difference Δy_i = ΔR_i + γ(V(s_t+1) − V(s̃_t+1)), NOT the static single-step ΔR: the
+immediate ΔR = r_t − r̃_t is the EXACT evaluator difference per UNIQUE counterfactual (the SCQ budget),
+and the bootstrap term re-decodes the counterfactual into the next frame's prev-topology, rebuilds the
+next obs, and re-forwards the Q critic (FREE — a critic forward, no evaluator). At the terminal frame Δy
+reduces to ΔR. L_SCQ = mean[(Q(s_t,S_t)−Q(s_t,S̃_i,S_{-i})) − Δy]² enters ONLY the critic loss (Δy
+detached, ΔQ grad-on). **NOT budget-neutral**: `scq_budget_neutral=False` and
+`scq_evaluator_calls_per_update` are reported honestly in the activation (the contract requires the
+budget for non-budget-neutral mechanisms). Default off → byte-identical.
+
+4 failing-first tests (Δy nonzero / fork isolation / cache duplicate topologies / loss enters critic).
+Dynamic-RL 25/25, unit 688/0, contract 63/0, `--dynamic --counterfactual --scq` smoke exit 0
+(scq_evaluator_calls_per_update=5). Adversarial verification (single agent, 4 claims) PASS, no blockers:
+dynamic one-step target (not static), budget-honest (only ΔR costs evals; bootstrap free), SCQ enters
+critic only, byte-identical off + duplicate-cf caching + critic training-only. **MECHANISM wired +
+verified + active; the SCQ-vs-no-SCQ A/B (held Q fidelity, per-seed/CI) is DEFERRED to D13** — D10 does
+NOT claim an SCQ gain (consistent with the static Phase-9 pattern + the D8 binding-limit finding).
+Artifacts: `docs/dynamic_repair/D10/`. Next: D11 (chance/CVaR/Pareto into the dynamic task).

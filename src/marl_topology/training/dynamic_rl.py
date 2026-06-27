@@ -40,6 +40,7 @@ from marl_topology.training.decentralized_action import (
 )
 from marl_topology.training.counterfactual_credit import _active_onehot, counterfactual_advantages
 from marl_topology.training.graph_mappo import critic_q_value, critic_scene_value, ppo_clip_actor_loss
+from marl_topology.training.scq_supervision import scq_counterfactual_targets
 
 DYNAMIC_RL_MODEL_ID = "two_timescale_dynamic_rl_v1"
 
@@ -68,6 +69,7 @@ class FrameRecord:
     value: float
     ret: float = 0.0          # G_t, filled after the episode
     cf_adv: list | None = None  # D9: per-agent COMA counterfactual advantages (aligned with per_agent)
+    scq_ctx: dict | None = None  # D10: {per_agent (full BCSP actions), logits} for SCQ target build
 
 
 def _critic_value(critic, obs, active_indices, mean, std):
@@ -83,7 +85,8 @@ def _critic_value(critic, obs, active_indices, mean, std):
 
 
 def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_of, ref_energy,
-                    lam_c, lam_b, beta, reward_mode, generator=None, counterfactual=False, k_cf=4):
+                    lam_c, lam_b, beta, reward_mode, generator=None, counterfactual=False, k_cf=4,
+                    scq=False):
     """One no-grad episode: carry hidden across frames (recurrent) or reset (memoryless). With
     ``counterfactual`` (D9), the action-conditioned Q critic also produces per-agent COMA advantages
     A_{i,t}=Q(s_t,S_t)-E_{S~_i}Q(s_t,S~_i,S_{-i}) (budget-neutral: critic forwards, no evaluator call)."""
@@ -113,6 +116,7 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
                     logits=logits, temperature=temp, k_cf=k_cf, node_mean=mean[0], node_std=std[0],
                     edge_mean=mean[1], edge_std=std[1], generator=generator)
                 cf_adv = [cc.advantages[pa.node_id] for pa in act.per_agent if pa.incident_edge_indices]
+            scq_ctx = {"per_agent": act.per_agent, "logits": logits.detach()} if scq else None
         topo = [obs["edge_ids"][j] for j in act.active_edge_indices]
         base_r, _gc, _gb, ok = reward_of(obs, topo, e_ref, lam_c, lam_b, beta, reward_mode)
         switches = len(frozenset(prev_topo) ^ frozenset(topo)) if t > 0 else 0
@@ -123,7 +127,7 @@ def episode_rollout(actor, critic, scene, mean, std, *, recurrent, temp, reward_
         per_agent = [(pa.incident_edge_indices, pa.accepted_local_indices, pa.budget, float(pa.logp))
                      for pa in act.per_agent if pa.incident_edge_indices]
         records.append(FrameRecord(obs, per_agent, act.active_edge_indices, topo, reward, base_r,
-                                   reconfig, switches, bool(ok), v, cf_adv=cf_adv))
+                                   reconfig, switches, bool(ok), v, cf_adv=cf_adv, scq_ctx=scq_ctx))
         prev_topo = topo
         hidden = h_next if recurrent else None           # the ONLY difference between the two arms
     # discounted returns to episode end
@@ -153,6 +157,66 @@ def _reroll_logp(actor, critic, scene, records, mean, std, *, recurrent, temp,
         if need_value:                                          # critic is per-frame (no actor hidden)
             v_pred.append(_critic_value(critic, rec.obs, rec.active, mean, std))   # V or action-cond Q (D9)
     return logp_new, ent_new, v_pred
+
+
+def dynamic_scq_targets(records, scene, critic, mean, std, *, reward_of, ref_energy, e_ref,
+                        lam_c, lam_b, beta, reward_mode, temp, scq_m, scq_select, generator=None):
+    """D10: build the dynamic one-step SCQ targets Δy_i = ΔR_i + γ(V(s_{t+1}) − V(s̃_{t+1})) (Plan §12).
+
+    The immediate ΔR_i = r_t − r̃_t uses the per-frame reward oracle (the EXACT evaluator difference per
+    UNIQUE counterfactual -- the SCQ budget, NOT budget-neutral). The bootstrap term re-decodes the
+    counterfactual into the NEXT frame's prev-topology, rebuilds the next obs, and re-forwards the Q
+    critic -- a critic forward, FREE (no evaluator). This is what makes it a DYNAMIC (one-step return)
+    SCQ, not the static single-step ΔR primitive. Returns ((t, actual_active, active_cf, Δy)...,
+    scq_evaluator_calls, duplicate_topology_count). The targets are detached (fixed supervision)."""
+    targets, calls, dups = [], 0, 0
+    n = len(records)
+    for t, rec in enumerate(records):
+        if rec.scq_ctx is None:
+            continue
+        obs = rec.obs
+        _budgets, edges = _budgets_edges(obs["context"])
+        prev_topo = records[t - 1].topo if t > 0 else []
+
+        def rdyn(active_indices, _obs=obs, _prev=prev_topo, _t=t):
+            topo = [_obs["edge_ids"][i] for i in active_indices]
+            base_r, _gc, _gb, _ok = reward_of(_obs, topo, e_ref, lam_c, lam_b, beta, reward_mode)
+            switches = len(frozenset(_prev) ^ frozenset(topo)) if _t > 0 else 0
+            reconfig = (scene.reconfig.e_edge + scene.reconfig.l_edge) * switches
+            return scene.hold_interval * base_r - reconfig
+
+        scq = scq_counterfactual_targets(
+            rdyn, per_agent_actions=rec.scq_ctx["per_agent"], edge_ids=obs["edge_ids"], edges=edges,
+            logits=rec.scq_ctx["logits"], temperature=temp, scq_m=scq_m, r_actual=rec.reward,
+            selection=scq_select, generator=generator)
+        calls += scq.counterfactual_calls
+        dups += scq.duplicate_topology_count
+        with torch.no_grad():
+            for active_cf, delta_R in scq.targets:
+                if t < n - 1:    # bootstrap: V(s̃_{t+1}) = Q(next obs with prev=cf, next actual action)
+                    cf_topo = [obs["edge_ids"][i] for i in active_cf]
+                    next_obs_cf = scene.observation(t + 1, cf_topo)
+                    v_cf_next = float(_critic_value(critic, next_obs_cf, records[t + 1].active, mean, std))
+                    dy = float(delta_R) + scene.gamma * (records[t + 1].value - v_cf_next)
+                else:
+                    dy = float(delta_R)
+                targets.append((t, scq.actual_active, active_cf, dy))
+    return targets, calls, dups
+
+
+def dynamic_scq_loss(critic, records, targets, mean, std):
+    """L_SCQ = mean[(Q(s_t,S_t) − Q(s_t,S̃_i,S_{-i})) − Δy_i]^2 over the cached targets, recomputed
+    grad-on each critic epoch (the Δy supervision is fixed). Enters ONLY the critic loss (D10)."""
+    if not targets:
+        return torch.zeros(()), 0.0
+    res = []
+    for (t, actual_active, active_cf, dy) in targets:
+        obs = records[t].obs
+        q_act = _critic_value(critic, obs, actual_active, mean, std)
+        q_cf = _critic_value(critic, obs, active_cf, mean, std)
+        res.append((q_act - q_cf) - dy)
+    r = torch.stack(res)
+    return (r ** 2).mean(), float(r.abs().mean().detach())
 
 
 def dynamic_eval(actor, scenes, mean, std, *, recurrent, temp, reward_of, ref_energy,
@@ -443,6 +507,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     motion_features = bool(getattr(args, "motion_features", False))
     counterfactual = bool(getattr(args, "counterfactual", False))   # D9: per-agent COMA credit
     k_cf = int(getattr(args, "k_cf", 4))
+    scq = bool(getattr(args, "scq", False))                         # D10: closed-form Q supervision
+    scq_m = int(getattr(args, "scq_m", 2))
+    scq_coef = float(getattr(args, "scq_coef", 0.5))
+    scq_select = str(getattr(args, "scq_select", "simple"))
+    scq_gen = torch.Generator().manual_seed(args.seed + 7) if scq else None
 
     def _mk(seed_off, count, tag):
         if count <= 0:
@@ -488,6 +557,7 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     history = []
     best_val = -1e30
     best_state = None
+    last_scq_calls = 0
     temp = args.temp
 
     warmstart_bce = None
@@ -544,13 +614,15 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     for update in range(args.updates):
         # ---- rollout all train episodes (no grad) ----
         episodes = []
+        episode_erefs = []
         for scene in train_scenes:
             recs, _eref = episode_rollout(
                 actor, critic, scene, mean, std, recurrent=recurrent, temp=temp, reward_of=reward_of,
                 ref_energy=ref_energy, lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta,
-                reward_mode=args.reward_mode, counterfactual=counterfactual, k_cf=k_cf)
+                reward_mode=args.reward_mode, counterfactual=counterfactual, k_cf=k_cf, scq=scq)
             if any(r.per_agent for r in recs):
                 episodes.append((scene, recs))
+                episode_erefs.append(_eref)
         if not episodes:
             continue
         # advantage per (scene, frame, agent): COMA per-agent A_{i,t} (D9) when counterfactual, else the
@@ -599,10 +671,21 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             if last["kl"] > args.target_kl * 1.5:
                 break
 
-        # ---- critic regression V(s_t) -> G_t ----
+        # ---- critic regression Q/V(s_t) -> G_t (+ D10 SCQ supervision) ----
         c0 = torch.nn.utils.parameters_to_vector(critic.parameters()).detach().clone()
         rets = torch.tensor([rec.ret for _s, recs in episodes for rec in recs])
-        last_closs, last_cgn, ev = 0.0, 0.0, 0.0
+        # D10: build the dynamic SCQ targets ONCE per update (pays the evaluator budget once -- NOT
+        # budget-neutral); re-applied each critic epoch. Δy = ΔR + γ(V(s_{t+1}) − V(s̃_{t+1})).
+        scq_episodes, scq_calls = [], 0
+        if scq:
+            for (scene, recs), e_ref in zip(episodes, episode_erefs):
+                tgts, calls, _dups = dynamic_scq_targets(
+                    recs, scene, critic, mean, std, reward_of=reward_of, ref_energy=ref_energy,
+                    e_ref=e_ref, lam_c=args.lam_c, lam_b=args.lam_b, beta=args.beta,
+                    reward_mode=args.reward_mode, temp=temp, scq_m=scq_m, scq_select=scq_select,
+                    generator=scq_gen)
+                scq_episodes.append((recs, tgts)); scq_calls += calls
+        last_closs, last_cgn, ev, last_scq = 0.0, 0.0, 0.0, 0.0
         for _ in range(args.ppo_epochs):
             v_all = []
             for scene, recs in episodes:
@@ -611,6 +694,11 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                 v_all.extend(vp)
             v_pred = torch.stack(v_all)
             v_loss = args.critic_coef * (rets - v_pred).pow(2).mean()
+            if scq and scq_episodes:
+                scq_terms = [dynamic_scq_loss(critic, recs, tgts, mean, std)[0] for recs, tgts in scq_episodes]
+                scq_l = torch.stack(scq_terms).mean()
+                v_loss = v_loss + scq_coef * scq_l
+                last_scq = float(scq_l)
             opt_c.zero_grad(); v_loss.backward()
             cgn = float(torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0))
             opt_c.step()
@@ -643,9 +731,12 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                    "critic_grad_norm": last_cgn, "critic_parameter_delta": round(cdelta, 5),
                    "per_agent_kl": last["kl"], "clip_fraction": last["clip"], "entropy": last["entropy"],
                    "mean_subset_cardinality": round(mean_card, 3), "mean_switches_per_frame": round(mean_switch, 3),
+                   "scq_loss": round(last_scq, 6), "scq_evaluator_calls": scq_calls if scq else 0,
                    "val_per_frame_feasibility": (round(val["per_frame_feasibility"], 4) if do_val else None),
                    "val_mean_episode_return": (round(val_score, 4) if val_score is not None else None)}
         history.append(rec_log)
+        if scq:
+            last_scq_calls = scq_calls
         if val_score is not None and val_score > best_val:   # keep-best on the VAL split (never train/held)
             best_val = val_score
             best_state = {k: v.detach().clone() for k, v in actor.state_dict().items()}
@@ -688,6 +779,10 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                    "critic_sees_action": counterfactual,        # D9: action-conditioned Q critic
                    "counterfactual": counterfactual, "k_cf": (k_cf if counterfactual else None),
                    "counterfactual_budget_neutral": True,       # CF Q-evals are critic forwards, no evaluator call
+                   "scq": scq, "scq_m": (scq_m if scq else None), "scq_coef": (scq_coef if scq else None),
+                   "scq_select": (scq_select if scq else None),
+                   "scq_budget_neutral": False,                 # D10: SCQ spends extra evaluator calls/scene
+                   "scq_evaluator_calls_per_update": (last_scq_calls if scq else 0),
                    "warmstart_epochs": n_critic_warm, "warmstart_teacher_return_mse": critic_warm_mse},
         "action": {"distribution": "bcsp",
                    "rollout_sampler": "sample_decentralized_bcsp_action (stochastic; MAP == deploy)",
@@ -703,6 +798,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
         "arm": args.dynamic_actor, "seed": args.seed,
         "warmstart_epochs": n_warm, "warmstart_mode": warmstart_mode, "bc_anchor_lambda": bc_anchor,
         "critic_warmstart_epochs": n_critic_warm,
+        "counterfactual": counterfactual, "scq": scq,
+        "scq_evaluator_calls_per_update": (last_scq_calls if scq else 0),
         "teacher": {"source": "myopic-greedy over canonical candidate variants",
                     "uses_evaluator": True, "uses_held": False},
         "warmstart_held": warmstart_held, "warmstart_alone_return": (

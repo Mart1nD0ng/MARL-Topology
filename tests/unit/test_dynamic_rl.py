@@ -492,3 +492,70 @@ def test_dynamic_counterfactual_budget_neutral() -> None:
                     generator=torch.Generator().manual_seed(1), counterfactual=True, k_cf=4)
     n_cf = calls["n"]
     assert n_v == scene.n_frames and n_cf == n_v   # counterfactual is budget-neutral (no extra evals)
+
+
+# --------------------------------------------------------------------------- #
+# D10: dynamic SCQ -- closed-form one-step counterfactual supervision of the Q critic.
+# --------------------------------------------------------------------------- #
+def _scq_targets(scene, seed=5):
+    from marl_topology.training.dynamic_rl import dynamic_scq_targets, episode_rollout
+    actor, qcritic, mean, std = _q_models(scene)
+    recs, e_ref = episode_rollout(actor, qcritic, scene, mean, std, recurrent=False, temp=1.0,
+                                  reward_of=_reward_fn, ref_energy=_ref_energy, lam_c=1.0, lam_b=1.0,
+                                  beta=0.1, reward_mode="dense", generator=torch.Generator().manual_seed(seed),
+                                  counterfactual=True, k_cf=2, scq=True)
+    targets, calls, dups = dynamic_scq_targets(
+        recs, scene, qcritic, mean, std, reward_of=_reward_fn, ref_energy=_ref_energy, e_ref=e_ref,
+        lam_c=1.0, lam_b=1.0, beta=0.1, reward_mode="dense", temp=1.0, scq_m=3, scq_select="simple",
+        generator=torch.Generator().manual_seed(seed + 1))
+    return recs, qcritic, mean, std, targets, calls, dups
+
+
+def test_dynamic_scq_exact_delta_nonzero() -> None:
+    # SCQ spends evaluator budget and the one-step return-difference target Δy is nonzero for real CFs.
+    scene = _scene(num_frames=3)
+    _r, _q, _m, _s, targets, calls, _dups = _scq_targets(scene)
+    assert calls > 0                                          # NOT budget-neutral (extra evaluator calls)
+    assert targets and any(abs(dy) > 1e-9 for (_t, _a, _cf, dy) in targets)
+
+
+def test_dynamic_scq_state_fork_isolation() -> None:
+    # a one-step fork changes ONLY one agent's subset -> the toggled edges share a common endpoint (i).
+    scene = _scene(num_frames=3)
+    recs, _q, _m, _s, targets, _c, _d = _scq_targets(scene)
+    for (t, actual, cf, _dy) in targets:
+        obs = recs[t].obs
+        eids = obs["edge_ids"]
+        edges = {e.edge_id: (e.node_u, e.node_v) for e in obs["context"].graph.edges}
+        diff = set(actual) ^ set(cf)
+        if not diff:
+            continue
+        endpoint_sets = [set(edges[eids[i]]) for i in diff]
+        assert set.intersection(*endpoint_sets), "forked edges must share the forked agent as endpoint"
+
+
+def test_dynamic_scq_cache_duplicate_topologies() -> None:
+    # duplicate counterfactual topologies are cached: one evaluator call per UNIQUE cf per frame.
+    from collections import defaultdict
+    scene = _scene(num_frames=3)
+    _r, _q, _m, _s, targets, calls, dups = _scq_targets(scene)
+    by_frame = defaultdict(list)
+    for (t, _a, cf, _dy) in targets:
+        by_frame[t].append(cf)
+    for cfs in by_frame.values():
+        assert len(cfs) == len(set(cfs))                     # deduplicated within a frame
+    assert calls == sum(len(set(cfs)) for cfs in by_frame.values())  # one eval per unique cf
+    assert dups >= 0
+
+
+def test_dynamic_scq_loss_enters_critic() -> None:
+    # the SCQ loss is differentiable and its gradient reaches the Q critic (enters the critic loss).
+    from marl_topology.training.dynamic_rl import dynamic_scq_loss
+    scene = _scene(num_frames=3)
+    recs, qcritic, mean, std, targets, _c, _d = _scq_targets(scene)
+    assert targets
+    qcritic.zero_grad()
+    loss, mar = dynamic_scq_loss(qcritic, recs, targets, mean, std)
+    loss.backward()
+    assert mar >= 0.0
+    assert any(p.grad is not None and float(p.grad.abs().sum()) > 0 for p in qcritic.parameters())
