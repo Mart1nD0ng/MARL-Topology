@@ -70,7 +70,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | `training/residual_repair.py` + `scripts/diagnostics/add_only_repair.py` | **DONE (partial+)** — central greedy D_quorum repair fully fixes 22% of random anchor-failures (vs 0% naive max-add → guidance matters), +0.36 C, 100% retention; urban 0 (deeply-infeasible); deployable head deferred to Q9; 4 unit + suite 749/0 |
 | Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | `training/residual_repair.py` (prune+safety) + `scripts/diagnostics/conservative_prune.py` | **DONE (partial+)** — SAFE: 100% feasibility retention + 0 critical deletions (both); urban energy down on 47% feasible anchors (+slight C gain), random no benefit (relay overhead, sparse minimal); deployable safety head deferred Q9; 5 unit + suite 754/0 |
 | Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | `training/potential_shaping.py` + residual sampler in `residual_action.py` | **PART 1 DONE** — PBRS primitive telescopes + preserves small-MDP optimum (Ng-Harada, 3 potentials); D_quorum potential telescopes on real episodes; residual sampler/logp RL-ready; 6 unit + suite 760/0. **PART 2 DONE** — residual+PBRS REINFORCE trainer (eval-no-shaping); HONEST NEGATIVE: matches anchor (no improvement); urban UNSTABLE without anchor trust-region (Q5 recurs, retention→0), `--anchor-reg 0.5` fixes it (retention 1.0); 9 unit / suite 763/0 |
-| Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | decoder extension | NOT_IMPLEMENTED (current mutual activation is independent) |
+| Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | `training/edge_handshake.py` | **DONE (nuanced+)** — decentralized shared-edge-score decoder (no global sort, 2·|E| neighbour scalars); proven to recover critical edges an independent DIRECTED decode loses; urban critical-disagreement −33% (0.468→0.312), random mixed; 6 unit + suite 769/0; Workflow `wnj4i3q7h` 4-lens MINOR (decentralization/symmetry/cost PASS, claim-honesty MINOR addressed) |
 | Q11 | Re-test PNA inside the residual frame | campaign arm | NOT_IMPLEMENTED |
 | Q12 | Multi-seed × multi-CSI-mode × multi-N campaign | `scripts/diagnostics/` new driver | NOT_IMPLEMENTED |
 | Q13 | Docs / report / README / research-log close-out | docs | NOT_IMPLEMENTED |
@@ -137,6 +137,9 @@ HONEST NEGATIVE: residual+PBRS policy MATCHES the anchor (no improvement, retent
 without an anchor trust-region (Q5 instability recurs — retention→0, feasibility 0.65→0.04), `--anchor-reg
 0.5` fixes it (retention 1.0). PBRS correct/optimum-preserving but doesn't beat the strong deployable anchor
 (central ceilings Q7-22%/Q8-47% + campaign "learned≈deployable" pattern). 9 unit / suite 763/0.
-**🏁 Q9 COMPLETE.** **Next: Q10** — local edge handshake (two-round endpoint score exchange + shared edge
-score, reduce mutual-acceptance mismatch, control-comm cost recorded, deployment-decentralized). See
-`docs/pomdp_qpfar/Q*/` for per-stage artifacts.
+**🏁 Q9 COMPLETE.** **Q10 DONE (nuanced+)** — `edge_handshake.py` shared-edge-score decoder (decentralized,
+no global sort, 2·|E| neighbour scalars); proven to recover critical edges an independent DIRECTED decode
+loses; urban critical-edge disagreement −33% (0.468→0.312), random mixed; full value needs a directional
+actor (Q11). 6 unit / suite 769/0; 4-lens verification Workflow MINOR (all decentralization/symmetry/cost
+PASS). **Next: Q11** — PNA in the residual framework (re-test the one positive-trend mechanism inside the
+residual action space + handshake; seed-collapse rate, CI, gradient norm). See `docs/pomdp_qpfar/Q*/`.
