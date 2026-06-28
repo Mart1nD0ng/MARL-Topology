@@ -64,7 +64,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q1 | Stale/partial CSI observation model (`current\|delay\|partial\|delay_partial`, age, mask) | `src/marl_topology/training/csi_observation_model.py` | **DONE** (commit pending) — opt-in `--csi-mode`; leak-free (evaluator on true channel); default byte-identical; 9 unit + suite 715/0; delay+partial smokes exit 0; adversarial PASS |
 | Q2 | CSI-prediction + Temporal-Value health check under stale CSI | `scripts/diagnostics/csi_prediction_health.py` | **DONE** (commit pending) — GATE PASS: under delay/partial, temporal beats identity+memoryless on 3/3 seeds × 3/3 modes (delay1 0.104→0.080); current identity=0 (trivial); 5 unit + suite 720/0; adversarial PASS (no leak, causal GRU) |
 | Q3 | Quorum shortfall `D_quorum` diagnostics (per-phase/per-receiver, mean/max/CVaR, worst) | `src/marl_topology/protocol/quorum_deficit.py` | **DONE** (commit pending) — exact Poisson-binomial `E[(q−S)_+]`; tail bucket == reliability quorum tail (~1e-19); demonstrates gradient where C is flat (p=0.5→0.9: C≈0, D 2.74→1.39); 10 unit + suite 730/0; NOT in reward (gated on Q4); adversarial PASS |
-| Q4 | `D_quorum` ↔ true `C` alignment test (Spearman ΔD/ΔC, top-k repair hit, ΔD↑ C↓ rate) | `scripts/diagnostics/quorum_deficit_alignment.py` | NOT_IMPLEMENTED (**gates Q7/Q9 reward use**) |
+| Q4 | `D_quorum` ↔ true `C` alignment test (Spearman ΔD/ΔC, top-k repair hit, ΔD↑ C↓ rate) | `scripts/diagnostics/quorum_deficit_alignment.py` + `training/quorum_deficit_bridge.py` + evaluator `_reliability_inputs` refactor | **DONE** (commit pending) — GATE PASS (safe+conditional): 0% false-improvement all seeds/data; cond-Spearman 0.69–0.95 where C moves; urban overall 0.75–0.80; flat_C 0.85–0.99 confirms plateau; D_quorum AUTHORIZED for Q9 PBRS; 5 unit + suite 735/0; adversarial PASS |
 | Q5 | `local_hysteresis` imitation actor (BCSP subset NLL, decoded F1, held feas, switches) | teacher + BC path in trunk | NOT_IMPLEMENTED (anchor heuristic exists; imitation does not) |
 | Q6 | Residual action space (zero residual = anchor; add/remove/swap; local mutual decoder) | residual head in actor + trunk | NOT_IMPLEMENTED |
 | Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | trunk arm | NOT_IMPLEMENTED |
@@ -109,8 +109,12 @@ observation model (`csi_observation_model.py`), opt-in `--csi-mode {current,dela
 leak-free + byte-identical default, 9 unit / suite 715/0, delay+partial smokes exit 0, adversarial PASS.
 **Q2 DONE** — CSI-prediction health check: GATE PASS (recurrence beats identity+memoryless 3/3 seeds ×
 3/3 stale modes; recurrent actor justified Q5+). **Q3 DONE** — `quorum_deficit.py`: exact Poisson-binomial
-`D_quorum`, bit-identical to the reliability's quorum tail, demonstrates the gradient where C is flat
-(p=0.5→0.9: C≈0 but D 2.74→1.39); 10 unit / suite 730/0; NOT in reward; adversarial PASS. **Next: Q4** —
-D_quorum ↔ true C alignment test (Spearman ΔD/ΔC, top-k repair hit, ΔD↑-C↓ rate under local edits on real
-topologies; builds the topology→matrices bridge). **D_quorum may enter reward (Q9) ONLY if Q4 passes.**
-See `docs/pomdp_qpfar/Q*/` for per-stage artifacts.
+`D_quorum`, bit-identical to the reliability's quorum tail, gradient where C flat; NOT in reward.
+**Q4 DONE** — D_quorum↔C alignment GATE PASS (safe+conditional): 0% false-improvement on all seeds/data,
+conditional Spearman 0.69–0.95 where C moves, urban overall 0.75–0.80, flat_C 0.85–0.99 confirms the
+plateau empirically; D_quorum AUTHORIZED for Q9 PBRS (Ng-optimum-preserving regardless; Q9 measures if it
+helps); suite 735/0; adversarial PASS.
+
+**🔓 Q1–Q4 PRECONDITIONS ALL MET → the residual RL track (Q5+) is unblocked.** **Next: Q5** —
+local_hysteresis imitation actor (the deployable anchor the residual policy edits from): BCSP subset NLL,
+decoded topology F1, held feasibility, switches/frame. See `docs/pomdp_qpfar/Q*/` for per-stage artifacts.

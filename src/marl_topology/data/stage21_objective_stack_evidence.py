@@ -340,6 +340,50 @@ class Stage21ObjectiveStackEvaluator:
             else graph.node_ids
         )
 
+    def _reliability_inputs(self, selected: tuple[str, ...]) -> dict:
+        """The reliability inputs for ``selected`` (schedule / network records / phase message matrices /
+        validators / effective f / validator-restricted phase matrices). Extracted from ``evaluate`` so
+        the Q4 D_quorum bridge (training-only) computes on the SAME matrices the reliability uses --
+        behavior-preserving: ``evaluate`` calls this and is byte-identical."""
+        schedule = _stdma_schedule_for(
+            self.scene, self.graph, selected, self.config, self._mac_rx_power_mw
+        )
+        records = _directed_network_records(
+            self.scene, self.graph, selected, self.config, schedule,
+        )
+        phase_records = {"pre_prepare": records, "prepare": records, "commit": records}
+        budgets = PBFTPhaseBudgets(
+            pre_prepare_budget_s=self.config.phase_budget_s,
+            prepare_budget_s=self.config.phase_budget_s,
+            commit_budget_s=self.config.phase_budget_s,
+        )
+        if self.config.wired_rsu_backhaul:
+            rsu_ids = [n for n in self.graph.node_ids if n.startswith("rsu_")]
+            perfect_pairs = frozenset((a, b) for a in rsu_ids for b in rsu_ids if a != b)
+        else:
+            perfect_pairs = frozenset()
+        matrices = build_pbft_message_matrices_from_network_records(
+            self.graph.node_ids, phase_records, budgets, relay_hops=self.config.relay_hops,
+            perfect_pairs=perfect_pairs, one_hop_relay=self.config.one_hop_relay,
+        )
+        validators = self.validator_ids
+        fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
+        if validators == self.graph.node_ids:
+            pre_prepare = matrices.pre_prepare_matrix
+            prepare = matrices.prepare_matrix
+            commit = matrices.commit_matrix
+        else:
+            # Consensus runs among validators only; messages may still RELAY through client nodes
+            # (the matrices were built over the full node set).
+            validator_set = set(validators)
+            pre_prepare = _restrict_matrix(matrices.pre_prepare_matrix, validator_set)
+            prepare = _restrict_matrix(matrices.prepare_matrix, validator_set)
+            commit = _restrict_matrix(matrices.commit_matrix, validator_set)
+        return {"schedule": schedule, "records": records, "phase_records": phase_records,
+                "budgets": budgets, "matrices": matrices, "validators": validators,
+                "fault_tolerance": fault_tolerance, "pre_prepare": pre_prepare,
+                "prepare": prepare, "commit": commit}
+
     def evaluate(
         self,
         selected_edge_ids: Iterable[str],
@@ -353,55 +397,12 @@ class Stage21ObjectiveStackEvaluator:
         if topology_id is None and selected in self._cache:
             return self._cache[selected]
 
-        schedule = _stdma_schedule_for(
-            self.scene, self.graph, selected, self.config, self._mac_rx_power_mw
-        )
-        records = _directed_network_records(
-            self.scene,
-            self.graph,
-            selected,
-            self.config,
-            schedule,
-        )
-        phase_records = {
-            "pre_prepare": records,
-            "prepare": records,
-            "commit": records,
-        }
-        budgets = PBFTPhaseBudgets(
-            pre_prepare_budget_s=self.config.phase_budget_s,
-            prepare_budget_s=self.config.phase_budget_s,
-            commit_budget_s=self.config.phase_budget_s,
-        )
-        if self.config.wired_rsu_backhaul:
-            rsu_ids = [n for n in self.graph.node_ids if n.startswith("rsu_")]
-            perfect_pairs = frozenset(
-                (a, b) for a in rsu_ids for b in rsu_ids if a != b
-            )
-        else:
-            perfect_pairs = frozenset()
-        matrices = build_pbft_message_matrices_from_network_records(
-            self.graph.node_ids,
-            phase_records,
-            budgets,
-            relay_hops=self.config.relay_hops,
-            perfect_pairs=perfect_pairs,
-            one_hop_relay=self.config.one_hop_relay,
-        )
-        validators = self.validator_ids
-        fault_tolerance = min(self.config.fault_tolerance, max(0, (len(validators) - 1) // 3))
+        ri = self._reliability_inputs(selected)
+        schedule, records, phase_records, budgets, matrices = (
+            ri["schedule"], ri["records"], ri["phase_records"], ri["budgets"], ri["matrices"])
+        validators, fault_tolerance = ri["validators"], ri["fault_tolerance"]
         if len(validators) >= 4:
-            if validators == self.graph.node_ids:
-                pre_prepare = matrices.pre_prepare_matrix
-                prepare = matrices.prepare_matrix
-                commit = matrices.commit_matrix
-            else:
-                # Consensus runs among validators only; messages may still RELAY through
-                # client nodes (the matrices were built over the full node set).
-                validator_set = set(validators)
-                pre_prepare = _restrict_matrix(matrices.pre_prepare_matrix, validator_set)
-                prepare = _restrict_matrix(matrices.prepare_matrix, validator_set)
-                commit = _restrict_matrix(matrices.commit_matrix, validator_set)
+            pre_prepare, prepare, commit = ri["pre_prepare"], ri["prepare"], ri["commit"]
             if self.config.fault_model == "fixed_set":
                 reliability = robust_consensus_reliability(
                     validators,
