@@ -421,6 +421,36 @@ def _bcsp_teacher_trajectory(scene, mean, std, *, reward_of, ref_energy, lam_c, 
     return out
 
 
+def _hysteresis_teacher_trajectory(scene, *, keep_threshold=0.4, add_threshold=0.6):
+    """Q5: decoder-aware teacher = the DEPLOYABLE local_hysteresis anchor (local features + own previous
+    topology only, 0 evaluator calls -- NOT a central teacher). Per frame, the per-node accept proposals
+    S_i (capped at b_i, already in the BCSP support) and the topology the local mutual decoder
+    reconstructs from them. The teacher prev = its own reconstructed topology. Same per-frame dict shape
+    as :func:`_bcsp_teacher_trajectory` so it plugs into the same warm-start / NLL machinery."""
+    from marl_topology.training.dynamic_baselines import local_hysteresis_proposals
+    out = []
+    prev: list[str] = []
+    for t in range(scene.n_frames):
+        obs = scene.observation(t, prev)
+        ctx = obs["context"]
+        edge_ids = obs["edge_ids"]
+        budgets, edges = _budgets_edges(ctx)
+        accept, mutual = local_hysteresis_proposals(
+            obs["ef"], edge_ids, edges, budgets, prev,
+            keep_threshold=keep_threshold, add_threshold=add_threshold)
+        incident = incident_index(edge_ids, edges)
+        proposals = []
+        for node, idxs in incident.items():
+            b = int(budgets.get(node, 0))
+            idxs_t = tuple(idxs)
+            acc = accept.get(node, set())
+            teacher_local = tuple(k for k, gi in enumerate(idxs_t) if gi in acc)
+            proposals.append((node, idxs_t, teacher_local, b))
+        out.append({"obs": obs, "proposals": proposals, "recon": list(mutual), "teacher": list(mutual)})
+        prev = list(mutual)
+    return out
+
+
 def _teacher_subset_nll(actor, traj, mean, std, *, recurrent, temp):
     """Mean decoder-aware teacher-subset NLL over a trajectory under the actor's CURRENT logits."""
     hidden = None

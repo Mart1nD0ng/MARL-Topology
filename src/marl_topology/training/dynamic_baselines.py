@@ -45,11 +45,12 @@ def local_threshold_action(ef, edge_ids, edges, budgets, prev_topo, *, threshold
     return _mutual(accept, edge_ids, edges)
 
 
-def local_hysteresis_action(ef, edge_ids, edges, budgets, prev_topo, *, keep_threshold, add_threshold,
-                            psucc_col=_PSUCC_COL):
-    """DEPLOYABLE: keep previous-frame edges still above ``keep_threshold``; fill the remaining budget
-    with the best NEW edges above ``add_threshold`` (a keep/repair rule that reduces switching). Uses
-    ONLY local features + the node's own previous topology -- no evaluator."""
+def local_hysteresis_proposals(ef, edge_ids, edges, budgets, prev_topo, *, keep_threshold, add_threshold,
+                               psucc_col=_PSUCC_COL):
+    """The per-node ACCEPT proposals (node -> set of GLOBAL incident edge indices it proposes, |.|<=b_i)
+    AND the decoded mutual topology of the deployable hysteresis anchor. The Q5 imitation TARGET: the
+    actor learns to PROPOSE these subsets so the local mutual decoder reproduces the anchor. Local
+    features + own previous topology only -> 0 evaluator calls."""
     prev = set(prev_topo)
     incident = incident_index(edge_ids, edges)
     accept: dict = {}
@@ -61,7 +62,18 @@ def local_hysteresis_action(ef, edge_ids, edges, budgets, prev_topo, *, keep_thr
                       if edge_ids[i] not in prev and float(ef[i, psucc_col]) >= add_threshold), key=lambda t: -t[0])
         chosen = (kept[:b] + new)[:b]
         accept[node] = {i for _p, i in chosen}
-    return _mutual(accept, edge_ids, edges)
+    return accept, _mutual(accept, edge_ids, edges)
+
+
+def local_hysteresis_action(ef, edge_ids, edges, budgets, prev_topo, *, keep_threshold, add_threshold,
+                            psucc_col=_PSUCC_COL):
+    """DEPLOYABLE: keep previous-frame edges still above ``keep_threshold``; fill the remaining budget
+    with the best NEW edges above ``add_threshold`` (a keep/repair rule that reduces switching). Uses
+    ONLY local features + the node's own previous topology -- no evaluator. (Behavior unchanged; now via
+    :func:`local_hysteresis_proposals`.)"""
+    return local_hysteresis_proposals(ef, edge_ids, edges, budgets, prev_topo,
+                                      keep_threshold=keep_threshold, add_threshold=add_threshold,
+                                      psucc_col=psucc_col)[1]
 
 
 def _score_episode(scene, topo_at, *, reward_of, ref_energy, lam_c, lam_b, beta, reward_mode, eval_for_action):

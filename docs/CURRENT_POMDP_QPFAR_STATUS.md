@@ -65,7 +65,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q2 | CSI-prediction + Temporal-Value health check under stale CSI | `scripts/diagnostics/csi_prediction_health.py` | **DONE** (commit pending) — GATE PASS: under delay/partial, temporal beats identity+memoryless on 3/3 seeds × 3/3 modes (delay1 0.104→0.080); current identity=0 (trivial); 5 unit + suite 720/0; adversarial PASS (no leak, causal GRU) |
 | Q3 | Quorum shortfall `D_quorum` diagnostics (per-phase/per-receiver, mean/max/CVaR, worst) | `src/marl_topology/protocol/quorum_deficit.py` | **DONE** (commit pending) — exact Poisson-binomial `E[(q−S)_+]`; tail bucket == reliability quorum tail (~1e-19); demonstrates gradient where C is flat (p=0.5→0.9: C≈0, D 2.74→1.39); 10 unit + suite 730/0; NOT in reward (gated on Q4); adversarial PASS |
 | Q4 | `D_quorum` ↔ true `C` alignment test (Spearman ΔD/ΔC, top-k repair hit, ΔD↑ C↓ rate) | `scripts/diagnostics/quorum_deficit_alignment.py` + `training/quorum_deficit_bridge.py` + evaluator `_reliability_inputs` refactor | **DONE** (commit pending) — GATE PASS (safe+conditional): 0% false-improvement all seeds/data; cond-Spearman 0.69–0.95 where C moves; urban overall 0.75–0.80; flat_C 0.85–0.99 confirms plateau; D_quorum AUTHORIZED for Q9 PBRS; 5 unit + suite 735/0; adversarial PASS |
-| Q5 | `local_hysteresis` imitation actor (BCSP subset NLL, decoded F1, held feas, switches) | teacher + BC path in trunk | NOT_IMPLEMENTED (anchor heuristic exists; imitation does not) |
+| Q5 | `local_hysteresis` imitation actor (BCSP subset NLL, decoded F1, held feas, switches) | `local_hysteresis_proposals` + `_hysteresis_teacher_trajectory` + `scripts/diagnostics/anchor_imitation.py` | **DONE (mixed, honest)** — BC-imitation reproduces anchor on random (F1 0.89) but FAILS on urban (NLL diverges, F1 0.24; diagnosed: budget-64 RSU vs budget-2 vehicle conflicting shared-edge targets). → Q6 uses anchor as DIRECTLY-COMPUTED base (`x=H⊕Δ`, zero residual=anchor EXACT), not BC-imitation. 4 unit + suite 739/0 |
 | Q6 | Residual action space (zero residual = anchor; add/remove/swap; local mutual decoder) | residual head in actor + trunk | NOT_IMPLEMENTED |
 | Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | trunk arm | NOT_IMPLEMENTED |
 | Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | trunk arm | NOT_IMPLEMENTED |
@@ -115,6 +115,10 @@ conditional Spearman 0.69–0.95 where C moves, urban overall 0.75–0.80, flat_
 plateau empirically; D_quorum AUTHORIZED for Q9 PBRS (Ng-optimum-preserving regardless; Q9 measures if it
 helps); suite 735/0; adversarial PASS.
 
-**🔓 Q1–Q4 PRECONDITIONS ALL MET → the residual RL track (Q5+) is unblocked.** **Next: Q5** —
-local_hysteresis imitation actor (the deployable anchor the residual policy edits from): BCSP subset NLL,
-decoded topology F1, held feasibility, switches/frame. See `docs/pomdp_qpfar/Q*/` for per-stage artifacts.
+**🔓 Q1–Q4 PRECONDITIONS ALL MET → residual RL track unblocked.** **Q5 DONE (mixed, honest)** — BC-imitation
+of the deployable anchor reproduces it on random (F1 0.89) but FAILS on urban (NLL diverges, F1 0.24;
+diagnosed: budget-64 RSU vs budget-2 vehicle → conflicting shared-edge BC targets; decoder budget-top-k ≠
+threshold rule). This MOTIVATES the residual-base design over a BC-imitation foundation. **Next: Q6** —
+residual action space (`x = H ⊕ Δ`, H = directly-computed local_hysteresis anchor, zero residual = anchor
+EXACT by construction, add/remove/swap, local mutual decoder, 0 action-eval calls). See
+`docs/pomdp_qpfar/Q*/` for per-stage artifacts.
