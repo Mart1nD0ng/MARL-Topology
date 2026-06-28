@@ -83,6 +83,67 @@ def greedy_dquorum_add_repair(evaluator, anchor_topology, edge_ids, context, *, 
     }
 
 
+def greedy_conservative_prune(evaluator, anchor_topology, edge_ids, context, *, tau=0.9, max_removes=None):
+    """CENTRAL REFERENCE (training-only): from a FEASIBLE anchor, greedily REMOVE the lowest-RISK edge
+    (``risk_e = D(x∖e) − D(x)``) that KEEPS feasibility (C >= tau), until none can be safely removed.
+    Lowers cost (energy/latency) while retaining reliability; NEVER deletes a critical edge (checks true
+    C before each removal). Uses the evaluator per candidate -> NOT deployable. Returns a trajectory dict
+    (final metrics = true C / energy / latency)."""
+    anchor = set(anchor_topology)
+    base = topology_reliability(evaluator, anchor)
+    calls = 1
+    if base["consensus"] < tau:                              # prune only applies to a FEASIBLE anchor
+        return {"applicable": False, "anchor_C": round(float(base["consensus"]), 5),
+                "removed": [], "n_removed": 0, "retention": None, "evaluator_calls": calls}
+    topo = set(anchor)
+    removed: list = []
+    cap = max_removes if max_removes is not None else len(anchor)
+    while len(removed) < cap and len(topo) > 0:
+        d_cur = topology_quorum_deficit(evaluator, topo); calls += 1
+        d_cur_val = d_cur[_DEFICIT_KEY] if d_cur is not None else 0.0
+        best_e, best_risk = None, float("inf")
+        for eid in list(topo):
+            cand = topo - {eid}
+            c_cand = topology_reliability(evaluator, cand)["consensus"]; calls += 1
+            if c_cand < tau:                                  # removing eid breaks feasibility -> critical
+                continue
+            d_cand = topology_quorum_deficit(evaluator, cand); calls += 1
+            risk = (d_cand[_DEFICIT_KEY] if d_cand is not None else 0.0) - d_cur_val
+            if risk < best_risk:
+                best_e, best_risk = eid, risk
+        if best_e is None:                                    # no edge can be safely removed
+            break
+        topo.discard(best_e); removed.append(best_e)
+    pruned = topology_reliability(evaluator, topo); calls += 1
+    return {
+        "applicable": True, "pruned": sorted(topo), "removed": removed, "n_removed": len(removed),
+        "anchor_C": round(float(base["consensus"]), 5), "pruned_C": round(float(pruned["consensus"]), 5),
+        "anchor_energy": round(float(base["energy"]), 6), "pruned_energy": round(float(pruned["energy"]), 6),
+        "energy_reduction": round(float(base["energy"] - pruned["energy"]), 6),
+        "anchor_latency": round(float(base["latency"]), 6), "pruned_latency": round(float(pruned["latency"]), 6),
+        "latency_reduction": round(float(base["latency"] - pruned["latency"]), 6),
+        "feasibility_retained": bool(pruned["consensus"] >= tau),
+        "retention": 1.0 if pruned["consensus"] >= tau else 0.0,
+        "removed_subset_of_anchor": set(removed).issubset(anchor),
+        "critical_edge_deletions": 0,                         # the greedy checks C>=tau before each removal
+        "evaluator_calls": calls,
+    }
+
+
+def safety_head_targets(evaluator, anchor_topology, edge_ids, context):
+    """Per-edge supervised target for the DEPLOYABLE safety head: ``risk_e = D(x∖e) − D(x)`` (positive =
+    removing e increases the deficit = load-bearing; low = safe to remove). Anchor edges only; computed
+    via the bridge -> TRAINING-ONLY. Returns ``{edge_id: risk}``."""
+    anchor = set(anchor_topology)
+    d_anchor = topology_quorum_deficit(evaluator, anchor)
+    base = d_anchor[_DEFICIT_KEY] if d_anchor else 0.0
+    targets: dict = {}
+    for eid in anchor:
+        d = topology_quorum_deficit(evaluator, anchor - {eid})
+        targets[eid] = round(float((d[_DEFICIT_KEY] if d is not None else base) - base), 6)
+    return targets
+
+
 def repair_head_targets(evaluator, anchor_topology, edge_ids, context):
     """Per-edge supervised target for the DEPLOYABLE repair head: ``r_e = D(x) - D(x + e)`` (positive =
     adding e reduces the deficit). Computed via the bridge -> TRAINING-ONLY. Non-anchor edges only; an

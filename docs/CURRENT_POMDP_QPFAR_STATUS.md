@@ -68,7 +68,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q5 | `local_hysteresis` imitation actor (BCSP subset NLL, decoded F1, held feas, switches) | `local_hysteresis_proposals` + `_hysteresis_teacher_trajectory` + `scripts/diagnostics/anchor_imitation.py` | **DONE (mixed, honest)** — BC-imitation reproduces anchor on random (F1 0.89) but FAILS on urban (NLL diverges, F1 0.24; diagnosed: budget-64 RSU vs budget-2 vehicle conflicting shared-edge targets). → Q6 uses anchor as DIRECTLY-COMPUTED base (`x=H⊕Δ`, zero residual=anchor EXACT), not BC-imitation. 4 unit + suite 739/0 |
 | Q6 | Residual action space (zero residual = anchor; add/remove/swap; local mutual decoder) | `training/residual_action.py::residual_decode` | **DONE** (commit pending) — anchor base + add/remove/swap/full; zero-residual=anchor EXACT all modes; decentralized (per-node, no global sort), budget-safe, 0-eval; 6 unit + suite 745/0 + real-shard smoke (random+urban); adversarial PASS zero issues |
 | Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | `training/residual_repair.py` + `scripts/diagnostics/add_only_repair.py` | **DONE (partial+)** — central greedy D_quorum repair fully fixes 22% of random anchor-failures (vs 0% naive max-add → guidance matters), +0.36 C, 100% retention; urban 0 (deeply-infeasible); deployable head deferred to Q9; 4 unit + suite 749/0 |
-| Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | trunk arm | NOT_IMPLEMENTED |
+| Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | `training/residual_repair.py` (prune+safety) + `scripts/diagnostics/conservative_prune.py` | **DONE (partial+)** — SAFE: 100% feasibility retention + 0 critical deletions (both); urban energy down on 47% feasible anchors (+slight C gain), random no benefit (relay overhead, sparse minimal); deployable safety head deferred Q9; 5 unit + suite 754/0 |
 | Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | trunk reward | NOT_IMPLEMENTED (requires Q4 PASS) |
 | Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | decoder extension | NOT_IMPLEMENTED (current mutual activation is independent) |
 | Q11 | Re-test PNA inside the residual frame | campaign arm | NOT_IMPLEMENTED |
@@ -124,7 +124,10 @@ global sort; budget-safe; 0-eval); 6 unit / suite 745/0 / real-shard smoke (rand
 PASS zero issues. **Q7 DONE (partial+)** — `residual_repair.py` central greedy D_quorum-guided add repair on anchor-failure
 frames: fully fixes 22% of random failures (vs 0% naive max-add → guidance matters; adding the RIGHT edges
 beats the MOST), +0.36 true-C improvement, 100% anchor retention; urban 0 (3 deeply-infeasible NLOS
-failures); central reference (~96 evals/repair); deployable learned head DEFERRED to Q9. 4 unit / suite
-749/0. **Next: Q8** — conservative prune from FEASIBLE anchors (safety head `risk_e = D(x∖e) − D(x)`,
-keep feasibility, lower energy/latency; report retention + E/L reduction + critical-edge deletion). See
-`docs/pomdp_qpfar/Q*/` for per-stage artifacts.
+failures); central reference (~96 evals/repair); deployable learned head DEFERRED to Q9. **Q8 DONE (partial+)** —
+conservative prune SAFE everywhere (100% feasibility retention + 0 critical-edge deletions); urban lowers
+energy on 47% of feasible anchors (+slight C gain via interference reduction), random no cost benefit
+(relay overhead, sparse anchors minimal); central reference, deployable safety head deferred Q9. 5 unit /
+suite 754/0. **Next: Q9** — full residual + PBRS: deployable residual policy trained end-to-end with
+`F_t = γΦ(s_{t+1}) − Φ(s_t)`, `Φ = −D_quorum`, terminal Φ=0; test PBRS telescopes + preserves the exact
+small-MDP optimum + final metrics use true C/E/L. See `docs/pomdp_qpfar/Q*/` for per-stage artifacts.
