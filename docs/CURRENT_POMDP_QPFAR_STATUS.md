@@ -67,7 +67,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q4 | `D_quorum` ↔ true `C` alignment test (Spearman ΔD/ΔC, top-k repair hit, ΔD↑ C↓ rate) | `scripts/diagnostics/quorum_deficit_alignment.py` + `training/quorum_deficit_bridge.py` + evaluator `_reliability_inputs` refactor | **DONE** (commit pending) — GATE PASS (safe+conditional): 0% false-improvement all seeds/data; cond-Spearman 0.69–0.95 where C moves; urban overall 0.75–0.80; flat_C 0.85–0.99 confirms plateau; D_quorum AUTHORIZED for Q9 PBRS; 5 unit + suite 735/0; adversarial PASS |
 | Q5 | `local_hysteresis` imitation actor (BCSP subset NLL, decoded F1, held feas, switches) | `local_hysteresis_proposals` + `_hysteresis_teacher_trajectory` + `scripts/diagnostics/anchor_imitation.py` | **DONE (mixed, honest)** — BC-imitation reproduces anchor on random (F1 0.89) but FAILS on urban (NLL diverges, F1 0.24; diagnosed: budget-64 RSU vs budget-2 vehicle conflicting shared-edge targets). → Q6 uses anchor as DIRECTLY-COMPUTED base (`x=H⊕Δ`, zero residual=anchor EXACT), not BC-imitation. 4 unit + suite 739/0 |
 | Q6 | Residual action space (zero residual = anchor; add/remove/swap; local mutual decoder) | `training/residual_action.py::residual_decode` | **DONE** (commit pending) — anchor base + add/remove/swap/full; zero-residual=anchor EXACT all modes; decentralized (per-node, no global sort), budget-safe, 0-eval; 6 unit + suite 745/0 + real-shard smoke (random+urban); adversarial PASS zero issues |
-| Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | trunk arm | NOT_IMPLEMENTED |
+| Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | `training/residual_repair.py` + `scripts/diagnostics/add_only_repair.py` | **DONE (partial+)** — central greedy D_quorum repair fully fixes 22% of random anchor-failures (vs 0% naive max-add → guidance matters), +0.36 C, 100% retention; urban 0 (deeply-infeasible); deployable head deferred to Q9; 4 unit + suite 749/0 |
 | Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | trunk arm | NOT_IMPLEMENTED |
 | Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | trunk reward | NOT_IMPLEMENTED (requires Q4 PASS) |
 | Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | decoder extension | NOT_IMPLEMENTED (current mutual activation is independent) |
@@ -121,7 +121,10 @@ diagnosed: budget-64 RSU vs budget-2 vehicle → conflicting shared-edge BC targ
 threshold rule). This MOTIVATES the residual-base design over a BC-imitation foundation. **Q6 DONE** — `residual_action.py`
 residual decode (anchor base + add/remove/swap/full; zero-residual=anchor EXACT; decentralized per-node no
 global sort; budget-safe; 0-eval); 6 unit / suite 745/0 / real-shard smoke (random+urban) / adversarial
-PASS zero issues. **Next: Q7** — add-only repair: wire the actor's residual HEAD (add-only) + stochastic
-residual sampler + per-edge log-prob, train from anchor-FAILURE scenes guided by D_quorum; report anchor
-feasibility / add-repair feasibility / D_quorum reduction / C improvement / added edges / RETENTION. See
+PASS zero issues. **Q7 DONE (partial+)** — `residual_repair.py` central greedy D_quorum-guided add repair on anchor-failure
+frames: fully fixes 22% of random failures (vs 0% naive max-add → guidance matters; adding the RIGHT edges
+beats the MOST), +0.36 true-C improvement, 100% anchor retention; urban 0 (3 deeply-infeasible NLOS
+failures); central reference (~96 evals/repair); deployable learned head DEFERRED to Q9. 4 unit / suite
+749/0. **Next: Q8** — conservative prune from FEASIBLE anchors (safety head `risk_e = D(x∖e) − D(x)`,
+keep feasibility, lower energy/latency; report retention + E/L reduction + critical-edge deletion). See
 `docs/pomdp_qpfar/Q*/` for per-stage artifacts.
