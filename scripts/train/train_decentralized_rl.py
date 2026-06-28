@@ -499,6 +499,17 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="dynamic arm: append LOCAL motion features (D5) to the actor observation -- each "
                         "node's velocity/heading + per-link relative velocity / distance-delta / CSI-delta. "
                         "Default off -> observation byte-identical. The deployed actor stays local/neighbour-only.")
+    # Q1 (POMDP-QP-FAR): stale/partial CSI observation model. Changes ONLY the actor observation; the
+    # evaluator/reward/critic keep the TRUE current channel (Spec S4.6). Default 'current' -> byte-identical.
+    p.add_argument("--csi-mode", choices=["current", "delay", "partial", "delay_partial"], default="current",
+                   help="dynamic arm (Q1): actor CSI observation model. current (default, byte-identical); "
+                        "delay (g_hat=g_{t-delta}); partial (Bernoulli probe, hold last obs); delay_partial.")
+    p.add_argument("--csi-delay", type=int, default=1, help="Q1: CSI lag delta (frames) for delay/delay_partial")
+    p.add_argument("--csi-probe-prob", type=float, default=1.0,
+                   help="Q1: per-edge probe probability rho for partial/delay_partial (1.0 = probe every frame)")
+    p.add_argument("--csi-noise-std", type=float, default=0.0,
+                   help="Q1: logit-domain Gaussian noise on observed psucc (Spec S4.4; default 0 = off)")
+    p.add_argument("--csi-seed", type=int, default=0, help="Q1: deterministic probe/noise seed for the CSI model")
     return p.parse_args(argv)
 
 

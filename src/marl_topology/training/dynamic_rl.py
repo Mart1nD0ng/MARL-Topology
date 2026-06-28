@@ -552,6 +552,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     val_archive, val_states = [], {}
 
     dyn_data = str(getattr(args, "dyn_data", "random"))             # D1: random | urban (4-RSU grid)
+    from marl_topology.training.csi_observation_model import build_csi_observation_model
+    csi_model = build_csi_observation_model(args)                   # Q1: None unless --csi-mode {delay,partial,...}
 
     def _mk(seed_off, count, tag):
         if count <= 0:
@@ -560,7 +562,8 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
             seed=args.seed * 1000 + seed_off, count=count, node_count_choices=tuple(args.dyn_nodes),
             regime=regime, num_frames=args.frames, dt_s=args.dt, speed_min_mps=args.speed_min,
             speed_max_mps=args.speed_max, reconfig=reconfig, hold_interval=args.hold_interval,
-            gamma=args.gamma, tag=tag, motion_features=motion_features)
+            gamma=args.gamma, tag=tag, motion_features=motion_features,
+            csi_observation_model=csi_model)
         if dyn_data == "urban":
             return sample_dynamic_urban_scenes(
                 rsu_count=int(getattr(args, "dyn_urban_rsu", 4)),
@@ -580,6 +583,22 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
     stat_samples = [s.observation(0, []) for s in train_scenes]
     mean, std = feature_standardization(stat_samples)
     node_dim, edge_dim = stat_samples[0]["nf"].shape[1], stat_samples[0]["ef"].shape[1]
+    # Q1: CSI-staleness activation diagnostic (pure edge_plan over train scenes; no extra context build).
+    csi_diag = None
+    if csi_model is not None and csi_model.is_active():
+        ages: list = []
+        observed = total = 0
+        for s in train_scenes:
+            eids = s.edge_ids
+            for tf in range(s.n_frames):
+                for eid in eids:
+                    _src, age, obs = csi_model.edge_plan(eid, tf)
+                    ages.append(age); observed += int(obs); total += 1
+        csi_diag = {"mean_csi_age": round(sum(ages) / max(1, len(ages)), 5),
+                    "max_csi_age": (max(ages) if ages else 0),
+                    "observed_fraction": round(observed / max(1, total), 5),
+                    "stale_edge_frame_fraction": round(sum(1 for a in ages if a > 0) / max(1, total), 5),
+                    "n_edge_frames": total, "appended_edge_features": ["csi_age", "csi_observed_mask"]}
 
     actor_arch = str(getattr(args, "dynamic_actor_arch", "mlp"))    # D12: mlp (default) | pna
     if actor_arch == "pna":
@@ -858,6 +877,17 @@ def run_dynamic_training(args, *, reward_of, _evaluate, _budgets, _ref_energy, T
                          "motion_edge_features": (["relative_velocity_along_link", "distance_delta",
                                                    "csi_delta", "csi_age"] if motion_features else []),
                          "mobility_speed_mps": [args.speed_min, args.speed_max], "dt_s": float(args.dt)},
+        "csi_observation": ({**csi_model.manifest(), **(csi_diag or {}),
+                             # Q1 hard invariant (Spec S4.6 / Contract D1): the actor sees stale/partial
+                             # CSI; the evaluator/reward stay on the TRUE current channel (obs["context"]).
+                             "changes_only_actor_observation": True,
+                             "evaluator_uses_true_current_csi": True,
+                             # the critic's TARGET is the true-channel reward; its INPUT is the same
+                             # (stale) observation as the actor. A true-CSI critic is a deferred CTDE
+                             # option (Spec S4.6 permits but does not require it); not wired in Q1.
+                             "critic_input_csi": "stale_observation", "critic_target_csi": "true_channel"}
+                            if (csi_model is not None and csi_model.is_active())
+                            else {"mode": "current", "is_active": False}),
         "actor": {"model_id": actor.model_id, "cross_frame_recurrence": bool(recurrent),
                   "arm": args.dynamic_actor, "actor_arch": actor_arch,   # D12: mlp | pna
                   "preference_omega": ([float(getattr(args, "dyn_pref_energy", 0.0)),

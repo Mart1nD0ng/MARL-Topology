@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import torch
 
 from marl_topology.data.graph_payload import graph_payload
+from marl_topology.training.csi_observation_model import CsiObservationModel
 from marl_topology.data.stage31_production_dataset import build_production_context
 from marl_topology.data.stage31_scenario_generator import (
     ProductionScenarioSpec,
@@ -104,6 +105,11 @@ class DynamicScene:
     velocities: dict = field(default_factory=dict)
     dt_s: float = 1.0
     motion_features: bool = False
+    # Q1 (POMDP-QP-FAR, opt-in): stale/partial CSI observation model. None (or mode=current) -> the
+    # actor sees the true current channel -> observation byte-identical to HEAD. When active, the actor
+    # edge CSI cols {0,1,2,3} are replaced by an OBSERVED (lagged/held) value + [csi_age, observed_mask]
+    # columns; the reward/evaluator path (context) is untouched -> reliability stays on the true channel.
+    csi_observation_model: CsiObservationModel | None = None
     _ctx_cache: dict = field(default_factory=dict, repr=False)
     _row_cache: dict = field(default_factory=dict, repr=False)
 
@@ -163,6 +169,11 @@ class DynamicScene:
         ef = torch.tensor([list(map(float, e)) for e in payload["edge_features"]])
         ei = torch.tensor([list(map(int, p)) for p in payload["edge_index"]], dtype=torch.long)
         edge_ids = [e.edge_id for e in ctx.graph.edges]
+        if self.csi_observation_model is not None and self.csi_observation_model.is_active():
+            # Q1 (POMDP-QP-FAR): replace the actor's channel CSI with a STALE/PARTIAL observation drawn
+            # from an earlier true frame, and append [csi_age, csi_observed_mask]. The reward/eval path
+            # (obs["context"]) is untouched -> reliability stays on the TRUE current channel.
+            ef = self._apply_stale_csi(ef, edge_ids, t)
         if self.motion_features:
             # Append LOCAL motion features (D5): each node's own velocity/heading; per-link relative
             # velocity / distance-delta / CSI-delta. No global aggregate -> deployment-decentralized.
@@ -178,6 +189,42 @@ class DynamicScene:
         }
         return {"nf": nf, "ef": ef, "ei": ei, "edge_ids": edge_ids,
                 "context": ctx, "label": label, "time_index": t}
+
+    # Channel-CSI col -> link-record attribute (graph_payload edge feature layout, L61-71).
+    _CSI_ATTR = {0: "link_success_probability", 1: "link_success_probability",
+                 2: "latency_s", 3: "energy_j"}
+
+    def _apply_stale_csi(self, ef: torch.Tensor, edge_ids, t: int) -> torch.Tensor:
+        """Overwrite the actor's channel CSI cols with a STALE/PARTIAL OBSERVED value (looked up from
+        the cached TRUE channel of an earlier frame ``src``), and append ``[csi_age, csi_observed_mask]``.
+        Pure observation transform -- the evaluator/reward never see this (Spec S4.6). When ``src == t``
+        and noise=0 the cols are reassigned to their identical true value (byte-identical for that edge).
+        """
+        model = self.csi_observation_model
+        n_edges = ef.shape[0]
+        age_col = torch.zeros((n_edges, 1), dtype=ef.dtype)
+        mask_col = torch.zeros((n_edges, 1), dtype=ef.dtype)
+        rec_cache: dict[int, object] = {}
+        for i, eid in enumerate(edge_ids):
+            src, age, observed_now = model.edge_plan(eid, t)
+            age_col[i, 0] = float(age)
+            mask_col[i, 0] = 1.0 if observed_now else 0.0
+            records = rec_cache.get(src)
+            if records is None:
+                records = self.context(src).link_records
+                rec_cache[src] = records
+            link = records.get(eid) if hasattr(records, "get") else records[eid]
+            if link is None:                                   # frame-invariant edge set -> never hit
+                continue
+            for col in model.csi_columns:
+                attr = self._CSI_ATTR.get(col)
+                if attr is None:
+                    continue
+                val = float(getattr(link, attr))
+                if attr == "link_success_probability":
+                    val = model.apply_noise(val, eid, t)       # no-op when noise_std == 0 (Q1 default)
+                ef[i, col] = val
+        return torch.cat([ef, age_col, mask_col], dim=1)
 
     def _motion_node_block(self, ctx) -> torch.Tensor:
         """Per-node LOCAL motion features [vx, vy, speed, heading_sin, heading_cos] (each node's OWN
@@ -246,6 +293,7 @@ def dynamic_scene_from_motion(
     hold_interval: int = 1,
     gamma: float = 0.95,
     motion_features: bool = False,
+    csi_observation_model: CsiObservationModel | None = None,
 ) -> DynamicScene:
     """Roll geometry forward (advance_scene; NO per-frame SA measurement) -> a cheap DynamicScene.
 
@@ -270,6 +318,7 @@ def dynamic_scene_from_motion(
         measurements=tuple([None] * num_frames),
         reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
         velocities=velocities, dt_s=float(dt_s), motion_features=motion_features,
+        csi_observation_model=csi_observation_model,
     )
 
 
@@ -288,6 +337,7 @@ def sample_dynamic_scenes(
     gamma: float,
     tag: str = "",
     motion_features: bool = False,
+    csi_observation_model: CsiObservationModel | None = None,
 ) -> list[DynamicScene]:
     """Deterministic set of moving-vehicle DynamicScenes (cheap path; no per-frame SA).
 
@@ -312,7 +362,7 @@ def sample_dynamic_scenes(
         out.append(dynamic_scene_from_motion(
             scene, motions, regime, quorum, num_frames=num_frames, dt_s=dt_s,
             reliable_range_m=reliable_range_m, reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
-            motion_features=motion_features))
+            motion_features=motion_features, csi_observation_model=csi_observation_model))
     return out
 
 
@@ -358,6 +408,7 @@ def sample_dynamic_urban_scenes(
     gamma: float,
     tag: str = "",
     motion_features: bool = False,
+    csi_observation_model: CsiObservationModel | None = None,
     rsu_count: int = 4,
     blocks_per_side: int = 3,
     block_size_m: float = 60.0,
@@ -391,7 +442,7 @@ def sample_dynamic_urban_scenes(
         out.append(dynamic_scene_from_motion(
             scene, motions, regime, quorum, num_frames=num_frames, dt_s=dt_s,
             reliable_range_m=reliable_range_m, reconfig=reconfig, hold_interval=hold_interval, gamma=gamma,
-            motion_features=motion_features))
+            motion_features=motion_features, csi_observation_model=csi_observation_model))
     return out
 
 
