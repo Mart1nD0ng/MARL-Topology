@@ -69,7 +69,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q6 | Residual action space (zero residual = anchor; add/remove/swap; local mutual decoder) | `training/residual_action.py::residual_decode` | **DONE** (commit pending) — anchor base + add/remove/swap/full; zero-residual=anchor EXACT all modes; decentralized (per-node, no global sort), budget-safe, 0-eval; 6 unit + suite 745/0 + real-shard smoke (random+urban); adversarial PASS zero issues |
 | Q7 | Add-only repair from anchor-failure scenes, guided by `D_quorum` | `training/residual_repair.py` + `scripts/diagnostics/add_only_repair.py` | **DONE (partial+)** — central greedy D_quorum repair fully fixes 22% of random anchor-failures (vs 0% naive max-add → guidance matters), +0.36 C, 100% retention; urban 0 (deeply-infeasible); deployable head deferred to Q9; 4 unit + suite 749/0 |
 | Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | `training/residual_repair.py` (prune+safety) + `scripts/diagnostics/conservative_prune.py` | **DONE (partial+)** — SAFE: 100% feasibility retention + 0 critical deletions (both); urban energy down on 47% feasible anchors (+slight C gain), random no benefit (relay overhead, sparse minimal); deployable safety head deferred Q9; 5 unit + suite 754/0 |
-| Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | `training/potential_shaping.py` + residual sampler in `residual_action.py` | **PART 1 DONE** — PBRS primitive telescopes + preserves small-MDP optimum (Ng-Harada, 3 potentials); D_quorum potential telescopes on real episodes; residual sampler/logp RL-ready; 6 unit + suite 760/0. **PART 2 (trunk end-to-end + A/B) = next** |
+| Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | `training/potential_shaping.py` + residual sampler in `residual_action.py` | **PART 1 DONE** — PBRS primitive telescopes + preserves small-MDP optimum (Ng-Harada, 3 potentials); D_quorum potential telescopes on real episodes; residual sampler/logp RL-ready; 6 unit + suite 760/0. **PART 2 DONE** — residual+PBRS REINFORCE trainer (eval-no-shaping); HONEST NEGATIVE: matches anchor (no improvement); urban UNSTABLE without anchor trust-region (Q5 recurs, retention→0), `--anchor-reg 0.5` fixes it (retention 1.0); 9 unit / suite 763/0 |
 | Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | decoder extension | NOT_IMPLEMENTED (current mutual activation is independent) |
 | Q11 | Re-test PNA inside the residual frame | campaign arm | NOT_IMPLEMENTED |
 | Q12 | Multi-seed × multi-CSI-mode × multi-N campaign | `scripts/diagnostics/` new driver | NOT_IMPLEMENTED |
@@ -132,7 +132,11 @@ mechanism: `potential_shaping.py` (Φ=−D_quorum, telescopes to −λΦ_0, term
 on a small MDP (Ng-Harada, 3 potentials) + telescopes exactly on real episodes (random/urban); residual
 RL sampler/logp (`sample_residual`/`residual_logp`/`residual_decode_from_flips`) makes the Q6 action space
 PPO-trainable (sampler consistent, budget-safe, zero-flips=anchor). 6 unit / suite 760/0 + real-shard PBRS
-smoke. **Next: Q9 PART 2** — wire the residual+PBRS arm into the dynamic trunk (rollout `sample_residual`
-around anchor, PPO ratio `residual_logp`, reward += `episode_pbrs` training-only eval-no-shaping, activation
-artifact), real-shard smoke, single-seed pilot A/B (residual+PBRS vs anchor) reporting retention/feasibility/
-E/L. See `docs/pomdp_qpfar/Q*/` for per-stage artifacts.
+smoke. **Q9 PART 2 DONE** — residual+PBRS REINFORCE trainer (`residual_pbrs_train.py`, eval-no-shaping).
+HONEST NEGATIVE: residual+PBRS policy MATCHES the anchor (no improvement, retention 1.0); urban RL UNSTABLE
+without an anchor trust-region (Q5 instability recurs — retention→0, feasibility 0.65→0.04), `--anchor-reg
+0.5` fixes it (retention 1.0). PBRS correct/optimum-preserving but doesn't beat the strong deployable anchor
+(central ceilings Q7-22%/Q8-47% + campaign "learned≈deployable" pattern). 9 unit / suite 763/0.
+**🏁 Q9 COMPLETE.** **Next: Q10** — local edge handshake (two-round endpoint score exchange + shared edge
+score, reduce mutual-acceptance mismatch, control-comm cost recorded, deployment-decentralized). See
+`docs/pomdp_qpfar/Q*/` for per-stage artifacts.
