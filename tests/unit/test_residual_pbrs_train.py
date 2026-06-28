@@ -62,12 +62,28 @@ def test_residual_train_does_not_diverge() -> None:
     scenes, mean, std, actor = _setup()
     g = torch.Generator().manual_seed(1)
     opt = torch.optim.Adam(actor.parameters(), lr=0.02)
-    baseline, loss = 0.0, 0.0
+    baseline, loss, gn = 0.0, 0.0, 0.0
     for _ in range(6):
-        baseline, loss = rpt.reinforce_update(
+        baseline, loss, gn = rpt.reinforce_update(
             actor, opt, scenes, mean, std, _T, mode="full", residual_prior=-3.0, lam_pbrs=0.5,
             gamma=0.95, use_pbrs=True, baseline=baseline, generator=g)
     assert loss == loss and abs(loss) < 1e6                            # finite (no NaN -> no Q5-style divergence)
+    assert gn == gn and gn >= 0.0                                      # gradient norm reported, finite
+
+
+def test_pna_actor_drops_into_residual_trainer() -> None:
+    # Q11: the PNA actor is a signature-compatible drop-in -> the residual rollout works unchanged.
+    scenes, mean, std, _mlp = _setup()
+    nd = scenes[0].observation(0, [])["nf"].shape[1]
+    ed = scenes[0].observation(0, [])["ef"].shape[1]
+    pna = rpt.make_actor("pna", nd, ed, 16)
+    assert sum(p.numel() for p in pna.parameters()) > 0
+    g = torch.Generator().manual_seed(0)
+    logps, shaped, info = rpt.rollout_residual_train(
+        pna, scenes[0], mean, std, _T, mode="full", residual_prior=-3.0, lam_pbrs=0.5, gamma=0.95,
+        use_pbrs=True, generator=g)
+    assert len(logps) == scenes[0].n_frames and len(shaped) == scenes[0].n_frames
+    assert all(lp.requires_grad for lp in logps)                       # the PNA logp is differentiable (PPO-ready)
 
 
 def test_eval_residual_reports_true_metrics() -> None:

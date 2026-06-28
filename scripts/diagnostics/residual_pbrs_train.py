@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "train"))
 
 import torch  # noqa: E402
 
+from marl_topology.models.dynamic_pna_actor import DynamicPNAActor  # noqa: E402
 from marl_topology.models.dynamic_recurrent_actor import DynamicRecurrentActor  # noqa: E402
 from marl_topology.training.decentralized_distillation import feature_standardization  # noqa: E402
 from marl_topology.training.dynamic_baselines import local_hysteresis_action  # noqa: E402
@@ -33,6 +34,14 @@ from marl_topology.training.two_timescale_env import ReconfigCost  # noqa: E402
 
 _KT, _AT = 0.4, 0.6
 _LAM_C, _LAM_B, _BETA = 1.0, 1.0, 0.1
+
+
+def make_actor(arch, node_dim, edge_dim, hidden):
+    """Q11: the residual actor architecture -- mlp (DynamicRecurrentActor) or pna (DynamicPNAActor,
+    directional message passing + PNA aggregation + omega-preference; a signature-compatible drop-in)."""
+    if arch == "pna":
+        return DynamicPNAActor(node_dim, edge_dim, hidden=hidden)
+    return DynamicRecurrentActor(node_dim, edge_dim, hidden=hidden)
 
 
 def _load_trunk():
@@ -104,10 +113,10 @@ def reinforce_update(actor, opt, scenes, mean, std, T, *, mode, residual_prior, 
     if anchor_reg > 0.0 and flip_pens:
         loss = loss + float(anchor_reg) * torch.stack(flip_pens).mean()
     opt.zero_grad(); loss.backward()
-    torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+    grad_norm = float(torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0))   # pre-clip total norm
     opt.step()
     new_baseline = 0.9 * baseline + 0.1 * (sum(returns) / len(returns))
-    return new_baseline, float(loss)
+    return new_baseline, float(loss), grad_norm
 
 
 def eval_residual(actor, scenes, mean, std, T, *, mode, residual_prior, tau=0.9):
@@ -170,6 +179,7 @@ def main() -> None:
     ap.add_argument("--gamma", type=float, default=0.95)
     ap.add_argument("--dyn-nodes", type=int, nargs="+", default=[8, 12, 16])
     ap.add_argument("--tx-power", type=float, default=20.0)
+    ap.add_argument("--actor", choices=["mlp", "pna"], default="mlp")
     ap.add_argument("--mode", choices=["add", "full"], default="full")
     ap.add_argument("--residual-prior", type=float, default=-3.0)
     ap.add_argument("--lam-pbrs", type=float, default=0.5)
@@ -186,7 +196,7 @@ def main() -> None:
     torch.manual_seed(args.seed)
     gen = torch.Generator().manual_seed(args.seed + 1)
     report = {"scope": "Q9 PART 2 residual+PBRS end-to-end training (eval NO shaping; final metrics true C/E/L)",
-              "activation": {"residual_mode": args.mode, "residual_prior": args.residual_prior,
+              "activation": {"actor": args.actor, "residual_mode": args.mode, "residual_prior": args.residual_prior,
                              "pbrs_enabled": bool(args.pbrs), "potential": "-D_quorum(x_{t-1}, g_t)",
                              "terminal_potential_zero": True, "lam_pbrs": args.lam_pbrs,
                              "anchor_reg": args.anchor_reg,
@@ -199,26 +209,32 @@ def main() -> None:
         stat = [s.observation(0, []) for s in train]
         mean, std = feature_standardization(stat)
         nd, ed = stat[0]["nf"].shape[1], stat[0]["ef"].shape[1]
-        actor = DynamicRecurrentActor(nd, ed, hidden=args.hidden)
+        actor = make_actor(args.actor, nd, ed, args.hidden)
+        n_params = sum(p.numel() for p in actor.parameters())
         opt = torch.optim.Adam(actor.parameters(), lr=args.lr)
         baseline = 0.0
         last_loss = 0.0
+        grad_norms = []
         diverged = False
         for _u in range(args.updates):
-            baseline, last_loss = reinforce_update(
+            baseline, last_loss, gn = reinforce_update(
                 actor, opt, train, mean, std, T, mode=args.mode, residual_prior=args.residual_prior,
                 lam_pbrs=args.lam_pbrs, gamma=args.gamma, use_pbrs=bool(args.pbrs), baseline=baseline,
                 generator=gen, anchor_reg=args.anchor_reg)
-            if not (last_loss == last_loss):                      # NaN -> diverged (the Q5 failure mode)
+            grad_norms.append(gn)
+            if not (last_loss == last_loss) or not (gn == gn):    # NaN -> diverged (the Q5 failure mode)
                 diverged = True
                 break
         ev = eval_residual(actor, held, mean, std, T, mode=args.mode, residual_prior=args.residual_prior)
-        row = {"diverged": diverged, "final_loss": round(last_loss, 4), "baseline_return": round(baseline, 4), **ev}
+        row = {"actor": args.actor, "n_params": n_params, "diverged": diverged,
+               "final_loss": round(last_loss, 4), "baseline_return": round(baseline, 4),
+               "grad_norm_mean": round(sum(grad_norms) / max(1, len(grad_norms)), 4),
+               "grad_norm_max": round(max(grad_norms) if grad_norms else 0.0, 4), **ev}
         report["by_data"][data] = row
-        print(f"[{data}] diverged={diverged} loss={row['final_loss']} "
+        print(f"[{data}] actor={args.actor} params={row['n_params']} diverged={diverged} "
               f"resid_feas={ev['residual_feasibility']} anchor_feas={ev['anchor_feasibility']} "
-              f"retention={ev['retention']} resid_E={ev['residual_energy']} anchor_E={ev['anchor_energy']} "
-              f"sw={ev['switches_per_frame']}")
+              f"retention={ev['retention']} grad_norm_mean={row['grad_norm_mean']} "
+              f"grad_norm_max={row['grad_norm_max']} sw={ev['switches_per_frame']}")
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"\nwrote {args.out}")

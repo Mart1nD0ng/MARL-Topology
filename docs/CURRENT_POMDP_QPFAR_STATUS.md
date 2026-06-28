@@ -71,7 +71,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q8 | Conservative prune from feasible anchor (remove low-risk edges, keep feasibility) | `training/residual_repair.py` (prune+safety) + `scripts/diagnostics/conservative_prune.py` | **DONE (partial+)** — SAFE: 100% feasibility retention + 0 critical deletions (both); urban energy down on 47% feasible anchors (+slight C gain), random no benefit (relay overhead, sparse minimal); deployable safety head deferred Q9; 5 unit + suite 754/0 |
 | Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | `training/potential_shaping.py` + residual sampler in `residual_action.py` | **PART 1 DONE** — PBRS primitive telescopes + preserves small-MDP optimum (Ng-Harada, 3 potentials); D_quorum potential telescopes on real episodes; residual sampler/logp RL-ready; 6 unit + suite 760/0. **PART 2 DONE** — residual+PBRS REINFORCE trainer (eval-no-shaping); HONEST NEGATIVE: matches anchor (no improvement); urban UNSTABLE without anchor trust-region (Q5 recurs, retention→0), `--anchor-reg 0.5` fixes it (retention 1.0); 9 unit / suite 763/0 |
 | Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | `training/edge_handshake.py` | **DONE (nuanced+)** — decentralized shared-edge-score decoder (no global sort, 2·|E| neighbour scalars); proven to recover critical edges an independent DIRECTED decode loses; urban critical-disagreement −33% (0.468→0.312), random mixed; 6 unit + suite 769/0; Workflow `wnj4i3q7h` 4-lens MINOR (decentralization/symmetry/cost PASS, claim-honesty MINOR addressed) |
-| Q11 | Re-test PNA inside the residual frame | campaign arm | NOT_IMPLEMENTED |
+| Q11 | Re-test PNA inside the residual frame | `--actor pna` in `residual_pbrs_train.py` | **DONE (decisive negative)** — 5 seeds × {mlp,pna}: PNA==MLP==anchor (paired diff 0.000 CI[0,0], retention 1.0, 0/5 collapse, 0 diverged); D13 +0.125 trend does NOT reproduce; PNA gradient-explosive (max 28857 vs MLP 3055) + 2× params; PNA stays opt-in; 1 unit + suite 770/0; Workflow `wslezjbo1` 4-lens MINOR (fair-compare/PNA-active PASS, cosmetic grad-figure fixed) |
 | Q12 | Multi-seed × multi-CSI-mode × multi-N campaign | `scripts/diagnostics/` new driver | NOT_IMPLEMENTED |
 | Q13 | Docs / report / README / research-log close-out | docs | NOT_IMPLEMENTED |
 
@@ -141,5 +141,10 @@ without an anchor trust-region (Q5 instability recurs — retention→0, feasibi
 no global sort, 2·|E| neighbour scalars); proven to recover critical edges an independent DIRECTED decode
 loses; urban critical-edge disagreement −33% (0.468→0.312), random mixed; full value needs a directional
 actor (Q11). 6 unit / suite 769/0; 4-lens verification Workflow MINOR (all decentralization/symmetry/cost
-PASS). **Next: Q11** — PNA in the residual framework (re-test the one positive-trend mechanism inside the
-residual action space + handshake; seed-collapse rate, CI, gradient norm). See `docs/pomdp_qpfar/Q*/`.
+PASS). **Q11 DONE (decisive negative)** — PNA in the residual frame: 5 seeds × {mlp,pna} → PNA==MLP==anchor
+(paired diff 0.000 CI[0,0], retention 1.0, 0/5 collapse); the D12/D13 PNA +0.125 trend does NOT reproduce
+(bimodal noise); PNA gradient-explosive (max 28857 vs MLP 3055) + 2× params; PNA stays opt-in. 1 unit /
+suite 770/0; Workflow `wslezjbo1` 4-lens MINOR (all load-bearing PASS, cosmetic grad-figure fixed).
+**Next: Q12** — the multi-seed/CSI-mode/N campaign across all arms (anchor / imitation / add-repair /
+prune / full-residual / +PBRS / +PNA / central-myopic-ref, ≥5 seeds, per-seed + CI, urban + random). See
+`docs/pomdp_qpfar/Q*/`.
