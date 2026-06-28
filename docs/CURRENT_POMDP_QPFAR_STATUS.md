@@ -62,7 +62,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 |---|---|---|---|
 | Q0 | Freeze D13 negative as control baseline | `result_save/dynamic_d13_campaign.json`, `docs/dynamic_repair/D13/decision.md` | **artifacts present on disk** — formalize freeze this round → `docs/pomdp_qpfar/Q0/` |
 | Q1 | Stale/partial CSI observation model (`current\|delay\|partial\|delay_partial`, age, mask) | `src/marl_topology/training/csi_observation_model.py` | **DONE** (commit pending) — opt-in `--csi-mode`; leak-free (evaluator on true channel); default byte-identical; 9 unit + suite 715/0; delay+partial smokes exit 0; adversarial PASS |
-| Q2 | CSI-prediction + Temporal-Value health check under stale CSI | `scripts/diagnostics/` (extend `dynamic_temporal_value.py`) | NOT_IMPLEMENTED |
+| Q2 | CSI-prediction + Temporal-Value health check under stale CSI | `scripts/diagnostics/csi_prediction_health.py` | **DONE** (commit pending) — GATE PASS: under delay/partial, temporal beats identity+memoryless on 3/3 seeds × 3/3 modes (delay1 0.104→0.080); current identity=0 (trivial); 5 unit + suite 720/0; adversarial PASS (no leak, causal GRU) |
 | Q3 | Quorum shortfall `D_quorum` diagnostics (per-phase/per-receiver, mean/max/CVaR, worst) | `src/marl_topology/protocol/quorum_deficit.py` | NOT_IMPLEMENTED |
 | Q4 | `D_quorum` ↔ true `C` alignment test (Spearman ΔD/ΔC, top-k repair hit, ΔD↑ C↓ rate) | `scripts/diagnostics/quorum_deficit_alignment.py` | NOT_IMPLEMENTED (**gates Q7/Q9 reward use**) |
 | Q5 | `local_hysteresis` imitation actor (BCSP subset NLL, decoded F1, held feas, switches) | teacher + BC path in trunk | NOT_IMPLEMENTED (anchor heuristic exists; imitation does not) |
@@ -107,6 +107,8 @@ failing test first; per-stage `experiment_plan.md` + `decision.md`.
 **Q0 DONE** (commit 05765d6) — D13 control frozen + re-derived. **Q1 DONE** — stale/partial CSI
 observation model (`csi_observation_model.py`), opt-in `--csi-mode {current,delay,partial,delay_partial}`,
 leak-free + byte-identical default, 9 unit / suite 715/0, delay+partial smokes exit 0, adversarial PASS.
-**Next: Q2** — CSI-prediction + Temporal-Value health check under stale CSI (memoryless vs recurrent,
-current vs stale; does history/velocity improve the estimate of the true current CSI). See
+**Q2 DONE** — CSI-prediction health check: GATE PASS (stale CSI is recoverable; temporal beats
+identity+memoryless on 3/3 seeds × 3/3 stale modes; current trivial; adversarial PASS). Recurrent actor
+justified for Q5+. **Next: Q3** — quorum shortfall / D_quorum diagnostics (per-phase/per-receiver
+expected shortfall, mean/max/CVaR), NOT yet wired into reward (gated on the Q4 alignment test). See
 `docs/pomdp_qpfar/Q*/` for per-stage artifacts.
