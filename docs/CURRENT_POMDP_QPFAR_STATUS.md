@@ -72,7 +72,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q9 | Full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval without shaping) | `training/potential_shaping.py` + residual sampler in `residual_action.py` | **PART 1 DONE** — PBRS primitive telescopes + preserves small-MDP optimum (Ng-Harada, 3 potentials); D_quorum potential telescopes on real episodes; residual sampler/logp RL-ready; 6 unit + suite 760/0. **PART 2 DONE** — residual+PBRS REINFORCE trainer (eval-no-shaping); HONEST NEGATIVE: matches anchor (no improvement); urban UNSTABLE without anchor trust-region (Q5 recurs, retention→0), `--anchor-reg 0.5` fixes it (retention 1.0); 9 unit / suite 763/0 |
 | Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | `training/edge_handshake.py` | **DONE (nuanced+)** — decentralized shared-edge-score decoder (no global sort, 2·|E| neighbour scalars); proven to recover critical edges an independent DIRECTED decode loses; urban critical-disagreement −33% (0.468→0.312), random mixed; 6 unit + suite 769/0; Workflow `wnj4i3q7h` 4-lens MINOR (decentralization/symmetry/cost PASS, claim-honesty MINOR addressed) |
 | Q11 | Re-test PNA inside the residual frame | `--actor pna` in `residual_pbrs_train.py` | **DONE (decisive negative)** — 5 seeds × {mlp,pna}: PNA==MLP==anchor (paired diff 0.000 CI[0,0], retention 1.0, 0/5 collapse, 0 diverged); D13 +0.125 trend does NOT reproduce; PNA gradient-explosive (max 28857 vs MLP 3055) + 2× params; PNA stays opt-in; 1 unit + suite 770/0; Workflow `wslezjbo1` 4-lens MINOR (fair-compare/PNA-active PASS, cosmetic grad-figure fixed) |
-| Q12 | Multi-seed × multi-CSI-mode × multi-N campaign | `scripts/diagnostics/` new driver | NOT_IMPLEMENTED |
+| Q12 | Multi-seed × multi-CSI-mode × multi-N campaign | `scripts/diagnostics/pomdp_qpfar_campaign.py` | **DONE (consolidated headline)** — 5-seed deployable (anchor==residual==+PBRS==+PNA) urban 0.739/random 0.281, 0 eval calls < central myopic 0.800/0.308 (432 calls), but paired CI spans 0 (not significant; 1/5 seeds anchor wins). No learned arm beats anchor. 2 unit + suite 772/0; Workflow `ww7m0vggu` 4-lens MINOR (grouping/CI/citation PASS) |
 | Q13 | Docs / report / README / research-log close-out | docs | NOT_IMPLEMENTED |
 
 **Ordering invariant (Spec §workflow):** Q1–Q4 are preconditions. No full RL training (Q7+) before
@@ -145,6 +145,11 @@ PASS). **Q11 DONE (decisive negative)** — PNA in the residual frame: 5 seeds �
 (paired diff 0.000 CI[0,0], retention 1.0, 0/5 collapse); the D12/D13 PNA +0.125 trend does NOT reproduce
 (bimodal noise); PNA gradient-explosive (max 28857 vs MLP 3055) + 2× params; PNA stays opt-in. 1 unit /
 suite 770/0; Workflow `wslezjbo1` 4-lens MINOR (all load-bearing PASS, cosmetic grad-figure fixed).
-**Next: Q12** — the multi-seed/CSI-mode/N campaign across all arms (anchor / imitation / add-repair /
-prune / full-residual / +PBRS / +PNA / central-myopic-ref, ≥5 seeds, per-seed + CI, urban + random). See
-`docs/pomdp_qpfar/Q*/`.
+**Q12 DONE (consolidated headline)** — 5-seed campaign: deployable tier (anchor == residual == +PBRS ==
++PNA, cited Q9/Q11) urban 0.739 / random 0.281, 0 eval calls, BELOW central myopic oracle (0.800 / 0.308,
+432 calls) IN MEAN but the paired CI spans 0 (not significant; on 1/5 seeds the anchor beats the oracle).
+**No learned arm beats the deployable anchor — binding limit = feasibility-region learning, confirming the
+v2/D13 pattern across the full POMDP-QP-FAR stack.** Workflow `ww7m0vggu` 4-lens MINOR (all load-bearing
+PASS). **Next: Q13** — docs / report / README close-out (research-log SUMMARY + mechanism ledger;
+CURRENT_HEAD_STATUS; README/AGENTS alignment; claims-vs-evidence verify). Then the campaign is complete.
+See `docs/pomdp_qpfar/Q*/`.
