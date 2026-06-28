@@ -4422,3 +4422,79 @@ random (Δ<0.01) but loose on urban (0.711 vs 0.793). Scope: single-RSU random +
 mechanism is correct but no headline gain at N≤16; the simple baseline + closed-form local decoder is the
 default. The dynamic task adds the temporal axis and confirms: temporal modeling relieves none of the
 N≤16 feasibility-region bottleneck. Suite 706 unit / 63 contract, 0 failed. Branch ahead of origin (unpushed — owner's decision).
+
+---
+
+# POMDP-QP-FAR CAMPAIGN SUMMARY (Q0–Q13, 2026-06-28) — COMPLETE
+
+Owner-authorized, `/loop`-driven, governed by `docs/MARL-Topology-POMDP-QP-FAR-Technical-Spec.md` +
+`…-Workflow.md` + the binding `…-Development-Contract-v3.md`. This campaign tried to break the D0–D14
+honest negative by attacking its two diagnosed bottlenecks head-on, with a coherent mechanism stack.
+
+## The two bottlenecks attacked
+- **Axis A — temporal degeneracy.** Full current-CSI + previous-topology makes the task ~Markov, so memory
+  has nothing to recover. → **Stale/partial CSI POMDP** (the actor sees a lagged/sparsely-probed channel
+  `ĝ_t`; reward/eval still use the true current `g_t`) makes history genuinely valuable.
+- **Axis B — feasibility-region plateau.** Reliability `C(x)` is a whole-network multi-phase quorum-tail
+  conjunction; deep in the infeasible region it is flat (`C≈0`, single edits barely move it). → A
+  **quorum-deficit potential `D_quorum`** (Poisson-binomial expected shortfall) has gradient where `C` is
+  flat, and **feasible-anchored residual learning** starts the policy at the deployable `local_hysteresis`
+  anchor and learns small edits, instead of searching the full BCSP space.
+
+## Stage ledger (Q / commit / verification / result)
+| Q | commit | what | result |
+|---|---|---|---|
+| Q0 | `05765d6` | freeze D13 negative as the control | control re-derived from raw JSON |
+| Q1 | `ed5a36b` | stale/partial CSI obs model (`--csi-mode current\|delay\|partial\|delay_partial`) | DONE — opt-in, leak-free (eval on true channel), default byte-identical; adversarial PASS |
+| Q2 | `93e0822` | CSI-prediction + Temporal-Value health check | **GATE PASS** — under stale CSI, temporal beats identity+memoryless 3/3 seeds × 3/3 modes (current identity=0, trivial) |
+| Q3 | `a1d5cb8` | `D_quorum` diagnostics (`protocol/quorum_deficit.py`) | DONE — exact Poisson-binomial `E[(q−S)_+]`, tail bucket == reliability quorum tail (~1e-19); gradient where C flat; NOT in reward |
+| Q4 | `df1b0da` | `D_quorum`↔true-`C` alignment | **GATE PASS** (safe+conditional) — 0% false-improvement all seeds/data; cond-Spearman 0.69–0.95 where C moves; D_quorum AUTHORIZED for Q9 PBRS |
+| Q5 | `c42202b` | `local_hysteresis` imitation actor | HONEST MIXED — reproduces anchor on random (F1 0.89), BC FAILS on urban (budget-64 RSU vs budget-2 vehicle conflicting targets) → motivates the residual-base design |
+| Q6 | `8a7a9b4` | residual action space (`x=anchor⊕Δ`) | DONE — zero-residual=anchor EXACT (add/remove/swap/full); decentralized per-node, no global sort, 0-eval; adversarial PASS |
+| Q7 | `a01ec1a` | `D_quorum`-guided add-only repair (CENTRAL) | HONEST PARTIAL+ — fully fixes 22% of random anchor-failures (vs 0% naive max-add → guidance matters), +0.36 C, 100% retention; urban 0 (deeply infeasible) |
+| Q8 | `65ae59a` | conservative prune (CENTRAL) | HONEST PARTIAL+ — SAFE everywhere (0 critical deletions, 100% retention); urban energy down on 47% of feasible anchors; random no benefit |
+| Q9 | `3a06738` + `c75ee13` | full residual + PBRS (`Φ=−D_quorum`, terminal Φ=0, eval-no-shaping) | **HONEST NEGATIVE** — PBRS proven optimum-preserving (Ng-Harada), telescopes on real episodes; the residual+PBRS policy MATCHES the anchor (no gain); urban RL unstable without `--anchor-reg` trust-region (Q5 instability recurs) |
+| Q10 | `1b51d12` | local edge handshake (shared-edge-score decoder) | NUANCED+ — decentralized (no global sort, 2·\|E\| neighbour scalars); recovers critical edges a directed decode loses; urban critical-disagreement −33%, random mixed; Workflow `wnj4i3q7h` 4-lens MINOR |
+| Q11 | `6104c22` | re-test PNA inside the residual frame | **DECISIVE NEGATIVE** — 5 seeds: PNA==MLP==anchor (paired diff 0.000 CI[0,0], 0/5 collapse); D13 PNA +0.125 trend does NOT reproduce (bimodal noise); PNA gradient-explosive + 2× params; Workflow `wslezjbo1` 4-lens MINOR |
+| Q12 | `a0e6d3d` | consolidated multi-seed campaign | **CONSOLIDATED HEADLINE** (below); Workflow `ww7m0vggu` 4-lens MINOR |
+| Q13 | (this) | docs / report / README close-out | this summary |
+
+## CENTRAL RESULT (Q12, 5 seeds × {urban, random} × N{8,12,16}; final metrics = true PBFT C/E/L)
+The DEPLOYABLE tier — the `local_hysteresis` anchor, and **equal to it** (Q11, paired diff exactly 0.000)
+full-residual ± PBRS ± PNA — sits at urban **0.739** [0.657,0.821] / random **0.281** [0.154,0.407]
+per-frame feasibility with **0 evaluator calls**, BELOW the central myopic-greedy oracle (urban **0.800** /
+random **0.308**, 432 eval calls/seed) IN MEAN but the **paired (myopic−anchor) 95% CI SPANS 0** (urban
++0.061 [−0.019,+0.141]; random +0.028 [−0.031,+0.086]) — and on **1/5 seeds the anchor BEATS the oracle**.
+So the oracle is a modest, NOT-statistically-significant ceiling; **no learned arm beats the deployable
+anchor.** The binding limit is **feasibility-region learning** — the proxy machinery (`D_quorum` potential,
+PBRS) is optimum-preserving and correct but cannot make RL discover a topology the strong deployable
+heuristic misses, at N≤16.
+
+## MECHANISM LEDGER (POMDP-QP-FAR, final) — all verified-correct, all OPT-IN, none in the default headline
+| flag / artifact | mechanism | budget | Q-result |
+|---|---|---|---|
+| `--csi-mode delay\|partial\|delay_partial` | stale/partial CSI POMDP (actor obs only) | neutral | Q1/Q2 GATE PASS — makes history valuable; eval always on true channel |
+| `protocol/quorum_deficit.py` | `D_quorum` Poisson-binomial shortfall potential | training-only | Q3 validated primitive; Q4 alignment GATE PASS (authorized for PBRS) |
+| `residual_action.py` (`x=anchor⊕Δ`) | feasible-anchored residual action space | 0-eval, decentralized | Q6 zero-residual=anchor EXACT |
+| `residual_repair.py` add-repair | `D_quorum`-guided greedy repair (CENTRAL ref) | ~96 eval/repair | Q7 fixes 22% of random anchor-failures (guidance > naive) |
+| `residual_repair.py` prune | conservative prune (CENTRAL ref) | central | Q8 SAFE; urban energy down on 47% feasible anchors |
+| `potential_shaping.py` (`--pbrs`) | PBRS `F=γΦ'−Φ`, `Φ=−D_quorum`, terminal Φ=0 | neutral (eval-no-shaping) | Q9 optimum-preserving but matches anchor (no gain) |
+| `--anchor-reg` | residual trust-region (keep policy near anchor) | neutral | Q9 fixes urban RL instability (retention→1.0) |
+| `edge_handshake.py` | local shared-edge-score decoder (2·\|E\| scalars) | 0-eval, decentralized | Q10 recovers critical edges; urban disagreement −33% |
+| `--actor pna` (in residual trainer) | directional PNA + ω-preference actor | 2× params | Q11 PNA==MLP==anchor (D13 trend does not reproduce) |
+| `pomdp_qpfar_campaign.py` | the consolidated 5-seed deployable-vs-central campaign | — | Q12 central result above |
+
+**CONSISTENCY WITH v2 + D0–D14:** the THIRD independent campaign to reach the same honest finding. Stale
+CSI (Axis A) and the `D_quorum` potential + residual anchoring (Axis B) are each verified-correct and
+individually informative (Q2 temporal-value, Q4 alignment, Q7 22%-repair, Q8 safe-prune, Q10 −33%
+disagreement), yet at N≤16 **none lifts the deployable learned policy above the `local_hysteresis` anchor**,
+which itself trails the central oracle only modestly and not significantly. Feasibility-region learning is
+the binding limit, robust to data realism, temporal structure, credit assignment, reliability shaping, and
+actor architecture — across static, dynamic, and now POMDP-QP-FAR formulations.
+
+**Recommended config (unchanged):** the deployable arm is `local_hysteresis` (best zero-eval deployable);
+all POMDP-QP-FAR mechanisms (`--csi-mode`, `D_quorum`/PBRS, residual repair/prune, handshake, `--actor pna`)
+stay **opt-in, default-off, byte-identical when off**. The central myopic reference is a grouped ceiling,
+NOT a deployable baseline. **Scope:** N≤16, 5 seeds, urban + random — NOT N≥24 (the open frontier, needs a
+cheaper exact-fault evaluator). Suite 772 unit, 0 failed. Per-stage `docs/pomdp_qpfar/Q*/`. Branch ahead of
+origin (unpushed — owner's decision).

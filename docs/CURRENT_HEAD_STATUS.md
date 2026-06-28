@@ -1,5 +1,33 @@
 # CURRENT HEAD STATUS — Phase 0 freeze (spec-driven reconstruction)
 
+> ## ⏩ POMDP-QP-FAR CAMPAIGN COMPLETE (2026-06-28) — the latest campaign; confirms the same honest negative
+> The owner-authorized POMDP-QP-FAR campaign (Q0–Q13, binding `MARL-Topology-Development-Contract-v3.md` +
+> the two `…-POMDP-QP-FAR-…` specs) attacked the two diagnosed D0–D14 bottlenecks head-on: **Axis A temporal
+> degeneracy** (via stale/partial CSI making history valuable) and **Axis B feasibility plateau** (via a
+> quorum-deficit potential `D_quorum` + feasible-anchored residual learning). Full ledger: the
+> `POMDP-QP-FAR CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md`; per-gap status:
+> `docs/CURRENT_POMDP_QPFAR_STATUS.md`; per-stage `docs/pomdp_qpfar/Q*/`.
+> - **Every mechanism is verified-correct, opt-in, default byte-identical**, and individually informative:
+>   stale-CSI temporal-value (Q2 GATE PASS), `D_quorum`↔`C` alignment (Q4 GATE PASS), `D_quorum`-guided
+>   add-repair fixing 22% of random anchor-failures vs 0% naive (Q7), safe conservative prune (Q8), local
+>   shared-edge-score handshake −33% urban critical-disagreement (Q10).
+> - **CENTRAL RESULT (Q12, 5 seeds × {urban, random} × N{8,12,16}):** the DEPLOYABLE tier — the
+>   `local_hysteresis` anchor, and **equal to it** (Q11, paired diff exactly 0.000) full-residual ± PBRS ±
+>   PNA — sits at urban **0.739** / random **0.281** with **0 evaluator calls**, BELOW the central
+>   myopic-greedy oracle (urban 0.800 / random 0.308, 432 eval calls/seed) IN MEAN but the paired CI
+>   **spans 0** (not significant; on 1/5 seeds the anchor beats the oracle). **No learned arm beats the
+>   deployable anchor.** PBRS is optimum-preserving (Ng-Harada) but does not beat the anchor; the PNA
+>   D12/D13 +0.125 trend does NOT reproduce in the residual frame.
+> - **Binding limit = RL feasibility-region learning** — robust to data realism, temporal structure, credit
+>   assignment, reliability shaping, and actor architecture. This is the THIRD independent campaign (after
+>   v2 static and D0–D14 dynamic) to reach the same honest finding.
+> - **Recommended config (unchanged):** deployable arm = `local_hysteresis`; all POMDP-QP-FAR mechanisms
+>   (`--csi-mode`, `D_quorum`/PBRS, residual repair/prune, handshake, `--actor pna`) stay opt-in. The
+>   central myopic reference is a grouped ceiling, NOT a deployable baseline. Scope N≤16, 5 seeds; N≥24 is
+>   the open frontier (needs a cheaper exact-fault evaluator). Suite 772 unit, 0 failed. Each headline
+>   adversarially re-derived from raw per-seed JSON (Workflows `wslezjbo1`/`ww7m0vggu`/`wnj4i3q7h`).
+>   Branch ahead of origin — **unpushed (push is the owner's decision)**.
+
 > ## ⏩ DYNAMIC-REPAIR CAMPAIGN COMPLETE (2026-06-27) — supersedes the dynamic claims of the frozen report
 > The owner-authorized Dynamic-Repair Campaign (D0–D14, binding `MARL-Topology-Development-Contract-v3.md`
 > + `…-Dynamic-Repair-Engineering-Plan.md`) repaired the dynamic (T>1) MARL task. **All 10 gaps in the

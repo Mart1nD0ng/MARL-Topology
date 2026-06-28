@@ -73,14 +73,14 @@ guarantees RL is never reported below the warm-start.
 > oracle in-range (0.610 vs 0.655)" predates Graph-MAPPO + Phase 8–13. See
 > `docs/CURRENT_HEAD_STATUS.md` and `docs/URBAN_V2X_RESEARCH_LOG.md` for the current ledger.
 
-**The central, adversarially-verified result of both completed campaigns is the same
+**The central, adversarially-verified result of all three completed campaigns is the same
 honest finding:** at the realistic scale (N ≤ 16), every sophisticated CTDE mechanism
-(COMA, SCQ, chance/CVaR/Pareto, PNA, cross-frame recurrence) is **verified-correct but
-gives no headline gain** over the simple baseline, and a non-learned per-frame heuristic
-is hard to beat — so the mechanisms ship **opt-in** and the simple baseline is the
-default. The binding limit is **RL feasibility-region learning** (and large-N
-generalization), not credit assignment, reliability shaping, actor architecture, data
-realism, or temporal modeling.
+(COMA, SCQ, chance/CVaR/Pareto, PNA, cross-frame recurrence, stale-CSI POMDP, quorum-deficit
+shaping, feasible-anchored residual learning) is **verified-correct but gives no headline
+gain** over the simple baseline, and a non-learned per-frame heuristic is hard to beat — so
+the mechanisms ship **opt-in** and the simple baseline is the default. The binding limit is
+**RL feasibility-region learning** (and large-N generalization), not credit assignment,
+reliability shaping, actor architecture, data realism, or temporal modeling.
 
 - **v2 static campaign (R0–R7 + Phase 8–13, complete):** the simple Graph-MAPPO + MLP
   actor + closed-form decoder is best in-range AND best-generalizing at N ≤ 16.
@@ -89,6 +89,15 @@ realism, or temporal modeling.
   (5 seeds, N{8,12,16}); all mechanism A/B CIs span 0; learned arms sit below the
   zero-eval-call deployable heuristics on both data. Ledger: the `Dynamic-Repair` entries
   in `docs/URBAN_V2X_RESEARCH_LOG.md` + `docs/dynamic_repair/`.
+- **POMDP-QP-FAR campaign (Q0–Q13, complete):** attacked the two D-campaign bottlenecks
+  directly — **stale/partial CSI** (`--csi-mode`) to make history valuable, a **quorum-deficit
+  potential** `D_quorum` + **feasible-anchored residual learning** (start at the deployable
+  `local_hysteresis` anchor, learn small edits) to fill the feasibility plateau. Each piece is
+  verified-correct and individually informative (Q2/Q4 gates, Q7 22%-repair, Q10 −33% urban
+  disagreement), but the Q12 5-seed headline is the same: the deployable tier (anchor ==
+  residual ± PBRS ± PNA) equals the anchor and trails the central oracle only modestly and not
+  significantly — **no learned arm beats the deployable anchor.** Ledger: the
+  `POMDP-QP-FAR CAMPAIGN SUMMARY` in `docs/URBAN_V2X_RESEARCH_LOG.md` + `docs/pomdp_qpfar/`.
 
 Open frontier (deferred): large-N (N ≥ 24) generalization, which needs a cheaper
 exact-fault evaluator.

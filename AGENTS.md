@@ -114,6 +114,25 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 
 ## Headline result (under the corrected environment math)
 
+> **CURRENT STATE (2026-06-28) — three campaigns complete; see `docs/CURRENT_HEAD_STATUS.md` for the live
+> ledger.** The in-range-parity snapshot below is a HISTORICAL milestone (pre-CTDE recalibration); it has
+> since been superseded by three completed, adversarially-verified campaigns that all reach the same honest
+> finding — at N ≤ 16, every sophisticated mechanism is verified-correct but gives no headline gain, and the
+> binding limit is **RL feasibility-region learning**:
+> - **v2 static** (R0–R7 + Phase 8–13): Graph-MAPPO + MLP + closed-form decoder is best in-range and
+>   best-generalizing.
+> - **Dynamic-repair** (D0–D14): the T>1 task built + corrected (10 gaps) on real 4-RSU urban data; all
+>   mechanism A/B CIs span 0; learned arms below the zero-eval deployable heuristics.
+> - **POMDP-QP-FAR** (Q0–Q13): stale/partial CSI (`--csi-mode`) + quorum-deficit potential `D_quorum`/PBRS
+>   + feasible-anchored residual learning + edge handshake + PNA-in-residual — **all opt-in, default-off,
+>   byte-identical when off, each verified-correct**; the deployable `local_hysteresis` anchor (== the
+>   residual policy) is the best deployable arm; the central myopic reference is a grouped ceiling (NOT a
+>   deployable baseline), and it beats the anchor only modestly and not significantly (Q12 paired CI spans
+>   0). No learned arm beats the deployable anchor. Ledger: `docs/URBAN_V2X_RESEARCH_LOG.md` +
+>   `docs/pomdp_qpfar/`.
+>
+> Open frontier (deferred): large-N (N ≥ 24) generalization (needs a cheaper exact-fault evaluator).
+
 The legacy "+0.177 beat at out-of-range N = 24" is **retired** — it was produced under the
 pre-recalibration (incorrect) env-math. Under the **corrected** math (P0–P4 + recalibration)
 **and the corrected sampler** (the NaN-gumbel no-exploration bug fixed 2026-06-23; the trunk

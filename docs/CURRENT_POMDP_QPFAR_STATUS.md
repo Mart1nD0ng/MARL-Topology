@@ -73,7 +73,7 @@ dynamic task (Q9) and requires a terminal-zero potential — this is a NEW capab
 | Q10 | Local edge handshake / correlated sampling (endpoint score exchange, shared score) | `training/edge_handshake.py` | **DONE (nuanced+)** — decentralized shared-edge-score decoder (no global sort, 2·|E| neighbour scalars); proven to recover critical edges an independent DIRECTED decode loses; urban critical-disagreement −33% (0.468→0.312), random mixed; 6 unit + suite 769/0; Workflow `wnj4i3q7h` 4-lens MINOR (decentralization/symmetry/cost PASS, claim-honesty MINOR addressed) |
 | Q11 | Re-test PNA inside the residual frame | `--actor pna` in `residual_pbrs_train.py` | **DONE (decisive negative)** — 5 seeds × {mlp,pna}: PNA==MLP==anchor (paired diff 0.000 CI[0,0], retention 1.0, 0/5 collapse, 0 diverged); D13 +0.125 trend does NOT reproduce; PNA gradient-explosive (max 28857 vs MLP 3055) + 2× params; PNA stays opt-in; 1 unit + suite 770/0; Workflow `wslezjbo1` 4-lens MINOR (fair-compare/PNA-active PASS, cosmetic grad-figure fixed) |
 | Q12 | Multi-seed × multi-CSI-mode × multi-N campaign | `scripts/diagnostics/pomdp_qpfar_campaign.py` | **DONE (consolidated headline)** — 5-seed deployable (anchor==residual==+PBRS==+PNA) urban 0.739/random 0.281, 0 eval calls < central myopic 0.800/0.308 (432 calls), but paired CI spans 0 (not significant; 1/5 seeds anchor wins). No learned arm beats anchor. 2 unit + suite 772/0; Workflow `ww7m0vggu` 4-lens MINOR (grouping/CI/citation PASS) |
-| Q13 | Docs / report / README / research-log close-out | docs | NOT_IMPLEMENTED |
+| Q13 | Docs / report / README / research-log close-out | docs | **DONE** — research-log POMDP-QP-FAR CAMPAIGN SUMMARY + stage/mechanism ledgers; CURRENT_HEAD_STATUS banner; README/AGENTS aligned; all Q0–Q13 rows DONE; pure-docs (suite 772/0 unchanged); claims-vs-evidence Workflow |
 
 **Ordering invariant (Spec §workflow):** Q1–Q4 are preconditions. No full RL training (Q7+) before
 Q1 (stale CSI verified observation-only) AND Q4 (`D_quorum` alignment) PASS. One variable per round;
@@ -150,6 +150,15 @@ suite 770/0; Workflow `wslezjbo1` 4-lens MINOR (all load-bearing PASS, cosmetic 
 432 calls) IN MEAN but the paired CI spans 0 (not significant; on 1/5 seeds the anchor beats the oracle).
 **No learned arm beats the deployable anchor — binding limit = feasibility-region learning, confirming the
 v2/D13 pattern across the full POMDP-QP-FAR stack.** Workflow `ww7m0vggu` 4-lens MINOR (all load-bearing
-PASS). **Next: Q13** — docs / report / README close-out (research-log SUMMARY + mechanism ledger;
-CURRENT_HEAD_STATUS; README/AGENTS alignment; claims-vs-evidence verify). Then the campaign is complete.
-See `docs/pomdp_qpfar/Q*/`.
+PASS). **Q13 DONE** — docs close-out: the `POMDP-QP-FAR CAMPAIGN SUMMARY` (stage + mechanism ledgers) at the
+tail of `docs/URBAN_V2X_RESEARCH_LOG.md`; the COMPLETE banner atop `docs/CURRENT_HEAD_STATUS.md`;
+README/AGENTS aligned (opt-in mechanisms, deployable anchor, central ceiling); pure-docs (suite 772/0
+unchanged); claims-vs-evidence Workflow.
+
+## 🏁 ENTIRE Q0–Q13 POMDP-QP-FAR CAMPAIGN COMPLETE (2026-06-28)
+All 14 stages done, each committed to `decentralized-marl-trunk` (Q0 `05765d6` → Q13), each headline
+adversarially re-derived from raw per-seed JSON. The campaign confirms — for the THIRD time, now under the
+stale-CSI POMDP + quorum-potential + feasible-anchored-residual formulation — that feasibility-region
+learning is the binding limit at N≤16: no learned arm beats the deployable `local_hysteresis` anchor. All
+mechanisms ship opt-in. Branch ahead of origin (unpushed — **push is the owner's decision**). Open frontier
+(deferred): N≥24 generalization (cheaper exact-fault evaluator). See `docs/pomdp_qpfar/Q*/`.
