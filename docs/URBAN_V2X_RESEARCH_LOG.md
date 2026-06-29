@@ -4498,3 +4498,34 @@ stay **opt-in, default-off, byte-identical when off**. The central myopic refere
 NOT a deployable baseline. **Scope:** N≤16, 5 seeds, urban + random — NOT N≥24 (the open frontier, needs a
 cheaper exact-fault evaluator). Suite 772 unit, 0 failed. Per-stage `docs/pomdp_qpfar/Q*/`. Branch ahead of
 origin (unpushed — owner's decision).
+
+## POMDP-QP-FAR ADDENDUM — Q14: stale-CSI + residual JOINT experiment (2026-06-29, closing the one open loop)
+
+The campaign validated stale CSI only at the perception layer (Q2) and ran the residual headline (Q9–Q12)
+under CURRENT CSI — leaving open whether stale CSI + residual learning + temporal modeling buys control gain.
+This addendum closes that loop (eval-only diagnostics, no src/test change). Full writeup:
+`docs/pomdp_qpfar/Q14_stale_csi_residual_joint/`; scripts `scripts/diagnostics/stale_csi_residual_joint.py`
+(joint experiment) + `scripts/diagnostics/success_case_analysis.py` (per-frame C/E/L success-case analysis).
+
+- **Stale CSI is a real perception loss for the deployable anchor** (urban true-channel feasibility 0.804
+  current → 0.662 delay-1, CIs non-overlapping → significant −0.142; energy/latency rise monotonically with
+  delay). Random ~flat (deeply-infeasible core). The anchor is a stateless heuristic acting on stale psucc.
+- **The residual policy does NOT recover it.** Free config (prior −1.0, anchor_reg 0.0): urban delay-1
+  residual 0.404 vs anchor 0.662, paired −0.258 [−0.698,+0.181] (spans 0), retention 0.60, 0/5 NaN. The
+  deviation is **bimodal** (3/5 seeds stay exactly at the anchor, 2/5 collapse to the empty topology) — the
+  residual NEVER beats the anchor on any seed; the stale anchor remains the best deployable policy.
+- **Cross-frame recurrence is behaviorally inert** — bit-identical to memoryless on every arm — because the
+  trained edge logits are ~83% saturated at the tanh ±10 rail (`raw`≈3000), annihilating the GRU contribution.
+  This is verified (Workflow `wmr40pusa`), NOT a wiring bug (the GRU is active up to the saturated head).
+- **Conclusion:** even when finally wired into the control loop, the temporal axis brings NO control gain; the
+  loss is recoverable only by fresher CSI, not by learning — sharpening the campaign's Axis-A finding with
+  control-level evidence. The bottleneck remains discrete feasibility-region selection (Axis B).
+- **Codebase analysis (read-only):** (Q-A) the drop is NOT a missing temporal module — the anchor has no
+  model, and the learned actor's GRU is wired/active and receives the age/mask features; the module is present
+  but ineffective (logit saturation + no explicit CSI-prediction supervision). (Q-B) the clamp/collapse is a
+  trainer problem: residual_prior −3.0 clamps; freed, vanilla REINFORCE (no entropy, no critic, scalar
+  baseline) collapses bimodally; saturation locks the basin. Levers (all already in the codebase, untested):
+  imitate the central ORACLE repairs (Q7 `residual_repair.py`, a better-than-anchor target) rather than the
+  anchor; anneal the trust-region; add a CTDE critic; entropy + raw-logit regularization; PPO/KL trust-region;
+  a supervised CSI-prediction auxiliary. Recommendations only — each would be a new ≥5-seed experiment.
+- Verification: Workflows `wmr40pusa` (joint experiment, MINOR) + `wsdvtxdv7` (success-case C/E/L, MINOR).
