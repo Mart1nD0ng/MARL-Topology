@@ -27,7 +27,7 @@ class BeliefResidualActor(nn.Module):
     model_id = BELIEF_RESIDUAL_ACTOR_MODEL_ID
 
     def __init__(self, node_dim: int, edge_dim: int, hidden: int = 64,
-                 residual_logit_scale: float = 3.0) -> None:
+                 residual_logit_scale: float = 3.0, belief_extra_dim: int = 0) -> None:
         super().__init__()
         if not (2.0 <= residual_logit_scale <= 4.0):
             raise ValueError(f"residual_logit_scale should be in [2,4] (got {residual_logit_scale})")
@@ -35,6 +35,7 @@ class BeliefResidualActor(nn.Module):
         self.edge_dim = edge_dim
         self.hidden = hidden
         self.residual_logit_scale = float(residual_logit_scale)
+        self.belief_extra_dim = int(belief_extra_dim)   # R2: leak-free per-edge extras (velocity) for belief
         self.node_enc = nn.Sequential(nn.Linear(node_dim, hidden), nn.ReLU())
         self.msg = nn.Sequential(nn.Linear(2 * hidden + edge_dim, hidden), nn.ReLU())
         self.gru = nn.GRUCell(hidden, hidden)                       # CROSS-FRAME recurrence
@@ -42,6 +43,13 @@ class BeliefResidualActor(nn.Module):
         # SEPARATE residual policy head (NOT the shared +-10 activation head) -> small-range residual logit
         self.residual_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(),
                                             nn.Linear(hidden, 1))
+        # R2: CSI belief head -> per-edge predicted CURRENT link-psucc LOGIT (supervised by L_CSI, training-
+        # only true-CSI label). Appended LAST so the R1 residual_head init RNG is unchanged. ``belief_extra_
+        # dim`` admits leak-free per-edge extras (relative velocity / distance_delta) the head needs to
+        # extrapolate the current channel from the stale observation.
+        self.belief_head = nn.Sequential(
+            nn.Linear(edge_dim + self.belief_extra_dim + 2 * hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, 1))
 
     def init_hidden(self, n_nodes: int, ref: Tensor) -> Tensor:
         return ref.new_zeros(n_nodes, self.hidden)
@@ -79,6 +87,26 @@ class BeliefResidualActor(nn.Module):
         s = self.residual_logit_scale
         residual_logits = s * torch.tanh(raw / s)          # small-range, sign- and order-preserving
         return residual_logits, raw, h
+
+    def belief(self, nf: Tensor, ef: Tensor, ei: Tensor, extra: Tensor | None = None,
+               hidden: Tensor | None = None) -> tuple[Tensor, Tensor]:
+        """R2 CSI belief: per-edge predicted CURRENT-psucc LOGIT from the GRU hidden (cross-frame). Shares
+        the encoder/GRU with the residual head, so L_CSI gradients flow into the GRU. ``extra`` is optional
+        LEAK-FREE per-edge features (e.g. relative velocity / distance_delta) of width ``belief_extra_dim``.
+        Returns (belief_logit[E], new_hidden[N,H]). The deployed actor NEVER reads the true current CSI."""
+        h = self.encode(nf, ef, ei, hidden)
+        if ei.shape[0] == 0:
+            return ef.new_zeros(0), h
+        hb = self.h_norm(h)
+        hu, hv = hb[ei[:, 0].long()], hb[ei[:, 1].long()]
+        parts = [ef]
+        if self.belief_extra_dim:
+            if extra is None:
+                extra = ef.new_zeros(ef.shape[0], self.belief_extra_dim)
+            parts.append(extra)
+        parts += [hu * hv, torch.abs(hu - hv)]
+        bel = self.belief_head(torch.cat(parts, dim=-1)).squeeze(-1)
+        return bel, h
 
     def boundary_report(self) -> dict:
         return {

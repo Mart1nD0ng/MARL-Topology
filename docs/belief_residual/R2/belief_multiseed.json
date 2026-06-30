@@ -1,0 +1,89 @@
+{
+  "scope": "R2 multi-seed recurrent-vs-memoryless belief MSE (held); paired (memoryless-recurrent); positive => recurrence helps. 5 seeds, random data.",
+  "by_mode": {
+    "delay1": {
+      "recurrent_mse": {
+        "mean": 0.102154,
+        "lo": 0.092906,
+        "hi": 0.111401,
+        "n": 5
+      },
+      "memoryless_mse": {
+        "mean": 0.102322,
+        "lo": 0.092746,
+        "hi": 0.111898,
+        "n": 5
+      },
+      "paired_memoryless_minus_recurrent": {
+        "mean": 0.000168,
+        "lo": -0.000225,
+        "hi": 0.000561,
+        "n": 5
+      },
+      "recurrent_robustly_better": false,
+      "per_seed_paired": [
+        0.000689,
+        0.000231,
+        3.7e-05,
+        -0.000117,
+        3e-06
+      ]
+    },
+    "delay2": {
+      "recurrent_mse": {
+        "mean": 0.111839,
+        "lo": 0.099017,
+        "hi": 0.12466,
+        "n": 5
+      },
+      "memoryless_mse": {
+        "mean": 0.111741,
+        "lo": 0.098811,
+        "hi": 0.124671,
+        "n": 5
+      },
+      "paired_memoryless_minus_recurrent": {
+        "mean": -9.8e-05,
+        "lo": -0.000289,
+        "hi": 9.3e-05,
+        "n": 5
+      },
+      "recurrent_robustly_better": false,
+      "per_seed_paired": [
+        1.3e-05,
+        -5.5e-05,
+        -0.000362,
+        -9.3e-05,
+        6e-06
+      ]
+    },
+    "partial": {
+      "recurrent_mse": {
+        "mean": 0.055175,
+        "lo": 0.050648,
+        "hi": 0.059701,
+        "n": 5
+      },
+      "memoryless_mse": {
+        "mean": 0.055208,
+        "lo": 0.050707,
+        "hi": 0.059709,
+        "n": 5
+      },
+      "paired_memoryless_minus_recurrent": {
+        "mean": 3.3e-05,
+        "lo": -3.9e-05,
+        "hi": 0.000105,
+        "n": 5
+      },
+      "recurrent_robustly_better": false,
+      "per_seed_paired": [
+        2.8e-05,
+        0.000106,
+        -4.4e-05,
+        7.1e-05,
+        5e-06
+      ]
+    }
+  }
+}

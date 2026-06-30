@@ -1,0 +1,86 @@
+{
+  "scope": "R2 multi-seed: belief vs STALE-ECHO FLOOR (recovery test) + recurrent-vs-memoryless; velocity-augmented belief head; random data; 5 seeds. paired(floor-belief)>0 => recovers.",
+  "by_mode": {
+    "delay1": {
+      "paired_floor_minus_belief": {
+        "mean": -0.000954,
+        "lo": -0.0015,
+        "hi": -0.000407,
+        "n": 5
+      },
+      "belief_beats_floor_seeds": "0/5",
+      "recurrent_mse": {
+        "mean": 0.102163,
+        "lo": 0.092917,
+        "hi": 0.111408,
+        "n": 5
+      },
+      "memoryless_mse": {
+        "mean": 0.102157,
+        "lo": 0.09289,
+        "hi": 0.111425,
+        "n": 5
+      },
+      "paired_memoryless_minus_recurrent": {
+        "mean": -5e-06,
+        "lo": -0.000132,
+        "hi": 0.000121,
+        "n": 5
+      }
+    },
+    "delay2": {
+      "paired_floor_minus_belief": {
+        "mean": -0.000975,
+        "lo": -0.001546,
+        "hi": -0.000403,
+        "n": 5
+      },
+      "belief_beats_floor_seeds": "0/5",
+      "recurrent_mse": {
+        "mean": 0.111932,
+        "lo": 0.099288,
+        "hi": 0.124575,
+        "n": 5
+      },
+      "memoryless_mse": {
+        "mean": 0.111858,
+        "lo": 0.099112,
+        "hi": 0.124605,
+        "n": 5
+      },
+      "paired_memoryless_minus_recurrent": {
+        "mean": -7.4e-05,
+        "lo": -0.000231,
+        "hi": 8.4e-05,
+        "n": 5
+      }
+    },
+    "partial": {
+      "paired_floor_minus_belief": {
+        "mean": -0.000786,
+        "lo": -0.001335,
+        "hi": -0.000237,
+        "n": 5
+      },
+      "belief_beats_floor_seeds": "0/5",
+      "recurrent_mse": {
+        "mean": 0.055165,
+        "lo": 0.050637,
+        "hi": 0.059694,
+        "n": 5
+      },
+      "memoryless_mse": {
+        "mean": 0.055208,
+        "lo": 0.050693,
+        "hi": 0.059722,
+        "n": 5
+      },
+      "paired_memoryless_minus_recurrent": {
+        "mean": 4.2e-05,
+        "lo": -2.4e-05,
+        "hi": 0.000109,
+        "n": 5
+      }
+    }
+  }
+}

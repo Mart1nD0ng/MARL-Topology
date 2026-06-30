@@ -1,0 +1,29 @@
+{
+  "scope": "R2 CSI belief auxiliary on the POLICY actor; recurrent vs memoryless held belief MSE; true current psucc = training-only label",
+  "by_mode": {
+    "current": {
+      "recurrent_held_belief_mse": 0.000337,
+      "memoryless_held_belief_mse": 0.000296,
+      "recurrent_beats_memoryless": false,
+      "improvement": -4.1e-05
+    },
+    "delay1": {
+      "recurrent_held_belief_mse": 0.116338,
+      "memoryless_held_belief_mse": 0.116389,
+      "recurrent_beats_memoryless": true,
+      "improvement": 5.2e-05
+    },
+    "delay2": {
+      "recurrent_held_belief_mse": 0.111674,
+      "memoryless_held_belief_mse": 0.111669,
+      "recurrent_beats_memoryless": false,
+      "improvement": -6e-06
+    },
+    "partial": {
+      "recurrent_held_belief_mse": 0.06023,
+      "memoryless_held_belief_mse": 0.059862,
+      "recurrent_beats_memoryless": false,
+      "improvement": -0.000368
+    }
+  }
+}

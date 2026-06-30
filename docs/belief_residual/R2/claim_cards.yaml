@@ -1,0 +1,83 @@
+# R2 Claim Cards (Contract v4 §1)
+
+- claim: "The CSI belief auxiliary (belief_head + L_CSI) is ACTIVE in a real training loss on the POLICY
+    actor (gradients reach belief_head AND the shared GRU), is leak-free (actor input = stale ef; true
+    current psucc = training-only label), and its held belief prediction improves over epochs."
+  scope: "R2, BeliefResidualActor belief head, stale/partial CSI, random data; LOGIT-space Huber"
+  mechanism: "supervised CSI belief auxiliary on the policy actor's GRU"
+  code_path: "src/marl_topology/models/belief_residual_actor.py::BeliefResidualActor.belief;
+    src/marl_topology/training/csi_belief.py::{belief_target_logits,belief_weights,csi_belief_loss,belief_mse}"
+  entrypoint: "scripts/diagnostics/csi_belief_train.py::train_belief; tests/unit/test_belief_residual_R2_belief.py"
+  config_flags: "recurrent True/False; hidden 32; epochs 60-80; lr 0.02"
+  dataset: "stale/partial random scenes; train/held disjoint seeds"
+  seeds: "pilot 1 + multi-seed 5 (belief_multiseed.json)"
+  split: "train/held (held never used to fit)"
+  loss_uses_mechanism: "yes -- L_CSI = weighted Huber(belief_logit, logit(true current psucc)) is optimized;
+    gradients reach belief_head + gru (test_belief_loss_enters_total_loss)"
+  eval_uses_mechanism: "held belief MSE (probability space); true PBFT not used at R2 (no control claim)"
+  runtime_activation_artifact: "result_save/belief_residual/R2/{csi_belief_train.json,belief_multiseed.json}"
+  load_bearing_tests:
+    - "test_belief_head_training_target_is_true_current_csi (target == true current psucc logit)"
+    - "test_actor_input_does_not_include_true_current_csi (input stale != label true; leak-free)"
+    - "test_belief_loss_enters_total_loss (spy: grads reach belief_head AND gru)"
+    - "test_belief_loss_logged / test_belief_prediction_improves_over_epochs"
+  effect_on_decision_metrics: "belief MSE improves over epochs; recurrent vs memoryless belief MSE delta (see
+    next claim). R2 does NOT change topology/action (no policy rollout this stage)."
+  raw_result_artifact: "result_save/belief_residual/R2/csi_belief_train.json + belief_multiseed.json"
+  conclusion_boundary: "Belief auxiliary is active + improves prediction. Does NOT claim it improves the
+    POLICY/feasibility (R3+) or that recurrence is the lever (next claim). No control claim at R2."
+
+- claim: "The supervised belief head does NOT recover the current CSI -- its held belief MSE is significantly
+    ABOVE the stale-echo floor (predict the stale observed psucc) on all stale modes, even WITH leak-free
+    velocity features. It learns to echo its stale input (no-op CSI predictor). [Corrects the earlier 'belief
+    improves -> works' framing, flagged MAJOR by Workflow wozljm9uf.]"
+  scope: "R2, policy actor, random data, delay1/delay2/partial, 5 seeds, 80-400 epochs, velocity on/off"
+  mechanism: "belief head as a current-CSI predictor vs the trivial stale-echo baseline"
+  code_path: "scripts/diagnostics/csi_belief_train.py::train_belief (stale_echo_floor_mse, use_velocity)"
+  entrypoint: "scripts/diagnostics/r2_belief_multiseed.py"
+  dataset: "random stale/partial; 5 seeds, train/held disjoint"
+  seeds: "5"
+  loss_uses_mechanism: "L_CSI optimized; belief vs stale-echo floor measured on held"
+  eval_uses_mechanism: "held belief MSE vs stale-echo floor; paired (floor - belief), positive => recovers"
+  runtime_activation_artifact: "result_save/belief_residual/R2/belief_floor_multiseed.json"
+  load_bearing_tests:
+    - "test_belief_does_not_beat_stale_echo_floor (pins the no-op)"
+    - "(empirical) r2_belief_multiseed.py floor-belief CI"
+  effect_on_decision_metrics: "5-seed (floor - belief) ENTIRELY NEGATIVE: delay1 -0.00095 [-0.0015,-0.0004] /
+    delay2 -0.00098 [-0.0015,-0.0004] / partial -0.00079 [-0.0013,-0.0002]; beats_floor 0/5 all modes.
+    Velocity does not help; 200-400 epochs overfit. Recurrence null (mem-rec CI spans 0)."
+  raw_result_artifact: "result_save/belief_residual/R2/belief_floor_multiseed.json"
+  conclusion_boundary: "PATH-SPECIFIC NEGATIVE: the policy-actor belief head does not recover current CSI
+    beyond echoing the stale observation (does not beat the stale-echo floor; significantly worse). The belief
+    loss is genuinely active + leak-free. NOT a claim that belief/temporal recovery is impossible in general
+    (Q2 recovered on a clean separate predictor)."
+
+- claim: "Cross-frame RECURRENCE gives NO robust belief-prediction advantage over a memoryless head with
+    age+velocity features -- the recurrent-vs-memoryless held-belief-MSE difference is noise-level. (Secondary:
+    BOTH arms fail to beat the echo floor, so neither is a functioning belief predictor.)"
+  scope: "R2, random data, delay1/delay2/partial, 5 seeds, this belief-training setup"
+  mechanism: "recurrent (carry GRU hidden) vs memoryless (hidden=None) belief prediction"
+  code_path: "scripts/diagnostics/csi_belief_train.py::train_belief(recurrent=...)"
+  entrypoint: "scripts/diagnostics/r2_belief_multiseed.py"
+  config_flags: "recurrent True vs False, else identical (seed, scenes, epochs, hidden)"
+  dataset: "random stale/partial; 5 seeds, train/held disjoint"
+  seeds: "5"
+  split: "train/held"
+  loss_uses_mechanism: "both arms optimize L_CSI; only difference is whether the GRU hidden carries across frames"
+  eval_uses_mechanism: "held belief MSE; paired (memoryless - recurrent), positive => recurrence helps"
+  runtime_activation_artifact: "result_save/belief_residual/R2/belief_multiseed.json"
+  load_bearing_tests:
+    - "(empirical) r2_belief_multiseed.py paired CI; the unit test only documents a single deterministic config"
+  effect_on_decision_metrics: "4-mode pilot paired (mem-rec): delay1 +0.00005 / delay2 -0.00001 / partial
+    -0.00037 / current -0.00004 -- all noise-level on MSE ~0.06-0.12. Multi-seed CI: see belief_multiseed.json."
+  raw_result_artifact: "result_save/belief_residual/R2/belief_multiseed.json"
+  conclusion_boundary: "PATH-SPECIFIC: recurrence does not robustly beat a memoryless+age+velocity belief head
+    on the policy actor at this scale (consistent with Q2's small recurrent margin). Does NOT claim temporal
+    modeling is useless in general, nor that the belief auxiliary fails (it works; recurrence-specifically is
+    not the lever -- the CSI is recoverable per-frame from age+velocity)."
+
+cited_from: "docs/pomdp_qpfar/Q2/decision.md (Q2 separate-predictor recurrent margin delay1 0.091->0.080)"
+source_commit: "27a184b (R1)"
+source_artifact: "result_save/belief_residual/R2/*.json"
+why_retraining_not_required: "R2 re-derives on the POLICY actor (not Q2's separate predictor)."
+what_claim_is_supported: "belief recoverable; recurrence not the lever at policy scale."

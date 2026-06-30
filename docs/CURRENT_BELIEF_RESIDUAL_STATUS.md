@@ -39,7 +39,7 @@ Status ∈ {NOT_PRESENT, IMPLEMENTED_ONLY, CALLABLE, ACTIVE_IN_LOSS, ACTIVE_IN_E
 | CTDE value critic | present (CentralizedGraphCritic) | NOT_PRESENT (scalar moving baseline) | NOT_PRESENT | ACTIVE_IN_LOSS (R3) |
 | entropy bonus | CALLABLE (`entropy_coef`) | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R3, R10) |
 | raw-logit L2 / saturation control | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R1) |
-| CSI-belief auxiliary (`L_CSI`, belief_head) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R2) |
+| CSI-belief auxiliary (`L_CSI`, belief_head) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_LOSS (R2) but NO-OP for recovery** — belief does NOT beat the stale-echo floor (5-seed CI entirely negative, 0/5); leak-free + in-loss verified; `L_CSI` ablatable at R3 |
 | separate residual head (small-range logits) | NOT_PRESENT (shared ±10 head) | NOT_PRESENT | NOT_PRESENT | ACTIVE (R1) |
 | beneficial-edit supervision (repair/safety/edit) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R4–R5) |
 | evidence-gated residual action | NOT_PRESENT | NOT_PRESENT (all-edge Bernoulli) | NOT_PRESENT | ACTIVE_IN_DEPLOY (R6) |
@@ -59,7 +59,7 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 |---|---|---|---|
 | **R0** | freeze Q14 + residual-trainer path audit | **DONE (this commit)** — Mechanism-Path Matrix above; 3 load-bearing audit tests pass (`tests/unit/test_belief_residual_R0_audit.py`): graph_mappo defines PPO/KL; residual source is REINFORCE-only; spy proves a residual update never calls `ppo_clip_actor_loss` (R3 tripwire) | "PPO exists" ≠ "PPO active in residual path" pinned in code ✓ |
 | R1 | feature standardization + logit-saturation fix (all-frame norm, raw-logit L2, separate small-range residual head, saturation metrics) | **DONE** — `BeliefResidualActor` (±3 separate head, exposes raw) + `residual_saturation.py`; pilot urban delay-1: old ±10 head frac_logit_near_rail **1.0** + recurrent−memoryless logit delta **0.0 (inert)** → new ±3 head **0.0** rail + delta **0.0257 (passes)**; action_delta still 0 (logit-level only, R3 for topology); 5 load-bearing tests, suite 780/0; Workflow `wfv50jg36` | saturation down ✓ AND recurrent vs memoryless logits no longer bit-identical ✓ |
-| R2 | CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true CSI = training label only) | NOT_IMPLEMENTED | recurrent belief MSE < memoryless under delay; belief loss in policy loss |
+| R2 | CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true CSI = training label only) | **DONE (REVISE — HONEST NEGATIVE: belief is a no-op CSI predictor)** — `BeliefResidualActor.belief` + `csi_belief.py` + `csi_belief_train.py`. Belief loss ENTERS the policy-actor loss (grads reach belief_head+GRU, spy) and is leak-free (verified). **BUT held belief MSE sits at/above the stale-echo floor** (predict the stale obs) even with leak-free velocity + 80–400 epochs → **does NOT recover current CSI** (learns the echo; correction-direction corr≈−0.035). Recurrence also null (mem−rec CI spans 0). 7 tests (incl. honest-negative pin), suite green; Workflow `wozljm9uf` MAJOR (adopted). | belief-in-loss MET ✓; "recovers CSI / beats stale-echo floor" NOT met → HONEST NEGATIVE (TechSpec chain 1) |
 | R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | NOT_IMPLEMENTED | residual calls `ppo_clip_actor_loss`; KL/clip/EV sane; clamp/collapse reduced |
 | R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | NOT_IMPLEMENTED | non-zero positive-edit rate; no full-oracle-topology imitation |
 | R5 | repair/safety/utility/edit heads (supervised) | NOT_IMPLEMENTED | held top-k edit hit rate > random |
@@ -101,5 +101,17 @@ Q14 (frac_logit_near_rail **1.0**, recurrent−memoryless logit delta **0.0 = in
 raw-L2 is **unsaturated (0.0)** and recurrence now **passes** (delta **0.0257 > 0**). **Honest scope: the fix
 is LOGIT-level only — action_delta=0 (the topology is unchanged until a trained policy near decision
 boundaries, R3).** 5 load-bearing/effect-on-decision tests; suite 780/0; Workflow `wfv50jg36`.
-**Next: R2** — CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true current psucc = training label
-only; recurrent belief MSE < memoryless under delay; belief loss enters the policy training loss).
+**R2 DONE — REVISE / HONEST NEGATIVE: the belief auxiliary is a no-op CSI predictor.** `BeliefResidualActor.
+belief` + `belief_head` + `csi_belief.py` + `csi_belief_train.py`. The belief loss genuinely ENTERS a training
+loss on the policy actor (grads reach `belief_head` AND the shared GRU — spy) and is leak-free (actor input =
+stale ef; true current psucc = training-only label) — both verified (Workflow `wozljm9uf` lens 1 PASS). **BUT
+the held belief MSE sits AT/ABOVE the trivial stale-echo floor** (predict the stale observed psucc) even with
+the new leak-free velocity helper (`leak_free_motion_features`, rel_vel+distance_delta, no leaking `csi_delta`)
+and 80–400 epochs: delay2 belief 0.112 vs floor 0.111; 400ep overfits to 0.118; correction-direction
+corr≈−0.035. **So the head learns to ECHO the stale input and recovers ~none of the staleness** — a no-op CSI
+*predictor* (Workflow lens 2 MAJOR, adopted + reproduced/extended). Recurrence is also null (mem−rec CI spans
+0), now secondary. **Disposition: keep the belief machinery (correct + leak-free) but do NOT claim it recovers
+CSI; treat `L_CSI` as an ablatable auxiliary at R3.** The "belief-guided" premise (TechSpec chain 1) is
+weakened — recoverable value must come from the other chains. 7 tests (incl. `test_belief_does_not_beat_stale_
+echo_floor`), suite green. **Next: R3** — residual PPO + CTDE value critic (the training-stability chain), with
+raw-L2 active and `L_CSI` ablatable. The R0 PPO-spy tripwire flips at R3.

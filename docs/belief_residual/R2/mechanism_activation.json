@@ -1,0 +1,37 @@
+{
+  "stage": "R2",
+  "description": "CSI belief auxiliary on the POLICY actor (belief_head + L_CSI). Active+leak-free+in-loss (verified), but a NO-OP CSI predictor: does NOT beat the stale-echo floor. HONEST NEGATIVE (TechSpec chain 1 weakened).",
+  "new_code": {
+    "src/marl_topology/models/belief_residual_actor.py": "BeliefResidualActor.belief + belief_head (+ belief_extra_dim for leak-free velocity); R1 init RNG unchanged",
+    "src/marl_topology/training/csi_belief.py": "belief_target_logits (true current psucc = training-only label), belief_weights, csi_belief_loss, belief_mse, leak_free_motion_features (rel_vel+distance_delta, NO leaking csi_delta), stale_echo_floor_mse",
+    "scripts/diagnostics/csi_belief_train.py": "train_belief (policy actor GRU+belief_head on L_CSI; use_velocity; reports belief vs stale-echo floor)",
+    "scripts/diagnostics/r2_belief_multiseed.py": "5-seed belief-vs-floor recovery test + recurrent-vs-memoryless"
+  },
+  "additive": "belief_head appended; DynamicRecurrentActor + residual_pbrs_train byte-identical; R1 5 tests still pass",
+  "load_bearing_tests": {
+    "test_belief_head_training_target_is_true_current_csi": "PASS",
+    "test_actor_input_does_not_include_true_current_csi": "PASS (leak-free)",
+    "test_belief_loss_enters_total_loss": "PASS (grads reach belief_head AND gru)",
+    "test_belief_loss_logged": "PASS",
+    "test_belief_prediction_improves_over_epochs": "PASS (improves to the echo floor)",
+    "test_belief_does_not_beat_stale_echo_floor": "PASS (pins the honest negative)",
+    "test_recurrent_belief_no_robust_gain_over_memoryless": "PASS"
+  },
+  "verified_true": {
+    "belief_loss_enters_policy_actor_loss": "grads reach belief_head AND shared GRU (Workflow lens 1 PASS)",
+    "leak_free": "actor input = stale ef; true current psucc = training-only label (exhaustive per-column scan, no leak)"
+  },
+  "honest_negative_belief_does_not_recover_csi": {
+    "metric": "held belief MSE vs stale-echo floor (predict the stale observed psucc)",
+    "5seed_floor_minus_belief": {
+      "delay1": {"mean": -0.000954, "ci": [-0.001500, -0.000407], "beats_floor": "0/5"},
+      "delay2": {"mean": -0.000975, "ci": [-0.001546, -0.000403], "beats_floor": "0/5"},
+      "partial": {"mean": -0.000786, "ci": [-0.001335, -0.000237], "beats_floor": "0/5"}
+    },
+    "interpretation": "floor-belief CI ENTIRELY NEGATIVE on all modes => belief is significantly WORSE than the trivial echo; it never beats the floor (0/5). Velocity does not help; 200-400 epochs overfit (never beat floor). Recurrence null (mem-rec CI spans 0).",
+    "diagnosis": "the Q2 recovery signal (rel_vel/distance_delta) is bundled with a true-CSI-leaking csi_delta in the env motion block; the leak-free velocity helper still does not let the policy-actor belief head recover beyond the stale echo at N<=16."
+  },
+  "scope_boundary": "PATH-SPECIFIC NEGATIVE: on the policy actor with leak-free features, the supervised belief head does NOT recover current CSI beyond echoing the stale observation (5 seeds, 80-400 epochs, velocity on/off, recurrent+memoryless). The belief loss IS active + leak-free. NOT a claim that belief/temporal is impossible in general (Q2 recovered on a clean predictor).",
+  "decision": "REVISE -- keep the belief machinery (correct+leak-free) but do NOT claim CSI recovery; L_CSI is an ablatable auxiliary at R3; recoverable value must come from the other chains.",
+  "verification_workflow": "wozljm9uf (lens 2 MAJOR adopted)"
+}
