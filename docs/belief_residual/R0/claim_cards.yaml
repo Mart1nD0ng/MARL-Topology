@@ -1,0 +1,41 @@
+# R0 Claim Cards (Contract v4 §1)
+
+- claim: "The residual trainer path uses REINFORCE + scalar moving baseline + fixed flip-penalty; PPO clip /
+    approx_kl / CTDE value critic / entropy bonus / CSI-belief auxiliary are NOT_PRESENT in it."
+  scope: "residual_pbrs_train.py (Q9/Q11) and stale_csi_residual_joint.py (Q14); HEAD a634928"
+  mechanism: "residual REINFORCE trainer path audit"
+  code_path: "scripts/diagnostics/residual_pbrs_train.py::reinforce_update / rollout_residual_train"
+  entrypoint: "scripts/diagnostics/residual_pbrs_train.py"
+  config_flags: "--anchor-reg (flip penalty), --residual-prior, --pbrs"
+  dataset: "n/a (static source + spy audit)"
+  seeds: "n/a"
+  split: "n/a"
+  loss_uses_mechanism: "REINFORCE only: loss = -sum_t logp_t*(G_t - baseline) + anchor_reg*mean(#flips)"
+  eval_uses_mechanism: "n/a"
+  runtime_activation_artifact: "result_save/belief_residual/R0/mechanism_activation.json"
+  load_bearing_tests:
+    - "tests/unit/test_belief_residual_R0_audit.py::test_residual_trainer_source_is_reinforce_no_ppo_no_critic_no_csi"
+    - "tests/unit/test_belief_residual_R0_audit.py::test_residual_update_does_not_call_ppo_clip_spy (spy: 0 calls)"
+  effect_on_decision_metrics: "n/a (audit; no policy run)"
+  raw_result_artifact: "result_save/belief_residual/R0/mechanism_activation.json + Q14 result_save (cited)"
+  conclusion_boundary: "Does NOT claim residual PPO / CTDE critic / belief-augmented policy fails; those paths
+    are NOT_PRESENT. Q14's negative is scoped to REINFORCE-residual + fixed flip-penalty under delay1 urban."
+
+- claim: "PPO clip + approx_kl EXIST and are ACTIVE_IN_LOSS in the Graph-MAPPO trunk, but this does NOT imply
+    the residual trainer has PPO (Contract v4 §7 No Substitution)."
+  scope: "static + dynamic graph_mappo trunk vs residual trainer; HEAD a634928"
+  mechanism: "PPO clip / approx_kl"
+  code_path: "src/marl_topology/training/graph_mappo.py::ppo_clip_actor_loss (L79), approx_kl (L108)"
+  entrypoint: "scripts/train/train_decentralized_rl.py (trunk); NOT residual_pbrs_train.py"
+  config_flags: "trunk PPO (graph-mappo); residual path has none"
+  loss_uses_mechanism: "trunk: yes (ppo_clip_actor_loss called via dynamic_rl); residual path: NO"
+  load_bearing_tests:
+    - "tests/unit/test_belief_residual_R0_audit.py::test_graph_mappo_defines_ppo_clip_and_approx_kl"
+    - "tests/unit/test_belief_residual_R0_audit.py::test_residual_update_does_not_call_ppo_clip_spy"
+  conclusion_boundary: "trunk PPO != residual PPO; residual PPO must be built + proven on its own path (R3)."
+
+cited_from: "docs/pomdp_qpfar/Q14_stale_csi_residual_joint/decision.md"
+source_commit: "a634928"
+source_artifact: "result_save/stale_csi_residual_joint.json (Q14), scratchpad raw per-seed"
+why_retraining_not_required: "R0 is an audit; it re-scopes Q14, does not re-run it."
+what_claim_is_supported: "Q14 negative is path-specific (REINFORCE residual + flip penalty), not general."

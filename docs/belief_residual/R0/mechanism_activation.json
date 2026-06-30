@@ -1,0 +1,36 @@
+{
+  "stage": "R0",
+  "description": "Belief-Guided Residual PPO -- residual-trainer path audit (Contract v4). No production code change.",
+  "head_commit_at_start": "a634928",
+  "audit": {
+    "graph_mappo_trunk": {
+      "ppo_clip_actor_loss": "ACTIVE_IN_LOSS",
+      "approx_kl": "ACTIVE_IN_LOSS",
+      "clip_fraction": "logged",
+      "ctde_value_critic": "present (CentralizedGraphCritic)",
+      "entropy_coef": "CALLABLE",
+      "evidence": "src/marl_topology/training/graph_mappo.py L79/L102/L108; used by dynamic_rl.py + train_decentralized_rl.py"
+    },
+    "residual_pbrs_train_path": {
+      "ppo_clip_actor_loss": "NOT_PRESENT",
+      "approx_kl": "NOT_PRESENT",
+      "ctde_value_critic": "NOT_PRESENT (scalar moving baseline)",
+      "entropy_bonus": "NOT_PRESENT",
+      "csi_belief_auxiliary": "NOT_PRESENT",
+      "raw_logit_l2": "NOT_PRESENT",
+      "separate_residual_head": "NOT_PRESENT (shared +-10 tanh head)",
+      "evidence_gated_action": "NOT_PRESENT (all-edge Bernoulli)",
+      "trust_region": "fixed flip penalty (anchor_reg) only",
+      "loss": "REINFORCE: -sum_t logp_t*(G_t - moving_baseline) + anchor_reg*mean(expected #flips); + PBRS shaping (training-only)",
+      "only_clip": "clip_grad_norm_ (gradient-norm clipping, NOT PPO clip)"
+    },
+    "csi_belief": "diagnostic-only (scripts/diagnostics/csi_prediction_health.py); NEVER in any policy loss"
+  },
+  "load_bearing_tests": {
+    "test_graph_mappo_defines_ppo_clip_and_approx_kl": "PASS",
+    "test_residual_trainer_source_is_reinforce_no_ppo_no_critic_no_csi": "PASS",
+    "test_residual_update_does_not_call_ppo_clip_spy": "PASS (ppo calls = 0; R3 tripwire armed)"
+  },
+  "scope_boundary": "Q14 negative is path-specific: REINFORCE-residual + fixed flip-penalty under delay1 urban. Does NOT test residual PPO / CTDE critic / CSI-belief / evidence-gated edits / beneficial-edit supervision -- all NOT_PRESENT.",
+  "no_substitution": "Contract v4 sec 7: trunk PPO does NOT imply residual PPO."
+}
