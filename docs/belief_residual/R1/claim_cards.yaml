@@ -1,0 +1,39 @@
+# R1 Claim Cards (Contract v4 §1)
+
+- claim: "A separate small-range residual head (z = z_max*tanh(raw/z_max), z_max=3) + raw-logit L2 fixes the
+    Q14 logit saturation: under stale CSI the recurrent vs memoryless residual LOGITS are no longer
+    bit-identical, and the head is unsaturated."
+  scope: "R1, urban delay-1 pilot + unit tests, N<=16, single pilot (not multi-seed); LOGIT-level only"
+  mechanism: "BeliefResidualActor separate residual head + raw_logit_l2_penalty + all-frame standardization"
+  code_path: "src/marl_topology/models/belief_residual_actor.py::BeliefResidualActor.forward/residual_raw;
+    src/marl_topology/training/residual_saturation.py::{saturation_metrics,raw_logit_l2_penalty,
+    feature_standardization_all_frames,recurrent_vs_memoryless_delta}"
+  entrypoint: "scripts/diagnostics/r1_saturation_pilot.py (pilot); tests/unit/test_belief_residual_R1_saturation.py"
+  config_flags: "residual_logit_scale=3.0 (z_max in [2,4]); lam_raw=0.02 (pilot)"
+  dataset: "urban delay-1 (CsiObservationModel delay_frames=1); train seed 1001 / held 1777"
+  seeds: "1 (pilot); unit tests deterministic"
+  split: "train/held (held never used for fitting the pilot)"
+  loss_uses_mechanism: "pilot loss = -mean(logit) + lam_raw*raw_logit_l2_penalty(raw) (the raw-L2 enters the
+    optimized loss); the residual head is the policy logit source"
+  eval_uses_mechanism: "saturation_metrics + recurrent_vs_memoryless_delta on held frames; true PBFT not used
+    at R1 (no policy rollout / feasibility claim this stage)"
+  runtime_activation_artifact: "result_save/belief_residual/R1/saturation_pilot.json (copied to docs/belief_residual/R1/)"
+  load_bearing_tests:
+    - "test_belief_residual_R1_saturation.py::test_recurrent_changes_logits_under_stale_csi (logit delta>1e-3, frac_logit_near_rail<0.5)"
+    - "test_belief_residual_R1_saturation.py::test_raw_logit_l2_reduces_saturation_on_pilot (L2 shrinks raw)"
+    - "test_belief_residual_R1_saturation.py::test_saturation_metrics_logged / test_standardization_uses_all_train_frames / test_stale_feature_scale_not_exploding"
+  effect_on_decision_metrics: "OLD pm10 head: frac_logit_near_rail 1.0, recurrent_memoryless_logit_delta 0.0
+    (INERT). NEW pm3 head: frac_logit_near_rail 0.0, raw_abs_mean 4.1 (vs 72.5), logit_delta 0.0257.
+    recurrent_memoryless_ACTION_delta = 0.0 (logits differ but no flip crosses z>0 yet)."
+  raw_result_artifact: "result_save/belief_residual/R1/saturation_pilot.json + docs/belief_residual/R1/saturation_pilot.json"
+  conclusion_boundary: "R1 fixes the LOGIT-level inertness ONLY. It does NOT yet change the final
+    action/topology (action_delta=0) -- that is R3 (trained policy near decision boundaries + gated edits).
+    No feasibility / control claim is made at R1. Single pilot seed: the magnitudes are illustrative, the
+    direction (old saturates+inert / new unsaturated+passes) is what R1 establishes."
+
+cited_from: "docs/pomdp_qpfar/Q14_stale_csi_residual_joint/decision.md (the 83%-railed, recurrence-inert finding)"
+source_commit: "fea80fc (R0) / a634928 (Q14)"
+source_artifact: "result_save/stale_csi_residual_joint.json"
+why_retraining_not_required: "R1 reproduces the OLD-head saturation in-pilot (frac_logit_near_rail 1.0) as the
+  control, then shows the NEW head fixes it -- the Q14 mechanism is re-derived, not merely cited."
+what_claim_is_supported: "saturation was the cause of recurrent==memoryless; the separate small-range head removes it."

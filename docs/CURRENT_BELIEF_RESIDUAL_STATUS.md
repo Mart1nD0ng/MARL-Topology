@@ -58,7 +58,7 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 | R | deliverable | HEAD status | exit condition |
 |---|---|---|---|
 | **R0** | freeze Q14 + residual-trainer path audit | **DONE (this commit)** — Mechanism-Path Matrix above; 3 load-bearing audit tests pass (`tests/unit/test_belief_residual_R0_audit.py`): graph_mappo defines PPO/KL; residual source is REINFORCE-only; spy proves a residual update never calls `ppo_clip_actor_loss` (R3 tripwire) | "PPO exists" ≠ "PPO active in residual path" pinned in code ✓ |
-| R1 | feature standardization + logit-saturation fix (all-frame norm, raw-logit L2, separate small-range residual head, saturation metrics) | NOT_IMPLEMENTED | saturation rate down; recurrent vs memoryless logits no longer bit-identical |
+| R1 | feature standardization + logit-saturation fix (all-frame norm, raw-logit L2, separate small-range residual head, saturation metrics) | **DONE** — `BeliefResidualActor` (±3 separate head, exposes raw) + `residual_saturation.py`; pilot urban delay-1: old ±10 head frac_logit_near_rail **1.0** + recurrent−memoryless logit delta **0.0 (inert)** → new ±3 head **0.0** rail + delta **0.0257 (passes)**; action_delta still 0 (logit-level only, R3 for topology); 5 load-bearing tests, suite 780/0; Workflow `wfv50jg36` | saturation down ✓ AND recurrent vs memoryless logits no longer bit-identical ✓ |
 | R2 | CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true CSI = training label only) | NOT_IMPLEMENTED | recurrent belief MSE < memoryless under delay; belief loss in policy loss |
 | R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | NOT_IMPLEMENTED | residual calls `ppo_clip_actor_loss`; KL/clip/EV sane; clamp/collapse reduced |
 | R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | NOT_IMPLEMENTED | non-zero positive-edit rate; no full-oracle-topology imitation |
@@ -94,5 +94,12 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 graph_mappo trunk; the residual path is REINFORCE + moving baseline + fixed flip-penalty; no belief / edit
 supervision / gating. 3 load-bearing audit tests pin this (incl. the R3 PPO spy tripwire). Q14's negative is
 now formally scoped to "REINFORCE-residual + flip-penalty under delay1 urban", NOT residual PPO / belief.
-**Next: R1** — fix feature standardization (all train frames) + logit saturation (raw-logit L2 + separate
-small-range residual head) + saturation metrics, so the temporal signal can pass the actor head.
+**R1 DONE** (logit-saturation fix). `BeliefResidualActor` (separate ±3 residual head exposing raw) +
+`residual_saturation.py` (all-frame standardization / saturation metrics / raw-logit L2 / recurrent-vs-
+memoryless delta). Pilot (urban delay-1, after identical logit-pushing): the OLD ±10 shared head reproduces
+Q14 (frac_logit_near_rail **1.0**, recurrent−memoryless logit delta **0.0 = inert**); the NEW ±3 head +
+raw-L2 is **unsaturated (0.0)** and recurrence now **passes** (delta **0.0257 > 0**). **Honest scope: the fix
+is LOGIT-level only — action_delta=0 (the topology is unchanged until a trained policy near decision
+boundaries, R3).** 5 load-bearing/effect-on-decision tests; suite 780/0; Workflow `wfv50jg36`.
+**Next: R2** — CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true current psucc = training label
+only; recurrent belief MSE < memoryless under delay; belief loss enters the policy training loss).

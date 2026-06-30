@@ -1,0 +1,30 @@
+{
+  "stage": "R1",
+  "description": "Belief-Guided Residual PPO -- feature standardization (all train frames) + logit-saturation fix (separate small-range residual head + raw-logit L2 + saturation metrics).",
+  "new_modules": {
+    "src/marl_topology/models/belief_residual_actor.py": "BeliefResidualActor (node-enc + directional MP + GRUCell + SEPARATE residual head z=z_max*tanh(raw/z_max), z_max=3, exposes raw)",
+    "src/marl_topology/training/residual_saturation.py": "feature_standardization_all_frames, saturation_metrics, raw_logit_l2_penalty, recurrent_vs_memoryless_delta"
+  },
+  "additive": "does NOT modify DynamicRecurrentActor or residual_pbrs_train.py; new head is IMPLEMENTED_ONLY (ACTIVE_IN_LOSS at R3)",
+  "load_bearing_tests": {
+    "test_standardization_uses_all_train_frames": "PASS",
+    "test_stale_feature_scale_not_exploding": "PASS",
+    "test_saturation_metrics_logged": "PASS",
+    "test_raw_logit_l2_reduces_saturation_on_pilot": "PASS",
+    "test_recurrent_changes_logits_under_stale_csi": "PASS"
+  },
+  "suite": "780 passed / 0 failed",
+  "pilot_effect_on_decision": {
+    "data": "urban delay-1, after identical logit-pushing optimization",
+    "old_head_pm10": {"frac_logit_near_rail": 1.0, "raw_abs_mean": 72.48, "recurrent_memoryless_logit_delta": 0.0, "recurrent_memoryless_action_delta": 0.0},
+    "new_head_pm3_rawL2": {"frac_logit_near_rail": 0.0, "raw_abs_mean": 4.13, "recurrent_memoryless_logit_delta": 0.02571, "recurrent_memoryless_action_delta": 0.0}
+  },
+  "exit_condition": {
+    "saturation_dropped": true,
+    "recurrent_logits_not_bit_identical": true,
+    "old_head_confirmed_inert": true,
+    "action_topology_delta_still_zero": true
+  },
+  "scope_boundary": "R1 fixes the LOGIT-level inertness only (recurrent != memoryless logits, head unsaturated). The final action/topology is UNCHANGED at R1 (action_delta=0); whether recurrence changes the topology is deferred to R3 (trained policy near decision boundaries + evidence-gated edits). No feasibility/control claim at R1.",
+  "verification_workflow": "wfv50jg36"
+}
