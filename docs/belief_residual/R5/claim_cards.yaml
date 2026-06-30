@@ -1,0 +1,57 @@
+# R5 Claim Cards (Contract v4 §1)
+
+- claim: "The repair/safety/edit heads read ONLY LOCAL deployable features (the graph encoding of nf/ef +
+    anchor membership) -- NO evaluator, NO critic, NO central/global decoder. The R4 evaluator scores are
+    TRAINING LABELS; the head input never sees them. CSI-scope note: R5 runs with the stale-CSI POMDP overlay
+    OFF (residual_ppo_train._build passes no csi_observation_model), so ef is the CURRENT-frame channel (the
+    deployable channel observation used across R3/R4) -- 'no true CSI' here means the head never sees the
+    evaluator/critic/central reliability computation, NOT that the channel is stale (the stale-CSI axis is the
+    separate R1/R2 dimension)."
+  scope: "R5, BeliefResidualActor.edit_scores; deployable feature audit (stale-CSI overlay off; ef=current-frame channel)"
+  mechanism: "edit/repair/safety heads on per-edge local features [ef, h_u*h_v, |h_u-h_v|]"
+  code_path: "src/marl_topology/models/belief_residual_actor.py::edit_scores; edit_head/repair_head/safety_head"
+  entrypoint: "src/marl_topology/training/edit_head_training.py; tests/unit/test_belief_residual_R5_heads.py"
+  config_flags: "epochs 40, hidden 64, margin 0.0"
+  loss_uses_mechanism: "L = L_edit(BCE on positive) + L_repair(Huber, adds) + L_safety(Huber, removes)"
+  eval_uses_mechanism: "held top-k edit precision (k=#positive/frame) vs same-budget random base rate; repair/safety corr"
+  runtime_activation_artifact: "result_save/belief_residual/R5/edit_heads_metrics.json"
+  load_bearing_tests:
+    - "test_heads_use_only_local_features (edit_scores sig = {nf,ef,ei,hidden}; runs with no evaluator)"
+    - "test_edit_head_topk_metric_correct (precision>base on good ranking, <base on bad)"
+    - "test_repair_safety_heads_present_and_trained / test_heads_dataset_uses_train_held_separately"
+  effect_on_decision_metrics: "held top-k precision vs random base rate (precision_minus_base) + repair/safety corr"
+  conclusion_boundary: "heads are deployable (local-only); the open empirical question is whether they BEAT random on held (next claim)."
+
+- claim: "THE PIVOTAL RESULT -- deployable local-feature heads CAN predict the R4 central beneficial edits.
+    Held top-k edit precision beats the same-budget random baseline DECISIVELY on random (5-seed
+    precision_minus_base +0.251 CI[+0.089,+0.413], 3.17x lift; repair_corr +0.226 CI[+0.176,+0.277]; UNTRAINED
+    control at chance +0.003 CI[-0.088,+0.094]) and IN MEAN on urban (+0.184, 4.50x lift, but 5-seed CI
+    [-0.005,+0.373] spans 0 by 0.005 -- not 95%-significant at n=5). KEEP -> R6; the R4 signal IS locally
+    learnable (NOT a deployable learning gap). Open boundary: urban 95%-significance at n=5 and whether the
+    learned ranking yields a deployed feasibility/return gain (R6)."
+  scope: "R5, urban+random, N<=16, 5 seeds; held top-k edit precision vs random base rate"
+  mechanism: "supervised edit head (local features) vs same-budget random edit selection; untrained-head control"
+  code_path: "src/marl_topology/training/edit_head_training.py::{train_edit_heads,topk_metrics}"
+  entrypoint: "scripts/diagnostics/r5_edit_heads_gen.py"
+  seeds: "5"
+  split: "train scenes for training; SEPARATE held scenes (10x build) for eval (held never trained on)"
+  eval_uses_mechanism: "held precision@k - base_rate, paired 95% CI; untrained-head precision-base as control"
+  runtime_activation_artifact: "result_save/belief_residual/R5/edit_heads_metrics.json"
+  effect_on_decision_metrics: "random precision_minus_base +0.251 CI[+0.089,+0.413] (CI>0); urban +0.184
+    CI[-0.005,+0.373] (mean>0, spans 0); repair_corr random +0.226 CI>0; untrained control at chance both regimes."
+  raw_result_artifact: "result_save/belief_residual/R5/edit_heads_metrics.json; docs/belief_residual/R5/edit_heads_metrics.json"
+  decision: "KEEP -> R6 (local learnability of the R4 direction signal established; urban significance flagged)."
+  conclusion_boundary: "Tests local LEARNABILITY of the R4 signal on the current-frame channel (stale-CSI
+    overlay off). Random CI>0 at n=5 = deployable-learning positive (untrained control at chance + causal
+    ablation: zeroing edit_head collapses prec-base +0.324->-0.128 => it is learning, not the metric); the n=5
+    CI lower bound +0.089 is small (single-seed +0.324 vs mean +0.251) so 'decisive' is qualified as 'at n=5'.
+    Headline rests on edit precision + repair_corr (CI>0), NOT safety_corr (spans 0 on random). Urban mean
+    strongly positive (4.5x) but CI spans 0 by 0.005 => not yet 95%-significant at n=5; urban deployed gain NOT
+    claimed. Acceptance gate is PER-REGIME (KEEP if either regime CI>0 with control at chance), met on random.
+    R5 proves the RANKING is locally learnable, NOT that it improves the deployed topology (R6), and NOT yet
+    under the stale-CSI overlay (R6/R8)."
+
+cited_from: "docs/belief_residual/R4/decision.md (the beneficial-edit signal exists; R5 tests local learnability)"
+source_commit: "74f04fe (R4)"
+why_retraining_not_required: "R5 trains the heads fresh on the R4 targets."
+what_claim_is_supported: "local features CAN predict the central beneficial edits (decisive on random, mean-positive on urban)."

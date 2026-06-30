@@ -1,0 +1,95 @@
+{
+  "scope": "R5 supervised edit/repair/safety heads (LOCAL features only) on R4 targets; 5 seeds x {random,urban}; held top-k edit precision vs random base rate",
+  "by_data": {
+    "random": {
+      "topk_precision": {
+        "mean": 0.42492,
+        "lo": 0.23855,
+        "hi": 0.61129,
+        "n": 5
+      },
+      "random_base_rate": {
+        "mean": 0.17382,
+        "lo": 0.12757,
+        "hi": 0.22007,
+        "n": 5
+      },
+      "precision_minus_base": {
+        "mean": 0.25111,
+        "lo": 0.08935,
+        "hi": 0.41286,
+        "n": 5
+      },
+      "lift": {
+        "mean": 3.17121,
+        "lo": 1.20116,
+        "hi": 5.14127,
+        "n": 5
+      },
+      "repair_corr": {
+        "mean": 0.22625,
+        "lo": 0.17587,
+        "hi": 0.27664,
+        "n": 5
+      },
+      "safety_corr": {
+        "mean": 0.10521,
+        "lo": -0.20847,
+        "hi": 0.4189,
+        "n": 5
+      },
+      "untrained_precision_minus_base": {
+        "mean": 0.00337,
+        "lo": -0.08764,
+        "hi": 0.09438,
+        "n": 5
+      },
+      "heads_beat_random": true
+    },
+    "urban": {
+      "topk_precision": {
+        "mean": 0.32411,
+        "lo": 0.15826,
+        "hi": 0.48996,
+        "n": 5
+      },
+      "random_base_rate": {
+        "mean": 0.13988,
+        "lo": 0.10998,
+        "hi": 0.16979,
+        "n": 5
+      },
+      "precision_minus_base": {
+        "mean": 0.18423,
+        "lo": -0.00479,
+        "hi": 0.37324,
+        "n": 5
+      },
+      "lift": {
+        "mean": 4.50329,
+        "lo": 1.05418,
+        "hi": 7.9524,
+        "n": 5
+      },
+      "repair_corr": {
+        "mean": 0.17779,
+        "lo": -0.08487,
+        "hi": 0.44045,
+        "n": 5
+      },
+      "safety_corr": {
+        "mean": 0.05765,
+        "lo": 0.00458,
+        "hi": 0.11072,
+        "n": 5
+      },
+      "untrained_precision_minus_base": {
+        "mean": 0.02969,
+        "lo": -0.03317,
+        "hi": 0.09254,
+        "n": 5
+      },
+      "heads_beat_random": false
+    }
+  }
+}

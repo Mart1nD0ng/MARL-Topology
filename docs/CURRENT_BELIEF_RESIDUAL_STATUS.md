@@ -41,7 +41,7 @@ Status ∈ {NOT_PRESENT, IMPLEMENTED_ONLY, CALLABLE, ACTIVE_IN_LOSS, ACTIVE_IN_E
 | raw-logit L2 / saturation control | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R1) |
 | CSI-belief auxiliary (`L_CSI`, belief_head) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_LOSS (R2) but NO-OP for recovery** — belief does NOT beat the stale-echo floor (5-seed CI entirely negative, 0/5); leak-free + in-loss verified; `L_CSI` ablatable at R3 |
 | separate residual head (small-range logits) | NOT_PRESENT (shared ±10 head) | NOT_PRESENT | NOT_PRESENT | ACTIVE (R1) |
-| beneficial-edit supervision (repair/safety/edit) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R4–R5) |
+| beneficial-edit supervision (repair/safety/edit) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_EVAL (R5)** — heads trained (L_edit BCE / L_repair/L_safety Huber) on R4 labels; held top-k beats random (random CI>0, urban mean-positive); local features only |
 | evidence-gated residual action | NOT_PRESENT | NOT_PRESENT (all-edge Bernoulli) | NOT_PRESENT | ACTIVE_IN_DEPLOY (R6) |
 | adaptive anchor KL / safety constraint | NOT_PRESENT | NOT_PRESENT (fixed flip penalty) | NOT_PRESENT (fixed) | ACTIVE_IN_LOSS (R7) |
 | D_quorum potential | — | CALLABLE (PBRS) | CALLABLE | edit-label + repair head (R4–R5) |
@@ -62,7 +62,7 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 | R2 | CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true CSI = training label only) | **DONE (REVISE — HONEST NEGATIVE: belief is a no-op CSI predictor)** — `BeliefResidualActor.belief` + `csi_belief.py` + `csi_belief_train.py`. Belief loss ENTERS the policy-actor loss (grads reach belief_head+GRU, spy) and is leak-free (verified). **BUT held belief MSE sits at/above the stale-echo floor** (predict the stale obs) even with leak-free velocity + 80–400 epochs → **does NOT recover current CSI** (learns the echo; correction-direction corr≈−0.035). Recurrence also null (mem−rec CI spans 0). 7 tests (incl. honest-negative pin), suite green; Workflow `wozljm9uf` MAJOR (adopted). | belief-in-loss MET ✓; "recovers CSI / beats stale-echo floor" NOT met → HONEST NEGATIVE (TechSpec chain 1) |
 | R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | **DONE (KEEP — PPO stabilizes; == anchor)** — `residual_ppo_train.py` genuinely calls `ppo_clip_actor_loss` (per-edge ratios, spy), logs approx_kl/clip_fraction, target_kl early-stop; `ResidualValueCritic` EV **0.56** (LayerNorm fix), entropy, raw-L2. PPO **stable** (retention 1.0, 0 collapse) — fixes free-REINFORCE bimodal collapse — BUT residual **== anchor** (edit_rate 0.0): missing-direction-signal (R4–R5), not a PPO failure. 7 tests, suite 794/0; Workflow PENDING | PPO+critic active ✓; clamp/collapse reduced ✓; == anchor → direction-signal gap |
 | R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | **DONE (KEEP — beneficial-edit signal EXISTS)** — `oracle_edit_dataset.py` (teacher-only; anchor + single edit + Δ's, never the oracle topology). 5-seed positive_edit_rate **random 0.096 [0.055,0.137] / urban 0.125 [0.074,0.175]** (CIs strictly >0); repairable 0.26/0.18; safe-prune 0.28/0.75; best ΔJ 0.73/0.12. CENTRAL-reference signal (∝ Q7/Q8) — deployable learning is R5. 6 tests, suite 800/0; Workflow `w1o20fuos` | non-zero positive-edit rate ✓; no full-oracle imitation ✓ → R5 |
-| R5 | repair/safety/utility/edit heads (supervised) | NOT_IMPLEMENTED | held top-k edit hit rate > random |
+| R5 | repair/safety/utility/edit heads (supervised) | **DONE (KEEP — PARTIAL POSITIVE: the R4 signal IS locally learnable)** — `edit_head`/`repair_head`/`safety_head` on `BeliefResidualActor` (local features `[ef, h_u⊙h_v, |h_u−h_v|]` only) + `edit_head_training.py` (L_edit BCE + L_repair/L_safety Huber; held eval). 5-seed held top-k precision−base: **random +0.251 [+0.089, +0.413] (CI>0, 3.2× lift)**, urban +0.184 [−0.005, +0.373] (4.5× lift, spans 0 by 0.005). repair_corr random +0.226 [+0.176,+0.277]. **UNTRAINED control at chance** ([−0.088,+0.094]/[−0.033,+0.093]) → the lift is from LOCAL-feature training, not the metric. 5 tests, suite 805/0; Workflow `w4refc811` | held top-k edit hit rate > random — **random MET decisively, urban met in mean (not 95%-sig at n=5)** → KEEP → R6 |
 | R6 | evidence-gated residual action | NOT_IMPLEMENTED | bad edits gated out; zero-candidate→anchor; budget-safe; 0-eval deploy |
 | R7 | adaptive anchor KL / safety constraint (replace fixed flip penalty) | NOT_IMPLEMENTED | no retention=0 collapse and no edit_rate=0 clamp |
 | R8 | full-method pilot (6 arms × urban delay1/current, random delay1) | NOT_IMPLEMENTED | ≥1 learned arm beats anchor or repairs the stale drop, OR the failing layer is localized |
@@ -130,6 +130,20 @@ safe-prune 0.28/0.75; best ΔJ 0.73 (random). So the anchor is NOT a local optim
 "nothing beats the anchor" pattern. **Honest scope: this is a CENTRAL-reference (training-only) signal
 (consistent with Q7 22%-repair / Q8 47%-prune); it does NOT yet show a DEPLOYABLE head can learn it from local
 features (R5) or beats the anchor (R6/R8).** Teacher-only (held never passed); stores anchor + single edit
-(never the oracle topology). 6 tests, suite 800/0; Workflow `w1o20fuos`. **Next: R5** — train repair/safety/
-utility/edit heads on the R4 positive edits; held top-k edit hit rate must beat random (else the deployable
-route fails at the LEARNING gap, not the no-signal gap).
+(never the oracle topology). 6 tests, suite 800/0; Workflow `w1o20fuos`.
+**R5 DONE — KEEP (PARTIAL POSITIVE: the campaign's first decisive deployable-LEARNING positive — local
+features CAN predict the R4 beneficial edits).** `edit_head`/`repair_head`/`safety_head` appended to
+`BeliefResidualActor` (per-edge LOCAL features `[ef, h_u⊙h_v, |h_u−h_v|]` only — NO evaluator / true CSI; the
+R4 evaluator scores are training-only LABELS) + `edit_head_training.py` (`build_edit_examples`,
+`train_edit_heads` = L_edit BCE + L_repair/L_safety Huber, SEPARATE held eval, `topk_metrics`). **5-seed held
+top-k edit precision − random base rate: random +0.251 [+0.089, +0.413] (CI strictly >0, 3.17× lift), urban
++0.184 [−0.005, +0.373] (4.50× lift, CI spans 0 by 0.005 — mean strongly positive but NOT 95%-significant at
+n=5).** repair_corr random +0.226 [+0.176, +0.277] (CI>0). **The UNTRAINED head's precision−base sits at
+chance on both regimes ([−0.088,+0.094]/[−0.033,+0.093]) → the lift is produced by training the heads on LOCAL
+features, NOT a metric artifact.** This answers the deployable-LEARNING question POSITIVELY (decisive on random,
+mean-positive on urban) — it is NOT a learning gap; R4 proved the signal exists, R5 proves local features can
+learn to RANK it. **Honest scope: R5 proves the RANKING is locally learnable, NOT yet that gating the residual
+action on the heads improves the DEPLOYED topology (R6), and urban is not 95%-significant at n=5.** 5 tests,
+suite 805/0; Workflow `w4refc811`. **Next: R6** — evidence-gated residual action (sample only among edits
+passing the repair/safety gate; zero candidates → anchor; budget-safe; 0 evaluator at deployment); measure
+whether the learned ranking converts into a deployed feasibility/return gain on BOTH regimes.

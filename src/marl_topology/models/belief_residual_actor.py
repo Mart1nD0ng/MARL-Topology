@@ -50,6 +50,13 @@ class BeliefResidualActor(nn.Module):
         self.belief_head = nn.Sequential(
             nn.Linear(edge_dim + self.belief_extra_dim + 2 * hidden, hidden), nn.ReLU(),
             nn.Linear(hidden, 1))
+        # R5: beneficial-EDIT heads (supervised on the R4 oracle-edit targets). edit_head = per-edge
+        # beneficial-edit logit; repair_head = add/swap-in repair gain; safety_head = remove/swap-out deletion
+        # risk. All read ONLY the per-edge LOCAL features [ef, h_u*h_v, |h_u-h_v|] (deployable; no evaluator).
+        # Appended LAST so the earlier heads' init RNG is unchanged.
+        self.edit_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
+        self.repair_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
+        self.safety_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
 
     def init_hidden(self, n_nodes: int, ref: Tensor) -> Tensor:
         return ref.new_zeros(n_nodes, self.hidden)
@@ -107,6 +114,22 @@ class BeliefResidualActor(nn.Module):
         parts += [hu * hv, torch.abs(hu - hv)]
         bel = self.belief_head(torch.cat(parts, dim=-1)).squeeze(-1)
         return bel, h
+
+    def edit_scores(self, nf: Tensor, ef: Tensor, ei: Tensor,
+                    hidden: Tensor | None = None) -> tuple[dict, Tensor]:
+        """R5 beneficial-edit heads from LOCAL features only (deployable; no evaluator / no true CSI). Returns
+        ({edit_logit[E], repair_pred[E], safety_pred[E]}, new_hidden). edit_logit ranks beneficial edits;
+        repair_pred = predicted add/swap-in repair gain; safety_pred = predicted remove deletion risk."""
+        h = self.encode(nf, ef, ei, hidden)
+        if ei.shape[0] == 0:
+            z = ef.new_zeros(0)
+            return {"edit_logit": z, "repair_pred": z, "safety_pred": z}, h
+        hb = self.h_norm(h)
+        hu, hv = hb[ei[:, 0].long()], hb[ei[:, 1].long()]
+        feats = torch.cat([ef, hu * hv, torch.abs(hu - hv)], dim=-1)
+        return ({"edit_logit": self.edit_head(feats).squeeze(-1),
+                 "repair_pred": self.repair_head(feats).squeeze(-1),
+                 "safety_pred": self.safety_head(feats).squeeze(-1)}, h)
 
     def boundary_report(self) -> dict:
         return {

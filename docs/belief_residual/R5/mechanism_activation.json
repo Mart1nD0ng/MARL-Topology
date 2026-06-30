@@ -1,0 +1,56 @@
+{
+  "stage": "R5",
+  "title": "repair/safety/edit heads -- deployable-learning crux (local features predict the R4 beneficial edits)",
+  "source_commit_cited": "74f04fe (R4: beneficial-edit signal EXISTS)",
+  "decision": "KEEP -> R6 (PARTIAL POSITIVE; campaign's first decisive deployable-LEARNING positive)",
+  "heads": {
+    "edit_head": {"status": "ACTIVE_IN_EVAL", "loss": "L_edit BCE", "input": "local [ef, h_u*h_v, |h_u-h_v|]"},
+    "repair_head": {"status": "ACTIVE_IN_LOSS", "loss": "L_repair Huber", "target": "R4 dD-reduction (adds)"},
+    "safety_head": {"status": "ACTIVE_IN_LOSS", "loss": "L_safety Huber", "target": "R4 dD-increase (removes)"}
+  },
+  "deployable": {
+    "head_input_sees_evaluator": false,
+    "head_input_sees_critic_or_central_decoder": false,
+    "csi_scope": "R5 runs with the stale-CSI POMDP overlay OFF (residual_ppo_train._build passes no csi_observation_model); ef is the CURRENT-frame channel (the deployable channel used across R3/R4). 'no true CSI' here means the head never sees the evaluator/critic/central reliability computation, NOT that the channel is stale (stale-CSI is the separate R1/R2 axis). Stale-CSI survival of the learned ranking is evaluated at R6/R8.",
+    "r4_scores_role": "training_labels_only",
+    "evaluator_calls_at_deployment": 0
+  },
+  "result_5seed": {
+    "artifact": "result_save/belief_residual/R5/edit_heads_metrics.json",
+    "config": "train 5 scenes-build, held 10 scenes-build, 4 frames, epochs 40, hidden 64, seeds [0,1,2,3,4]",
+    "random": {
+      "topk_precision_mean": 0.42492,
+      "random_base_rate_mean": 0.17382,
+      "precision_minus_base_mean": 0.25111,
+      "precision_minus_base_ci": [0.08935, 0.41286],
+      "beats_random_95ci": true,
+      "lift_mean": 3.17121,
+      "repair_corr": [0.17587, 0.27664],
+      "safety_corr": [-0.20847, 0.4189],
+      "untrained_precision_minus_base_ci": [-0.08764, 0.09438]
+    },
+    "urban": {
+      "topk_precision_mean": 0.32411,
+      "random_base_rate_mean": 0.13988,
+      "precision_minus_base_mean": 0.18423,
+      "precision_minus_base_ci": [-0.00479, 0.37324],
+      "beats_random_95ci": false,
+      "lift_mean": 4.50329,
+      "repair_corr": [-0.08487, 0.44045],
+      "safety_corr": [0.00458, 0.11072],
+      "untrained_precision_minus_base_ci": [-0.03317, 0.09254]
+    }
+  },
+  "interpretation": "Local-feature heads DECISIVELY learn the R4 beneficial-edit ranking on random (CI entirely >0, 3.2x lift, repair_corr CI>0, untrained control at chance => learning not metric) and IN MEAN on urban (4.5x lift, CI spans 0 by 0.005, not 95%-sig at n=5). This is the deployable-LEARNING question answered POSITIVELY; NOT a learning gap. R5 proves the RANKING is locally learnable, not yet that it improves the deployed topology (R6).",
+  "effect_on_decision": "heads change the candidate-edit RANKING (held top-k precision +0.25 random / +0.18 urban over random baseline); deployed-topology effect is R6.",
+  "scope_boundary": "(a) urban 95%-significance at n=5 (CI lo -0.005); (b) random CI lo +0.089 is small (n=5 fragile, single-seed +0.324 vs mean +0.251) -- 'decisive' qualified as 'at n=5'; (c) deployed feasibility/return gain unproven until R6 end-to-end eval; (d) learned on the current-frame channel -- stale-CSI survival deferred to R6/R8. Headline rests on edit precision + repair_corr (CI>0), not safety_corr (spans 0 on random).",
+  "tests": "tests/unit/test_belief_residual_R5_heads.py 5/5; belief_residual R0-R5 33/33; full suite 805/0",
+  "adversarial_verification": {
+    "workflow": "w4refc811 (5 agents, 4 lenses + synthesis)",
+    "synthesis_verdict": "MINOR (load_bearing_confirmed=true; no MAJOR)",
+    "lens_verdicts": {"leak-audit": "MINOR", "stats-honesty": "MINOR", "load-bearing": "PASS", "overclaim-scope": "MINOR"},
+    "independent_checks": "causal ablation (zeroing edit_head collapses prec-base +0.324->-0.128); train/held seed-disjoint (overlap 0); CI arithmetic reconstructs exactly (t=2.776, 4 dof); untrained control at chance both regimes.",
+    "minor_fixes_applied": "(1) clarified 'no true CSI' = no evaluator/critic/central computation; ef is current-frame channel (stale overlay off); (2) qualified 'decisive' as at n=5, headline on repair_corr not safety_corr; (3) acceptance gate stated per-regime."
+  },
+  "no_push": true
+}
