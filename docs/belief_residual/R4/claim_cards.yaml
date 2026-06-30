@@ -1,0 +1,32 @@
+# R4 Claim Cards (Contract v4 §1)
+
+- claim: "A beneficial-edit DIRECTION signal EXISTS over the local_hysteresis anchor at N<=16: a non-trivial
+    fraction of single LOCAL edits (add/remove/swap) have a positive true-objective gain (ΔJ>0, safe). So the
+    anchor is NOT a local optimum in the local-edit space -- there is something for R5 to learn."
+  scope: "R4, urban+random, N<=16, 5 seeds; teacher-only (train scenes); ΔJ in the dense reward"
+  mechanism: "oracle-edit enumeration + true-evaluator scoring of ΔC/ΔD_quorum/ΔE/ΔL/ΔJ; positive = ΔJ>margin AND safe"
+  code_path: "src/marl_topology/training/oracle_edit_dataset.py::{build_edit_dataset,supervised_records,dataset_hash}"
+  entrypoint: "scripts/diagnostics/oracle_edit_dataset_gen.py; tests/unit/test_belief_residual_R4_oracle_edit.py"
+  config_flags: "margin 0.0 (and 0.01 variant); max_swap 3; tau 0.9"
+  dataset: "urban + random current-CSI train scenes; 5 seeds; held NEVER passed (teacher-only)"
+  seeds: "5 (CI) + 1 pilot"
+  split: "train only (teacher); R5 will train heads on train, eval on held"
+  loss_uses_mechanism: "n/a at R4 (dataset construction); the supervised subset feeds the R5 head loss"
+  eval_uses_mechanism: "true PBFT C/E/L + D_quorum via the training evaluator per edit (true current channel)"
+  runtime_activation_artifact: "result_save/belief_residual/R4/oracle_edit_metrics.json"
+  load_bearing_tests:
+    - "test_oracle_edit_dataset_contains_anchor_and_delta / test_edit_labels_include_C_D_E_L"
+    - "test_only_positive_gain_edits_supervised (supervised = ΔJ>margin AND safe)"
+    - "test_no_full_oracle_topology_stored (anchor + single edit only, not the oracle topology)"
+    - "test_teacher_does_not_use_held_for_training / test_dataset_artifact_hash_logged"
+  effect_on_decision_metrics: "PILOT (1 seed, 4 scenes): random positive_edit_rate 0.085 (best gain 0.71;
+    anchor-failure repairable 33%); urban positive_edit_rate 0.224 (safe-prune 75%). 5-seed CI: PENDING."
+  raw_result_artifact: "result_save/belief_residual/R4/oracle_edit_metrics.json"
+  conclusion_boundary: "The oracle-edit signal (true-evaluator-scored) EXISTS. This is a CENTRAL-reference
+    capability (consistent with Q7 22%-repair / Q8 47%-prune) -- it does NOT yet show a DEPLOYABLE policy can
+    learn it from local features (R5) nor that it beats the anchor at deployment (R6/R8). KEEP -> R5."
+
+cited_from: "docs/belief_residual/R3/decision.md (R3 showed the trainer lacks a direction signal)"
+source_commit: "4182b52 (R3)"
+why_retraining_not_required: "R4 constructs the missing signal directly from the true evaluator."
+what_claim_is_supported: "a learnable beneficial-edit target exists; the open question is deployable learning (R5)."

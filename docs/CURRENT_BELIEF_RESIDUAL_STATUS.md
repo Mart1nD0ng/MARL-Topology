@@ -61,7 +61,7 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 | R1 | feature standardization + logit-saturation fix (all-frame norm, raw-logit L2, separate small-range residual head, saturation metrics) | **DONE** — `BeliefResidualActor` (±3 separate head, exposes raw) + `residual_saturation.py`; pilot urban delay-1: old ±10 head frac_logit_near_rail **1.0** + recurrent−memoryless logit delta **0.0 (inert)** → new ±3 head **0.0** rail + delta **0.0257 (passes)**; action_delta still 0 (logit-level only, R3 for topology); 5 load-bearing tests, suite 780/0; Workflow `wfv50jg36` | saturation down ✓ AND recurrent vs memoryless logits no longer bit-identical ✓ |
 | R2 | CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true CSI = training label only) | **DONE (REVISE — HONEST NEGATIVE: belief is a no-op CSI predictor)** — `BeliefResidualActor.belief` + `csi_belief.py` + `csi_belief_train.py`. Belief loss ENTERS the policy-actor loss (grads reach belief_head+GRU, spy) and is leak-free (verified). **BUT held belief MSE sits at/above the stale-echo floor** (predict the stale obs) even with leak-free velocity + 80–400 epochs → **does NOT recover current CSI** (learns the echo; correction-direction corr≈−0.035). Recurrence also null (mem−rec CI spans 0). 7 tests (incl. honest-negative pin), suite green; Workflow `wozljm9uf` MAJOR (adopted). | belief-in-loss MET ✓; "recovers CSI / beats stale-echo floor" NOT met → HONEST NEGATIVE (TechSpec chain 1) |
 | R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | **DONE (KEEP — PPO stabilizes; == anchor)** — `residual_ppo_train.py` genuinely calls `ppo_clip_actor_loss` (per-edge ratios, spy), logs approx_kl/clip_fraction, target_kl early-stop; `ResidualValueCritic` EV **0.56** (LayerNorm fix), entropy, raw-L2. PPO **stable** (retention 1.0, 0 collapse) — fixes free-REINFORCE bimodal collapse — BUT residual **== anchor** (edit_rate 0.0): missing-direction-signal (R4–R5), not a PPO failure. 7 tests, suite 794/0; Workflow PENDING | PPO+critic active ✓; clamp/collapse reduced ✓; == anchor → direction-signal gap |
-| R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | NOT_IMPLEMENTED | non-zero positive-edit rate; no full-oracle-topology imitation |
+| R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | **DONE (KEEP — beneficial-edit signal EXISTS)** — `oracle_edit_dataset.py` (teacher-only; anchor + single edit + Δ's, never the oracle topology). 5-seed positive_edit_rate **random 0.096 [0.055,0.137] / urban 0.125 [0.074,0.175]** (CIs strictly >0); repairable 0.26/0.18; safe-prune 0.28/0.75; best ΔJ 0.73/0.12. CENTRAL-reference signal (∝ Q7/Q8) — deployable learning is R5. 6 tests, suite 800/0; Workflow `w1o20fuos` | non-zero positive-edit rate ✓; no full-oracle imitation ✓ → R5 |
 | R5 | repair/safety/utility/edit heads (supervised) | NOT_IMPLEMENTED | held top-k edit hit rate > random |
 | R6 | evidence-gated residual action | NOT_IMPLEMENTED | bad edits gated out; zero-candidate→anchor; budget-safe; 0-eval deploy |
 | R7 | adaptive anchor KL / safety constraint (replace fixed flip penalty) | NOT_IMPLEMENTED | no retention=0 collapse and no edit_rate=0 clamp |
@@ -122,5 +122,14 @@ single-run 0.56; LayerNorm + standardized target fix); entropy + R1 raw-L2 activ
 the collapse.** BUT PPO residual == anchor (edit_rate 0.0 all seeds): no beneficial deviation → a
 missing-direction-signal outcome (R4–R5), NOT a PPO failure. 7 tests, suite 794/0; Workflow `wj8pzo538`
 4-lens **PASS**. The campaign's remaining lever is now the DIRECTION signal (beneficial-edit supervision).
-**Next: R4** — beneficial oracle-edit dataset (per anchor: local add/remove/swap; ΔC/ΔD_quorum/ΔE/ΔL/ΔJ;
-label only positive-gain LOCAL edits, never the full oracle topology).
+**R4 DONE — KEEP (the campaign's first genuinely hopeful result: a beneficial-edit DIRECTION signal EXISTS).**
+`oracle_edit_dataset.py` enumerates local add/remove/swap over the anchor and scores each with the TRUE
+evaluator → ΔC/ΔD_quorum/ΔE/ΔL/ΔJ (ΔJ in the dense reward). 5-seed positive_edit_rate **random 0.096
+[0.055,0.137] / urban 0.125 [0.074,0.175]** — both CIs strictly above 0; anchor-failure repairable 0.26/0.18;
+safe-prune 0.28/0.75; best ΔJ 0.73 (random). So the anchor is NOT a local optimum — contrary to the prior
+"nothing beats the anchor" pattern. **Honest scope: this is a CENTRAL-reference (training-only) signal
+(consistent with Q7 22%-repair / Q8 47%-prune); it does NOT yet show a DEPLOYABLE head can learn it from local
+features (R5) or beats the anchor (R6/R8).** Teacher-only (held never passed); stores anchor + single edit
+(never the oracle topology). 6 tests, suite 800/0; Workflow `w1o20fuos`. **Next: R5** — train repair/safety/
+utility/edit heads on the R4 positive edits; held top-k edit hit rate must beat random (else the deployable
+route fails at the LEARNING gap, not the no-signal gap).

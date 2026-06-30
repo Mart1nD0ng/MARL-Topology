@@ -1,0 +1,107 @@
+{
+  "scope": "R4 beneficial oracle-edit dataset; 5 seeds x {random,urban}; teacher-only; \u0394J in the dense reward; positive = \u0394J>margin AND safe",
+  "by_data": {
+    "random": {
+      "positive_edit_rate": {
+        "mean": 0.09577,
+        "lo": 0.05464,
+        "hi": 0.1369,
+        "n": 5
+      },
+      "positive_edit_rate_m01": {
+        "mean": 0.04507,
+        "lo": 0.01623,
+        "hi": 0.07391,
+        "n": 5
+      },
+      "anchor_failure_repairable_rate": {
+        "mean": 0.25541,
+        "lo": -0.06681,
+        "hi": 0.57762,
+        "n": 5
+      },
+      "safe_prune_rate": {
+        "mean": 0.27619,
+        "lo": -0.24028,
+        "hi": 0.79267,
+        "n": 5
+      },
+      "best_edit_gain_max": {
+        "mean": 0.72564,
+        "lo": 0.57284,
+        "hi": 0.87844,
+        "n": 5
+      },
+      "n_records": {
+        "mean": 1221.8,
+        "lo": 709.10248,
+        "hi": 1734.49752,
+        "n": 5
+      },
+      "evaluator_calls": {
+        "mean": 2518.6,
+        "lo": 1493.20497,
+        "hi": 3543.99503,
+        "n": 5
+      },
+      "dataset_hashes": [
+        "addc191a904b4ef9",
+        "6734d51127e710d4",
+        "66472579196f102d",
+        "d4ba501a12c3aebf",
+        "843e24c1ec597cec"
+      ]
+    },
+    "urban": {
+      "positive_edit_rate": {
+        "mean": 0.12455,
+        "lo": 0.07441,
+        "hi": 0.17469,
+        "n": 5
+      },
+      "positive_edit_rate_m01": {
+        "mean": 0.06965,
+        "lo": 0.02136,
+        "hi": 0.11793,
+        "n": 5
+      },
+      "anchor_failure_repairable_rate": {
+        "mean": 0.17708,
+        "lo": -0.17526,
+        "hi": 0.52943,
+        "n": 4
+      },
+      "safe_prune_rate": {
+        "mean": 0.74625,
+        "lo": 0.63522,
+        "hi": 0.85727,
+        "n": 5
+      },
+      "best_edit_gain_max": {
+        "mean": 0.12029,
+        "lo": 0.01695,
+        "hi": 0.22364,
+        "n": 5
+      },
+      "n_records": {
+        "mean": 857.2,
+        "lo": 749.94648,
+        "hi": 964.45352,
+        "n": 5
+      },
+      "evaluator_calls": {
+        "mean": 1789.4,
+        "lo": 1574.89296,
+        "hi": 2003.90704,
+        "n": 5
+      },
+      "dataset_hashes": [
+        "7f3db07bf10cabce",
+        "a921481d79d9659f",
+        "7a7c357392d4d8d8",
+        "9d30ec4c8caaa89b",
+        "5a2ea00602b33ebe"
+      ]
+    }
+  }
+}

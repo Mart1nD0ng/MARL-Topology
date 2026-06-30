@@ -1,0 +1,25 @@
+{
+  "stage": "R4",
+  "description": "Beneficial oracle-edit dataset (the direction signal R3 showed is missing). KEEP: a beneficial-edit signal EXISTS over the anchor (5-seed positive_edit_rate CIs strictly > 0). Teacher-only.",
+  "new_code": {
+    "src/marl_topology/training/oracle_edit_dataset.py": "build_edit_dataset (enumerate local add/remove/swap over anchor, score with TRUE evaluator -> dC/dD_quorum/dE/dL/dJ; dJ in the dense reward) + supervised_records (dJ>margin AND safe) + dataset_hash",
+    "scripts/diagnostics/oracle_edit_dataset_gen.py": "5-seed metrics + CI generator"
+  },
+  "teacher_only": "train scenes only (held never passed); stores anchor + single edit descriptor + scalar deltas, NEVER the full oracle topology (TechSpec sec 11)",
+  "load_bearing_tests": {
+    "test_oracle_edit_dataset_contains_anchor_and_delta": "PASS",
+    "test_edit_labels_include_C_D_E_L": "PASS",
+    "test_only_positive_gain_edits_supervised": "PASS",
+    "test_dataset_artifact_hash_logged": "PASS",
+    "test_teacher_does_not_use_held_for_training": "PASS",
+    "test_no_full_oracle_topology_stored": "PASS"
+  },
+  "suite": "800 passed / 0 failed",
+  "positive_edit_signal_5seed": {
+    "random": {"positive_edit_rate": {"mean": 0.09577, "ci": [0.05464, 0.1369]}, "anchor_failure_repairable_rate": 0.25541, "safe_prune_rate": 0.27619, "best_edit_gain_max": 0.72564},
+    "urban": {"positive_edit_rate": {"mean": 0.12455, "ci": [0.07441, 0.17469]}, "anchor_failure_repairable_rate": 0.17708, "safe_prune_rate": 0.74625, "best_edit_gain_max": 0.12029}
+  },
+  "scope_boundary": "The oracle-edit signal EXISTS (true-evaluator-scored; both positive_edit_rate CIs strictly > 0). CENTRAL-reference / training-only capability (consistent with Q7 22%-repair / Q8 47%-prune). Does NOT show a DEPLOYABLE head can learn it from local features (R5) or that the deployed policy beats the anchor (R6/R8).",
+  "decision": "KEEP -> R5 (train repair/safety/utility/edit heads on the positive edits; held top-k hit rate must beat random; else the deployable route fails at the LEARNING gap, not the no-signal gap).",
+  "verification_workflow": "w1o20fuos"
+}
