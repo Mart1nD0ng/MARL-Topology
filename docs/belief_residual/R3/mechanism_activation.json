@@ -1,0 +1,41 @@
+{
+  "stage": "R3",
+  "description": "Residual PPO + CTDE value critic (training-stability chain). PPO genuinely active on the residual path; stable (no collapse) but residual == anchor (missing direction signal, R4-R5).",
+  "new_code": {
+    "scripts/diagnostics/residual_ppo_train.py": "train_residual_ppo (calls graph_mappo.ppo_clip_actor_loss, per-edge ratios, target_kl early-stop, CTDE ResidualValueCritic, entropy, raw-L2) + train_residual_reinforce (A/B control)",
+    "src/marl_topology/training/residual_action.py": "residual_logp_per_edge (per-agent ratio; additive)"
+  },
+  "additive": "new trainer + additive per-edge logp; residual_pbrs_train + dynamic_recurrent_actor unchanged; R0 REINFORCE spy still passes",
+  "load_bearing_tests": {
+    "test_residual_ppo_calls_ppo_clip_actor_loss": "PASS (spy >=1 call -- R0 tripwire flip on the PPO path)",
+    "test_residual_ppo_logs_approx_kl_and_clip_fraction": "PASS",
+    "test_residual_ppo_epoch0_ratio_one": "PASS (ratio 1 -> approx_kl ~0)",
+    "test_target_kl_can_stop_inner_epochs": "PASS",
+    "test_residual_critic_parameter_delta_positive": "PASS",
+    "test_entropy_bonus_present_and_in_loss": "PASS",
+    "test_per_edge_logp_sums_to_joint_logp": "PASS"
+  },
+  "suite": "794 passed / 0 failed",
+  "ppo_pilot_urban_current": {
+    "ppo_calls": 80,
+    "approx_kl": 0.0,
+    "clip_fraction": 0.0,
+    "critic_explained_variance": 0.56,
+    "value_loss": 0.18,
+    "entropy": 0.57,
+    "residual_feasibility": 0.875,
+    "anchor_feasibility": 0.875,
+    "edit_rate": 0.0,
+    "retention": 1.0,
+    "diverged": false
+  },
+  "critic_fix_note": "raw-return critic target gave EV ~ -1e5 (ill-conditioned: large, low-variance infeasible returns). Fix = standardize the value target (G_norm) + LayerNorm on the pooled global state + Huber + grad-clip + critic_lr 0.005 -> EV 0.56.",
+  "ppo_vs_reinforce_5seed_collapse": {
+    "ppo": "0/5 collapse random AND urban (retention 1.0 all, edit 0.0 all)",
+    "reinforce_free": "1/5 collapse each (random seed3 ret 0.30; urban seed1 ret 0.0 feas 0.0)",
+    "conclusion": "PPO eliminates the free-REINFORCE collapse; PPO stays at anchor (edit 0)"
+  },
+  "scope_boundary": "PPO + critic are genuinely active on the residual path (not the trunk's; Contract v4 \u00a77). PPO stabilizes the trainer (no clamp/collapse) -- but the residual == anchor (edit_rate 0): a MISSING-DIRECTION-SIGNAL outcome (no beneficial-edit gradient; R4-R5), NOT a PPO/trainer failure.",
+  "decision": "KEEP -- residual PPO+critic is the new canonical (stable) trainer; the remaining lever is the direction signal (R4-R5), not the trainer.",
+  "verification_workflow": "wj8pzo538"
+}

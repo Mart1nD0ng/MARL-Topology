@@ -1,0 +1,137 @@
+{
+  "scope": "R3 A/B: free REINFORCE vs residual PPO+critic (same actor/rollout/scenes); collapse = retention<0.5 or feas drop>0.2",
+  "by_data": {
+    "random": {
+      "reinforce": {
+        "collapse_seeds": "1/5",
+        "diverged_seeds": "0/5",
+        "retention_per_seed": [
+          0.8803,
+          1.0,
+          1.0,
+          0.2991,
+          1.0
+        ],
+        "residual_feas_per_seed": [
+          0.2708,
+          0.2292,
+          0.2083,
+          0.0833,
+          0.3125
+        ],
+        "anchor_feas_per_seed": [
+          0.3958,
+          0.2292,
+          0.2083,
+          0.4375,
+          0.3125
+        ],
+        "edit_rate_per_seed": [
+          0.0399,
+          0.0,
+          0.0,
+          0.2251,
+          0.0
+        ]
+      },
+      "ppo": {
+        "collapse_seeds": "0/5",
+        "diverged_seeds": "0/5",
+        "retention_per_seed": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "residual_feas_per_seed": [
+          0.3958,
+          0.2292,
+          0.2083,
+          0.4375,
+          0.3125
+        ],
+        "anchor_feas_per_seed": [
+          0.3958,
+          0.2292,
+          0.2083,
+          0.4375,
+          0.3125
+        ],
+        "edit_rate_per_seed": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "urban": {
+      "reinforce": {
+        "collapse_seeds": "1/5",
+        "diverged_seeds": "0/5",
+        "retention_per_seed": [
+          1.0,
+          0.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "residual_feas_per_seed": [
+          0.7083,
+          0.0,
+          0.6875,
+          1.0,
+          0.7708
+        ],
+        "anchor_feas_per_seed": [
+          0.7083,
+          0.875,
+          0.6875,
+          1.0,
+          0.7708
+        ],
+        "edit_rate_per_seed": [
+          0.0,
+          0.5956,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "ppo": {
+        "collapse_seeds": "0/5",
+        "diverged_seeds": "0/5",
+        "retention_per_seed": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "residual_feas_per_seed": [
+          0.7083,
+          0.875,
+          0.6875,
+          1.0,
+          0.7708
+        ],
+        "anchor_feas_per_seed": [
+          0.7083,
+          0.875,
+          0.6875,
+          1.0,
+          0.7708
+        ],
+        "edit_rate_per_seed": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  }
+}

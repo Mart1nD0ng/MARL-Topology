@@ -34,10 +34,10 @@ Status ∈ {NOT_PRESENT, IMPLEMENTED_ONLY, CALLABLE, ACTIVE_IN_LOSS, ACTIVE_IN_E
 
 | mechanism | static/dynamic graph_mappo trunk | residual_pbrs_train (Q9/Q11) | stale_csi_residual_joint (Q14) | target this round |
 |---|---|---|---|---|
-| PPO clip (`ppo_clip_actor_loss`) | **ACTIVE_IN_LOSS** (`dynamic_rl.py`, `train_decentralized_rl.py`) | **NOT_PRESENT** | NOT_PRESENT | residual PPO ACTIVE_IN_LOSS (R3) |
-| approx_kl / clip_fraction / target_kl | ACTIVE_IN_LOSS | NOT_PRESENT | NOT_PRESENT | logged in residual trainer (R3) |
-| CTDE value critic | present (CentralizedGraphCritic) | NOT_PRESENT (scalar moving baseline) | NOT_PRESENT | ACTIVE_IN_LOSS (R3) |
-| entropy bonus | CALLABLE (`entropy_coef`) | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R3, R10) |
+| PPO clip (`ppo_clip_actor_loss`) | ACTIVE_IN_LOSS (`dynamic_rl.py`) | **ACTIVE_IN_LOSS (R3 `residual_ppo_train`, per-edge, spy-verified)** | NOT_PRESENT | ✓ done (R3) |
+| approx_kl / clip_fraction / target_kl | ACTIVE_IN_LOSS | **ACTIVE_IN_LOSS (R3, target_kl early-stop)** | NOT_PRESENT | ✓ done (R3) |
+| CTDE value critic | present (CentralizedGraphCritic) | **ACTIVE_IN_LOSS (R3 `ResidualValueCritic`, EV 0.08–0.56)** | NOT_PRESENT | ✓ done (R3) |
+| entropy bonus | CALLABLE (`entropy_coef`) | **ACTIVE_IN_LOSS (R3)** | NOT_PRESENT | ✓ done (R3) |
 | raw-logit L2 / saturation control | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | ACTIVE_IN_LOSS (R1) |
 | CSI-belief auxiliary (`L_CSI`, belief_head) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_LOSS (R2) but NO-OP for recovery** — belief does NOT beat the stale-echo floor (5-seed CI entirely negative, 0/5); leak-free + in-loss verified; `L_CSI` ablatable at R3 |
 | separate residual head (small-range logits) | NOT_PRESENT (shared ±10 head) | NOT_PRESENT | NOT_PRESENT | ACTIVE (R1) |
@@ -60,7 +60,7 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 | **R0** | freeze Q14 + residual-trainer path audit | **DONE (this commit)** — Mechanism-Path Matrix above; 3 load-bearing audit tests pass (`tests/unit/test_belief_residual_R0_audit.py`): graph_mappo defines PPO/KL; residual source is REINFORCE-only; spy proves a residual update never calls `ppo_clip_actor_loss` (R3 tripwire) | "PPO exists" ≠ "PPO active in residual path" pinned in code ✓ |
 | R1 | feature standardization + logit-saturation fix (all-frame norm, raw-logit L2, separate small-range residual head, saturation metrics) | **DONE** — `BeliefResidualActor` (±3 separate head, exposes raw) + `residual_saturation.py`; pilot urban delay-1: old ±10 head frac_logit_near_rail **1.0** + recurrent−memoryless logit delta **0.0 (inert)** → new ±3 head **0.0** rail + delta **0.0257 (passes)**; action_delta still 0 (logit-level only, R3 for topology); 5 load-bearing tests, suite 780/0; Workflow `wfv50jg36` | saturation down ✓ AND recurrent vs memoryless logits no longer bit-identical ✓ |
 | R2 | CSI belief prediction auxiliary (`belief_head`, `L_CSI`; true CSI = training label only) | **DONE (REVISE — HONEST NEGATIVE: belief is a no-op CSI predictor)** — `BeliefResidualActor.belief` + `csi_belief.py` + `csi_belief_train.py`. Belief loss ENTERS the policy-actor loss (grads reach belief_head+GRU, spy) and is leak-free (verified). **BUT held belief MSE sits at/above the stale-echo floor** (predict the stale obs) even with leak-free velocity + 80–400 epochs → **does NOT recover current CSI** (learns the echo; correction-direction corr≈−0.035). Recurrence also null (mem−rec CI spans 0). 7 tests (incl. honest-negative pin), suite green; Workflow `wozljm9uf` MAJOR (adopted). | belief-in-loss MET ✓; "recovers CSI / beats stale-echo floor" NOT met → HONEST NEGATIVE (TechSpec chain 1) |
-| R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | NOT_IMPLEMENTED | residual calls `ppo_clip_actor_loss`; KL/clip/EV sane; clamp/collapse reduced |
+| R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | **DONE (KEEP — PPO stabilizes; == anchor)** — `residual_ppo_train.py` genuinely calls `ppo_clip_actor_loss` (per-edge ratios, spy), logs approx_kl/clip_fraction, target_kl early-stop; `ResidualValueCritic` EV **0.56** (LayerNorm fix), entropy, raw-L2. PPO **stable** (retention 1.0, 0 collapse) — fixes free-REINFORCE bimodal collapse — BUT residual **== anchor** (edit_rate 0.0): missing-direction-signal (R4–R5), not a PPO failure. 7 tests, suite 794/0; Workflow PENDING | PPO+critic active ✓; clamp/collapse reduced ✓; == anchor → direction-signal gap |
 | R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | NOT_IMPLEMENTED | non-zero positive-edit rate; no full-oracle-topology imitation |
 | R5 | repair/safety/utility/edit heads (supervised) | NOT_IMPLEMENTED | held top-k edit hit rate > random |
 | R6 | evidence-gated residual action | NOT_IMPLEMENTED | bad edits gated out; zero-candidate→anchor; budget-safe; 0-eval deploy |
@@ -113,5 +113,14 @@ corr≈−0.035. **So the head learns to ECHO the stale input and recovers ~none
 0), now secondary. **Disposition: keep the belief machinery (correct + leak-free) but do NOT claim it recovers
 CSI; treat `L_CSI` as an ablatable auxiliary at R3.** The "belief-guided" premise (TechSpec chain 1) is
 weakened — recoverable value must come from the other chains. 7 tests (incl. `test_belief_does_not_beat_stale_
-echo_floor`), suite green. **Next: R3** — residual PPO + CTDE value critic (the training-stability chain), with
-raw-L2 active and `L_CSI` ablatable. The R0 PPO-spy tripwire flips at R3.
+echo_floor`), suite green. **R3 DONE — KEEP (PPO stabilizes the trainer; residual == anchor = missing direction signal).**
+`residual_ppo_train.py` genuinely calls `graph_mappo.ppo_clip_actor_loss` on the residual path (per-edge/
+per-agent ratios — `residual_logp_per_edge`; spy-verified, 144 distinct ratios at inner epochs), logs
+approx_kl/clip_fraction, target_kl early-stops; `ResidualValueCritic` trains (EV 0.08–0.56 across seeds,
+single-run 0.56; LayerNorm + standardized target fix); entropy + R1 raw-L2 active; `L_CSI` ablatable.
+**5-seed A/B: PPO 0/5 collapse (random + urban, retention 1.0) vs free-REINFORCE 1/5 each — PPO eliminates
+the collapse.** BUT PPO residual == anchor (edit_rate 0.0 all seeds): no beneficial deviation → a
+missing-direction-signal outcome (R4–R5), NOT a PPO failure. 7 tests, suite 794/0; Workflow `wj8pzo538`
+4-lens **PASS**. The campaign's remaining lever is now the DIRECTION signal (beneficial-edit supervision).
+**Next: R4** — beneficial oracle-edit dataset (per anchor: local add/remove/swap; ΔC/ΔD_quorum/ΔE/ΔL/ΔJ;
+label only positive-gain LOCAL edits, never the full oracle topology).

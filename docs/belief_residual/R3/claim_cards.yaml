@@ -1,0 +1,51 @@
+# R3 Claim Cards (Contract v4 §1, §11)
+
+- claim: "The residual trainer GENUINELY uses PPO: it calls graph_mappo.ppo_clip_actor_loss on the residual
+    path (not the trunk's PPO), with per-EDGE (per-agent) ratios, and logs ratio/approx_kl/clip_fraction with
+    target_kl early-stop. A CTDE value critic trains (critic_parameter_delta>0) with explained variance ~0.56."
+  scope: "R3, residual_ppo_train, random+urban, N<=16, single pilot + 5-seed A/B"
+  mechanism: "residual PPO clip + approx_kl/target_kl + CTDE value critic + entropy + R1 raw-L2"
+  code_path: "scripts/diagnostics/residual_ppo_train.py::train_residual_ppo (calls
+    graph_mappo.ppo_clip_actor_loss); ResidualValueCritic; residual_action.residual_logp_per_edge"
+  entrypoint: "scripts/diagnostics/residual_ppo_train.py; tests/unit/test_belief_residual_R3_ppo.py"
+  config_flags: "ppo_epochs, clip_eps=0.2, target_kl=0.05, entropy_coef, raw_l2, critic_lr=0.005, residual_prior=-1"
+  dataset: "random+urban current-CSI scenes; train-only pilot"
+  seeds: "5 (A/B) + 1 (pilot)"
+  split: "train (pilot); A/B per-seed train"
+  loss_uses_mechanism: "actor loss = ppo_clip_actor_loss(per-edge logp_new, logp_old, adv) - entropy_coef*H +
+    raw_l2*L_raw; critic loss = Huber(V, standardized-G); target_kl early-stops inner epochs"
+  eval_uses_mechanism: "deployed-style MAP decode -> true PBFT feas + edit_rate/retention; critic/PPO NOT at deploy"
+  runtime_activation_artifact: "result_save/belief_residual/R3/{residual_ppo.json,ppo_vs_reinforce.json}"
+  load_bearing_tests:
+    - "test_residual_ppo_calls_ppo_clip_actor_loss (spy: >=1 call -- the R0 tripwire's flip on the PPO path)"
+    - "test_residual_ppo_epoch0_ratio_one (epoch-0 ratio==1 -> approx_kl~0)"
+    - "test_target_kl_can_stop_inner_epochs / test_residual_critic_parameter_delta_positive / test_entropy_bonus_present"
+    - "test_per_edge_logp_sums_to_joint_logp (per-agent, not joint ratio)"
+  effect_on_decision_metrics: "PPO pilot urban: approx_kl ~0.0, clip_fraction ~0, critic EV 0.56, value_loss
+    0.18, entropy 0.57, residual_feas 0.875 == anchor 0.875, edit_rate 0.0, retention 1.0, diverged False."
+  raw_result_artifact: "result_save/belief_residual/R3/residual_ppo.json + ppo_vs_reinforce.json"
+  conclusion_boundary: "PPO + critic are genuinely active on the residual path (not the trunk's, Contract v4
+    §7/§9). EV~0.56 means the critic is a real baseline. Does NOT claim PPO beats the anchor."
+
+- claim: "Residual PPO is STABLE (no clamp/collapse: retention 1.0, diverged False) -- it fixes the
+    free-REINFORCE bimodal collapse -- BUT the PPO residual policy == the anchor (edit_rate 0): it makes no
+    beneficial deviation. This is a MISSING-DIRECTION-SIGNAL outcome (R4-R5), NOT a PPO/trainer failure."
+  scope: "R3, 5-seed REINFORCE-vs-PPO A/B, random+urban, N<=16"
+  mechanism: "free REINFORCE (moving baseline, no PPO/critic/KL) vs residual PPO+critic, SAME actor/rollout"
+  code_path: "scripts/diagnostics/residual_ppo_train.py::{train_residual_reinforce,train_residual_ppo}"
+  entrypoint: "scripts/diagnostics/r3_ppo_vs_reinforce.py"
+  seeds: "5"
+  loss_uses_mechanism: "the ONLY difference is the optimizer (REINFORCE vs PPO+critic)"
+  eval_uses_mechanism: "per-seed retention / residual-vs-anchor feas / edit_rate; collapse = retention<0.5 or feas drop>0.2"
+  runtime_activation_artifact: "result_save/belief_residual/R3/ppo_vs_reinforce.json"
+  effect_on_decision_metrics: "PENDING (5-seed A/B): collapse rate REINFORCE vs PPO; PPO pilot edit_rate 0.0."
+  raw_result_artifact: "result_save/belief_residual/R3/ppo_vs_reinforce.json"
+  conclusion_boundary: "PATH-SPECIFIC: PPO stabilizes the residual trainer (its positive), but with no
+    beneficial-edit direction signal (R4-R5) and the residual_prior keeping it near the anchor, the stable
+    policy stays AT the anchor. The clamp-vs-collapse dichotomy is resolved toward STABLE-clamp by PPO; the
+    '== anchor' is a missing-direction-signal finding, deferred to R4-R5, NOT a PPO failure."
+
+cited_from: "docs/belief_residual/R2/decision.md (free-REINFORCE bimodal collapse 3/5 clamp 2/5 collapse)"
+source_commit: "2807316 (R2)"
+why_retraining_not_required: "R3 re-runs the A/B with the SAME +-3 actor to isolate the trainer."
+what_claim_is_supported: "PPO fixes the trainer instability; the anchor-clamp is now a direction-signal gap."

@@ -133,6 +133,19 @@ def residual_logp(residual_logits, decisions, candidate_mask):
     return (logp_e * msk).sum()
 
 
+def residual_logp_per_edge(residual_logits, decisions, candidate_mask):
+    """R3: PER-EDGE Bernoulli log-prob vector ``[d*logsigmoid(z)+(1-d)*logsigmoid(-z)]`` masked to candidates
+    (0 elsewhere) -- the PER-AGENT ratio for residual PPO. NOT summed: feeding the per-edge logps to
+    ``ppo_clip_actor_loss`` gives the Spec-S9.2 per-agent ratio, NOT the joint per-frame ratio whose variance
+    explodes with the candidate count. ``residual_logp == residual_logp_per_edge(...).sum()``."""
+    import torch
+    import torch.nn.functional as F
+    z = residual_logits.reshape(-1)
+    d = decisions.reshape(-1).to(z.dtype)
+    msk = candidate_mask.reshape(-1).to(z.dtype)
+    return (d * F.logsigmoid(z) + (1.0 - d) * F.logsigmoid(-z)) * msk
+
+
 def sample_residual(residual_logits, anchor_topology, edge_ids, context, *, mode="full", generator=None):
     """Sample a residual (per-candidate-edge Bernoulli flip ~ sigmoid(logit)) + its log-prob, and decode
     to the final topology. The ACTION is the flip vector (its logp is tractable for PPO); the decode is a
