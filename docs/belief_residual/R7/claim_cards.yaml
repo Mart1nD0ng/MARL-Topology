@@ -1,0 +1,48 @@
+# R7 Claim Cards (Contract v4 §1)
+
+- claim: "The adaptive anchor-KL replaces R3's FIXED anchor pull (residual_prior=-1.0) / Q14's fixed flip
+    penalty as the anchor protection: an anchor-KL term (mean sigmoid(z) over candidate edges = deviation from
+    the flip-nothing anchor) enters the actor loss with a coefficient beta_anchor that TIGHTENS when retention
+    drops and LOOSENS when validation return improves at stable retention. The fixed flip-count penalty is no
+    longer the sole protection."
+  scope: "R7, train_residual_ppo adaptive-anchor-KL path; mechanism audit"
+  mechanism: "actor_loss += beta_anchor * mean_candidates sigmoid(z); beta_anchor adaptive on retention/val-return"
+  code_path: "scripts/diagnostics/residual_ppo_train.py (adaptive path) or new module; the anchor_kl term + controller"
+  entrypoint: "tests/unit/test_belief_residual_R7_adaptive_kl.py; scripts/diagnostics/r7_adaptive_kl_gen.py"
+  config_flags: "target_retention, beta_min, beta_max, beta_up=1.5, beta_down=0.7"
+  loss_uses_mechanism: "anchor_kl IN the actor loss (grad to residual head); beta_anchor adaptive controller"
+  eval_uses_mechanism: "deployed MAP decode (0 eval): residual vs anchor feas, edit_rate, retention, beta trajectory"
+  runtime_activation_artifact: "result_save/belief_residual/R7/adaptive_kl_metrics.json"
+  load_bearing_tests:
+    - "test_anchor_kl_in_actor_loss (term from sigmoid(z), grad increases with beta_anchor)"
+    - "test_beta_tightens_when_retention_drops / loosens_when_stable_improving"
+    - "test_adaptive_differs_from_fixed_only_in_anchor_pull (one-variable audit)"
+    - "test_adaptive_is_deployable_and_no_flip_penalty"
+  effect_on_decision_metrics: "edit_rate / retention / residual_feasibility vs the R3-fixed arm and vs anchor"
+  conclusion_boundary: "R7 tests whether an ADAPTIVE (not fixed) anchor trust region changes the outcome; the deployed-gain question is the second claim."
+
+- claim: "DEPLOYABLE A/B -- the adaptive anchor-KL trust region lands EXACTLY at the anchor (CONFIRMATORY
+    negative). 5-seed: adaptive residual_feas == anchor_feas == fixed_resid_feas exactly (random 0.300 / urban
+    0.783; adaptive_minus_anchor CI [0.0,0.0]), edit_rate 0.0, retention 1.0, 0/5 diverged. The beta_anchor
+    controller is load-bearing (per-seed trajectories tighten AND loosen) but finds no beneficial deviation even
+    with the fixed pull removed (residual_prior=0). So the fixed anchor protection was NOT why R3/R6 == anchor;
+    the binding limit is the deployable direction signal (R6 precision limit). KEEP the mechanism."
+  scope: "R7, urban+random, N<=16, 5 seeds; (adaptive - fixed) and (adaptive residual - anchor) feasibility"
+  mechanism: "adaptive anchor-KL trainer vs R3-fixed-prior trainer; same actor/rollout/critic/PPO"
+  code_path: "scripts/diagnostics/residual_ppo_train.py adaptive path"
+  entrypoint: "scripts/diagnostics/r7_adaptive_kl_gen.py"
+  seeds: "5"
+  split: "train scenes; eval MAP decode on the same scenes (deployed-style, 0 eval)"
+  eval_uses_mechanism: "residual vs anchor feasibility, edit_rate, retention, beta trajectory; paired 95% CI"
+  runtime_activation_artifact: "result_save/belief_residual/R7/adaptive_kl_metrics.json"
+  effect_on_decision_metrics: "(adaptive residual - anchor) feas CI [0.0,0.0] both regimes; edit_rate 0.0; retention 1.0; beta_anchor adapts (tightens+loosens per seed); 0/5 diverged."
+  raw_result_artifact: "result_save/belief_residual/R7/adaptive_kl_metrics.json"
+  decision: "KEEP mechanism (load-bearing + stable); CONFIRMATORY NEGATIVE (== anchor); fixed anchor protection was not the cause."
+  conclusion_boundary: "Closes the 'fixed vs adaptive anchor protection' objection. A span-0 (== anchor) confirms
+    R6's binding-limit (deployable precision) is the cause, NOT the fixed flip penalty. The true C/E/L are always
+    on the current real channel; the critic/true-CSI are training-only."
+
+cited_from: "docs/belief_residual/R6/decision.md (no gate operating point beats the anchor; optimal anchor-deviation=0)"
+source_commit: "96f35f7 (R6)"
+why_retraining_not_required: "R7 trains a fresh adaptive-anchor-KL residual policy (a new trainer path)."
+what_claim_is_supported: "whether an adaptive (not fixed) anchor trust region changes the residual-vs-anchor outcome."

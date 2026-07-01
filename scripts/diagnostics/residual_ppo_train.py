@@ -81,6 +81,46 @@ def _entropy(z, mask):
     return (ent * mask).sum() / mask.sum().clamp_min(1.0)
 
 
+def anchor_kl_penalty(z, candidate_mask):
+    """R7: deviation-from-anchor penalty = mean flip probability over candidate edges. The anchor policy is
+    'flip nothing', so E[#flips] = sum sigmoid(z) over candidates is the KL-like pull back to the anchor.
+    Differentiable -> enters the actor loss; the gradient lowers the flip logits (pulls toward the anchor)."""
+    z = z.reshape(-1)
+    m = candidate_mask.reshape(-1).to(z.dtype)
+    return (torch.sigmoid(z) * m).sum() / m.sum().clamp_min(1.0)
+
+
+def update_beta(beta, retention, target, val_return, prev_val, up, down, lo, hi):
+    """R7 adaptive controller (replaces the fixed flip penalty): TIGHTEN (beta*up) when retention < target;
+    LOOSEN (beta*down) when retention >= target AND the validation return improved; else HOLD. Clamp [lo, hi]."""
+    if retention < target:
+        beta = beta * up
+    elif val_return > prev_val:
+        beta = beta * down
+    return float(min(hi, max(lo, beta)))
+
+
+def _map_retention(actor, scenes, mean, std, residual_prior):
+    """Anchor-edge retention under the deployed MAP decode (flip iff z>0) -- 0 evaluator calls (the controller
+    signal)."""
+    ret, n = 0.0, 0
+    for sc in scenes:
+        prev = []
+        for t in range(sc.n_frames):
+            obs = sc.observation(t, prev)
+            anchor = _anchor(obs, prev)
+            nf_s, ef_s = _standardize(obs["nf"], obs["ef"], mean, std)
+            with torch.no_grad():
+                z = actor(nf_s, ef_s, obs["ei"], hidden=None)[0] + float(residual_prior)
+            flipped = [obs["edge_ids"][i] for i in range(z.numel()) if float(z[i]) > 0.0]
+            _a, topo = residual_decode_from_flips(anchor, flipped, z.tolist(), obs["edge_ids"],
+                                                  obs["context"], mode="full")
+            ret += len(set(anchor) & set(topo)) / max(1, len(anchor))
+            n += 1
+            prev = list(topo)
+    return ret / max(1, n)
+
+
 def _build(data, seed, count, args):
     from build_operating_point_dataset import operating_point_regime
     from marl_topology.training.dynamic_frames import sample_dynamic_scenes, sample_dynamic_urban_scenes
@@ -94,7 +134,13 @@ def _build(data, seed, count, args):
 
 def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, target_kl=0.05,
                        entropy_coef=0.01, raw_l2=0.02, lr=0.02, critic_lr=0.005, hidden=64, seed=0,
-                       residual_prior=-1.0, gamma=0.95, T=None) -> dict:
+                       residual_prior=-1.0, gamma=0.95, T=None, adaptive_anchor_kl=False,
+                       target_retention=0.95, beta_anchor_init=0.1, beta_up=1.5, beta_down=0.7,
+                       beta_min=0.0, beta_max=10.0) -> dict:
+    """R3 residual PPO + CTDE critic. R7 (adaptive_anchor_kl=True): ADD an anchor-KL term
+    (beta_anchor * anchor_kl_penalty) to the actor loss, with beta_anchor ADAPTIVELY tightened on
+    retention-drop / loosened on val-improve -- replacing the FIXED anchor pull as the sole protection. One
+    variable vs the R3 baseline (adaptive_anchor_kl=False): the anchor pull, fixed -> adaptive."""
     if T is None:
         T = _load_trunk()
     torch.manual_seed(seed)
@@ -111,6 +157,9 @@ def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, t
     ppo_calls = 0
     critic_delta = 0.0
     diverged = False
+    beta_anchor = float(beta_anchor_init)
+    beta_anchor_history, anchor_kl_log = [], []
+    prev_val = None
 
     for _ep in range(epochs):
         # ---- rollout (no grad) ----
@@ -160,7 +209,8 @@ def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, t
         c_before = [p.detach().clone() for p in critic.parameters()]
         ran = 0
         for _pe in range(ppo_epochs):
-            lp_new, lp_old, adv_rep, ent_terms, raw_terms, vpred, vtgt = [], [], [], [], [], [], []
+            lp_new, lp_old, adv_rep, ent_terms, raw_terms, anchor_terms, vpred, vtgt = \
+                [], [], [], [], [], [], [], []
             for fr in flat:
                 z_new = actor(fr["nf_s"], fr["ef_s"], fr["ei"], hidden=None)[0] + float(residual_prior)
                 pe = residual_logp_per_edge(z_new, fr["decisions"], fr["mask"])
@@ -169,6 +219,7 @@ def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, t
                     lp_new.append(pe[cand]); lp_old.append(fr["logp_old"][cand])
                     adv_rep.append(torch.full((int(cand.sum()),), fr["adv_n"]))
                 ent_terms.append(_entropy(z_new, fr["mask"]))
+                anchor_terms.append(anchor_kl_penalty(z_new, fr["mask"]))
                 raw_terms.append(raw_logit_l2_penalty(actor(fr["nf_s"], fr["ef_s"], fr["ei"], hidden=None)[1]))
                 vpred.append(critic(fr["state"].unsqueeze(0))); vtgt.append(fr["G_norm"])
             if not lp_new:
@@ -178,7 +229,11 @@ def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, t
             ppo_calls += 1
             entropy = torch.stack(ent_terms).mean()
             raw_pen = torch.stack(raw_terms).mean()
+            anchor_kl = torch.stack(anchor_terms).mean()
             actor_loss = ppo_loss - float(entropy_coef) * entropy + float(raw_l2) * raw_pen
+            if adaptive_anchor_kl:
+                actor_loss = actor_loss + beta_anchor * anchor_kl        # R7: adaptive anchor-KL pull
+                anchor_kl_log.append(float(anchor_kl))
             opt_a.zero_grad(); actor_loss.backward()
             gn = float(torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0))
             opt_a.step()
@@ -198,6 +253,14 @@ def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, t
                 break
         inner_ran.append(ran)
         critic_delta += float(sum((p.detach() - b).pow(2).sum() for p, b in zip(critic.parameters(), c_before)) ** 0.5)
+        if adaptive_anchor_kl:                                    # R7: adapt beta_anchor on retention / val
+            val_return = float(sum(fr["reward"] for fr in flat) / max(1, len(flat)))
+            retention_now = _map_retention(actor, train_scenes, mean, std, residual_prior)
+            beta_anchor = update_beta(beta_anchor, retention_now, target_retention, val_return,
+                                      prev_val if prev_val is not None else val_return,
+                                      beta_up, beta_down, beta_min, beta_max)
+            prev_val = val_return
+            beta_anchor_history.append(round(beta_anchor, 5))
         if diverged:
             break
 
@@ -208,6 +271,9 @@ def train_residual_ppo(train_scenes, *, epochs=15, ppo_epochs=4, clip_eps=0.2, t
             "value_loss": round(vloss_log[-1], 6) if vloss_log else 0.0,
             "explained_variance": round(ev_log[-1], 4) if ev_log else 0.0,
             "entropy": round(ent_log[-1], 6) if ent_log else 0.0, "entropy_coef": entropy_coef,
+            "adaptive_anchor_kl": adaptive_anchor_kl, "beta_anchor_final": round(beta_anchor, 5),
+            "beta_anchor_history": beta_anchor_history,
+            "anchor_kl_last": round(anchor_kl_log[-1], 6) if anchor_kl_log else 0.0,
             "diverged": diverged, **ev}
 
 

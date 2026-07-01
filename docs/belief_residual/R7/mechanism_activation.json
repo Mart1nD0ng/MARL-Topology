@@ -1,0 +1,31 @@
+{
+  "stage": "R7",
+  "title": "adaptive anchor-KL / safety constraint -- CONFIRMATORY NEGATIVE (== anchor); KEEP mechanism",
+  "source_commit_cited": "96f35f7 (R6: no gate operating point beats the anchor; optimal anchor-deviation=0)",
+  "decision": "KEEP the mechanism (adaptive controller load-bearing + stable); CONFIRMATORY NEGATIVE on the deployed gain -- adaptive anchor-KL residual == anchor exactly (edit_rate 0, retention 1.0, CI[0,0]); the fixed anchor protection was NOT the reason R3/R6 == anchor.",
+  "mechanism": {
+    "anchor_kl_term": {"status": "ACTIVE_IN_LOSS", "path": "anchor_kl_penalty in the actor loss", "def": "mean sigmoid(z) over candidate edges (deviation from flip-nothing anchor)"},
+    "adaptive_beta_controller": {"status": "ACTIVE_IN_LOSS", "path": "update_beta per epoch", "law": "retention<target -> beta*1.5; retention>=target & val-improve -> beta*0.7; clamp [0,10]"},
+    "r3_ppo_critic_entropy_rawl2": {"status": "unchanged", "note": "one variable = the anchor pull, fixed->adaptive"}
+  },
+  "deployable": {
+    "eval_decode": "MAP decode (flip iff z>0) via residual_decode_from_flips -- 0 evaluator calls",
+    "controller_signal_retention": "_map_retention -- 0 evaluator calls",
+    "fixed_flip_penalty_sole_protection": false,
+    "csi_scope": "current-frame channel (stale overlay off, as R3/R5/R6); stale-overlay-on full pilot is R8"
+  },
+  "result_5seed": {
+    "artifact": "result_save/belief_residual/R7/adaptive_kl_metrics.json",
+    "config": "20 epochs, ppo_epochs 4, 6 train scenes, seeds [0-4]; arms fixed(residual_prior=-1.0) vs adaptive(residual_prior=0.0 + adaptive anchor-KL)",
+    "random": {"anchor_feas": 0.300, "fixed_resid_feas": 0.300, "adaptive_resid_feas": 0.300,
+               "adaptive_minus_anchor_ci": [0.0, 0.0], "adaptive_edit_rate": 0.0, "adaptive_retention": 1.0,
+               "beta_final_mean": 0.131, "diverged": 0},
+    "urban": {"anchor_feas": 0.783, "fixed_resid_feas": 0.783, "adaptive_resid_feas": 0.783,
+              "adaptive_minus_anchor_ci": [0.0, 0.0], "adaptive_edit_rate": 0.0, "adaptive_retention": 1.0,
+              "beta_final_mean": 0.127, "diverged": 0}
+  },
+  "interpretation": "The adaptive anchor-KL controller is load-bearing (beta_anchor tightens AND loosens per seed, distinct trajectories, never diverges) but the residual policy lands EXACTLY at the anchor (edit_rate 0, retention 1.0) -- even with the fixed pull removed (residual_prior=0) and the trust region loosened, the PPO advantage provides no beneficial-direction gradient, so there is nothing to deviate toward. Confirms the fixed anchor protection was NOT the cause of R3/R6 == anchor; the binding limit is the deployable direction signal (R6 precision limit). Three independent mechanisms (R3 fixed-prior PPO, R6 evidence gate, R7 adaptive KL) all land at the anchor.",
+  "effect_on_decision": "changes the actor loss + training dynamics (beta adapts) but NOT the deployed topology (== anchor, edit_rate 0 all seeds) -- null effect on the action, reported honestly.",
+  "tests": "tests/unit/test_belief_residual_R7_adaptive_kl.py 5/5; R3+R7 12/12; full suite 815/0",
+  "no_push": true
+}
