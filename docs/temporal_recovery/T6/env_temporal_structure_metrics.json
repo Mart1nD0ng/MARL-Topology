@@ -1,0 +1,141 @@
+{
+  "scope": "T6 env temporal-structure diagnostic (delay-1): does the stale history add recoverable info about the current psucc BEYOND geometry? real-env R^2 decomposition + synthetic AR sweep. 5 seeds.",
+  "real": {
+    "random": {
+      "r2_geo": {
+        "mean": 0.44688,
+        "lo": 0.39759,
+        "hi": 0.49618,
+        "n": 5
+      },
+      "r2_temporal": {
+        "mean": 0.59628,
+        "lo": 0.56396,
+        "hi": 0.62861,
+        "n": 5
+      },
+      "temporal_contribution": {
+        "mean": 0.1494,
+        "lo": 0.12719,
+        "hi": 0.1716,
+        "n": 5
+      },
+      "r2_echo": {
+        "mean": 0.47241,
+        "lo": 0.42492,
+        "hi": 0.51991,
+        "n": 5
+      },
+      "temporal_adds_beyond_geometry": true
+    },
+    "urban": {
+      "r2_geo": {
+        "mean": 0.18961,
+        "lo": 0.1439,
+        "hi": 0.23532,
+        "n": 5
+      },
+      "r2_temporal": {
+        "mean": 0.63992,
+        "lo": 0.58622,
+        "hi": 0.69361,
+        "n": 5
+      },
+      "temporal_contribution": {
+        "mean": 0.4503,
+        "lo": 0.41012,
+        "hi": 0.49048,
+        "n": 5
+      },
+      "r2_echo": {
+        "mean": 0.5562,
+        "lo": 0.49222,
+        "hi": 0.62018,
+        "n": 5
+      },
+      "temporal_adds_beyond_geometry": true
+    }
+  },
+  "synthetic_ar_sweep": {
+    "rho_0.0": {
+      "r2_pred": {
+        "mean": -0.0029,
+        "lo": -0.00665,
+        "hi": 0.00084,
+        "n": 5
+      },
+      "r2_echo_synth": {
+        "mean": -1.03879,
+        "lo": -1.10648,
+        "hi": -0.9711,
+        "n": 5
+      },
+      "recovery_over_echo": {
+        "mean": 1.03588,
+        "lo": 0.96622,
+        "hi": 1.10554,
+        "n": 5
+      }
+    },
+    "rho_0.3": {
+      "r2_pred": {
+        "mean": 0.0862,
+        "lo": 0.06767,
+        "hi": 0.10474,
+        "n": 5
+      },
+      "r2_echo_synth": {
+        "mean": -0.4368,
+        "lo": -0.50975,
+        "hi": -0.36385,
+        "n": 5
+      },
+      "recovery_over_echo": {
+        "mean": 0.523,
+        "lo": 0.46809,
+        "hi": 0.57791,
+        "n": 5
+      }
+    },
+    "rho_0.6": {
+      "r2_pred": {
+        "mean": 0.35647,
+        "lo": 0.32837,
+        "hi": 0.38457,
+        "n": 5
+      },
+      "r2_echo_synth": {
+        "mean": 0.17654,
+        "lo": 0.12018,
+        "hi": 0.23291,
+        "n": 5
+      },
+      "recovery_over_echo": {
+        "mean": 0.17993,
+        "lo": 0.15099,
+        "hi": 0.20886,
+        "n": 5
+      }
+    },
+    "rho_0.9": {
+      "r2_pred": {
+        "mean": 0.80587,
+        "lo": 0.79675,
+        "hi": 0.81499,
+        "n": 5
+      },
+      "r2_echo_synth": {
+        "mean": 0.79356,
+        "lo": 0.78029,
+        "hi": 0.80683,
+        "n": 5
+      },
+      "recovery_over_echo": {
+        "mean": 0.01231,
+        "lo": 0.00788,
+        "hi": 0.01674,
+        "n": 5
+      }
+    }
+  }
+}

@@ -193,7 +193,17 @@ CI for any headline. Commit per stage, do NOT push.
   Suite 841/0. **MODEL LEVERS EXHAUSTED** (T2 activation / T3 correction / T4 edge / T5 uncertainty all NEGATIVE
   on conversion) → binding limit definitively the FEATURES (leak-free geometry → direction, not magnitude nor its
   uncertainty); T1 oracle POSITIVE (headroom real) → realizability, not existence, fails.
-- **Next — T6:** integrated A/B (best module T3 vs stale anchor, plain deployable result) + the **task-1
-  env-feature fallback** (add a leak-safe temporally-recoverable channel component and re-probe whether the module
-  converts when the magnitude IS recoverable — distinguishes "method inadequate" from "env has no recoverable
-  temporal structure"). Then **T7** docs close-out + 中文 report.
+- **T6 (this commit) — env temporal-structure diagnostic (task-1 fallback) — REFINES the binding limit.**
+  `t6_env_temporal_structure_gen.py` (real-env R² decomposition + synthetic AR sweep) + 2 tests. **5-seed:**
+  **the env is NOT structureless** — the stale history adds recoverable R² beyond geometry (temporal_contribution
+  random +0.149 [0.127,0.172] / urban +0.450 [0.410,0.490], CI>0; geometry+stale R² 0.596/0.640 beats echo
+  0.472/0.556 by ~0.08–0.12). Synthetic AR sweep: recoverability `r2_pred` rises monotonically with ρ
+  (0.0→−0.00 / 0.3→0.086 / 0.6→0.356 / 0.9→0.806) — method recovers autocorrelated structure when present; real
+  env R²~0.6 ≈ effective ρ~0.75. **BUT this R² gain does NOT convert to feasibility** (T1 arm C C−A spans 0 +
+  T3–T5 at floor, cited). **REFINED DIAGNOSIS:** the binding limit is the **deployable PRECISION at the anchor's
+  decision boundary**, NOT the absence of recoverable info — the info is partially recoverable on average but not
+  precise enough at the decision-critical edges. This is the project's recurring "deployable precision at N≤16"
+  wall, localized to the temporal/CSI-recovery axis (supersedes the T3–T5 "magnitude not in features" wording).
+  Diagnostic only (no src/env change). Suite 843/0.
+- **Next — T7:** docs close-out (README/CURRENT_HEAD_STATUS/URBAN_V2X_RESEARCH_LOG/AGENTS + STATUS COMPLETE banner
+  + refined 6-stage diagnosis) + 中文 analysis+data report to the owner + AskUser whether to PUSH T0–T7.

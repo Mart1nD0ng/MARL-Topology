@@ -1,0 +1,45 @@
+- claim: >
+    The env is NOT temporally structureless: the stale history adds significant recoverable R^2 about the true
+    current psucc BEYOND geometry (temporal_contribution random +0.149 [0.127,0.172] / urban +0.450 [0.410,0.490],
+    both CI>0), and a deployable geometry+stale predictor beats the echo baseline on R^2 (by ~0.08-0.13).
+  scope: T6 diagnostic; real delay-1 scenes; 5 seeds x {random,urban}; held R^2 (prediction-level, not feasibility)
+  mechanism: env temporal-structure decomposition (task-1 fallback)
+  code_path: scripts/diagnostics/t6_env_temporal_structure_gen.py
+  entrypoint: _real_part / _fit_r2 (geo vs geo+stale vs echo)
+  config_flags: CsiObservationModel(delay,1); features leak-free (stale psucc + current geometry)
+  dataset: build_csi_scenes random+urban delay-1; train 4 / held 4 scenes/seed; 8 frames; t>=1
+  seeds: [0,1,2,3,4]
+  split: train / held
+  loss_uses_mechanism: "MLP MSE to the true current psucc (the diagnostic TARGET); features are stale/geometry only"
+  eval_uses_mechanism: "held R^2 = 1 - MSE/Var"
+  runtime_activation_artifact: docs/temporal_recovery/T6/env_temporal_structure_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T6_env_structure.py::test_fit_r2_recovers_linear_signal_and_rejects_noise
+  effect_on_decision_metrics: >
+    R2_geo 0.447/0.190; R2_temporal 0.596/0.640; R2_echo 0.472/0.556; temporal_contribution +0.149/+0.450 (CI>0)
+  raw_result_artifact: docs/temporal_recovery/T6/env_temporal_structure_metrics.json
+  conclusion_boundary: >
+    Prediction-level: the info is partially recoverable. Does NOT itself measure feasibility; the non-conversion
+    is established by T1 arm C (C-A spans 0) + T3-T5, cited. Refines the limit to decision-boundary PRECISION.
+
+- claim: >
+    Recoverability of the current psucc from the stale value rises monotonically with the channel's temporal
+    autocorrelation rho: r2_pred is ~0 at rho=0 (IID, unrecoverable) and ~0.81 at rho=0.9. The method recovers
+    temporally-autocorrelated structure when present; the real env (R^2~0.6) corresponds to an effective rho~0.75.
+  scope: T6 synthetic AR channel (method validation); 5 seeds; held R^2
+  mechanism: synthetic AR-recoverability sweep
+  code_path: scripts/diagnostics/t6_env_temporal_structure_gen.py
+  entrypoint: _synth_ar(rho)
+  config_flags: rho in {0,0.3,0.6,0.9}; psucc=sigmoid(1.5*s_t); s_t AR(1)
+  dataset: synthetic (n=4000, 50/50 train/held)
+  seeds: [0,1,2,3,4]
+  split: train / held
+  loss_uses_mechanism: "MLP MSE current~stale"
+  eval_uses_mechanism: "held r2_pred vs rho"
+  runtime_activation_artifact: docs/temporal_recovery/T6/env_temporal_structure_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T6_env_structure.py::test_synth_ar_recovery_increases_with_rho
+  effect_on_decision_metrics: >
+    r2_pred rho=0.0 -0.003 [-0.007,+0.001] / 0.3 0.086 / 0.6 0.356 / 0.9 0.806 [0.797,0.815]
+  raw_result_artifact: docs/temporal_recovery/T6/env_temporal_structure_metrics.json
+  conclusion_boundary: >
+    Synthetic method validation (recoverability vs autocorrelation); does NOT measure feasibility conversion.
+    Motivates the task-1 env modification (raise the decision-critical autocorrelation) as a scoped follow-up.
