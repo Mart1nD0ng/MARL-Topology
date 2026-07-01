@@ -1,0 +1,41 @@
+{
+  "scope": "DF4 goal-3 activation probe: (1) softmax top-b == anchor top-b (monotone) -> softmax cannot change the deployed decision; (2) softmax per-edge keep-mass is N-dependent (1/N) vs sigmoid N-invariant (0.5) -> the category error for per-edge independent keep/drop. Analytical answer in DF0 / DF4 decision.md.",
+  "config": {
+    "data": "urban",
+    "scenes": 20,
+    "seed": 0,
+    "out": "D:\\PhD_works\\MARL-Topology\\docs\\decision_focused\\DF4\\df4_activation_metrics.json"
+  },
+  "argmax_equivalence": {
+    "n_node_frames": 928,
+    "softmax_topk_equals_anchor_frac": 0.9935344827586207,
+    "sigmoid_topk_equals_anchor_frac": 0.9935344827586207
+  },
+  "n_dependence": [
+    {
+      "N": 2,
+      "softmax_per_edge_keep_mass": 0.5,
+      "sigmoid_per_edge_keep_prob": 0.5
+    },
+    {
+      "N": 4,
+      "softmax_per_edge_keep_mass": 0.25,
+      "sigmoid_per_edge_keep_prob": 0.5
+    },
+    {
+      "N": 8,
+      "softmax_per_edge_keep_mass": 0.125,
+      "sigmoid_per_edge_keep_prob": 0.5
+    },
+    {
+      "N": 16,
+      "softmax_per_edge_keep_mass": 0.0625,
+      "sigmoid_per_edge_keep_prob": 0.5
+    },
+    {
+      "N": 24,
+      "softmax_per_edge_keep_mass": 0.041666666666666664,
+      "sigmoid_per_edge_keep_prob": 0.5
+    }
+  ]
+}
