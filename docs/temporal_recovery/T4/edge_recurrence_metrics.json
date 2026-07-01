@@ -1,0 +1,147 @@
+{
+  "scope": "T4 EDGE vs NODE recurrence for the correction belief (delay-1); in-policy belief, residual_leak=0.1; true current psucc = training-only label; 5 seeds x {random,urban}.",
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "by_data": {
+    "random": {
+      "node_beats_floor": {
+        "mean": 5e-05,
+        "lo": 1e-05,
+        "hi": 0.0001,
+        "n": 5
+      },
+      "edge_beats_floor": {
+        "mean": -0.00019,
+        "lo": -0.0027,
+        "hi": 0.00232,
+        "n": 5
+      },
+      "edge_vs_node_mse": {
+        "mean": -0.00024,
+        "lo": -0.00274,
+        "hi": 0.00226,
+        "n": 5
+      },
+      "node_dir_acc": {
+        "mean": 0.93162,
+        "lo": 0.90852,
+        "hi": 0.95473,
+        "n": 5
+      },
+      "edge_dir_acc": {
+        "mean": 0.89772,
+        "lo": 0.86058,
+        "hi": 0.93486,
+        "n": 5
+      },
+      "node_feas_gain": {
+        "mean": -0.21875,
+        "lo": -0.49445,
+        "hi": 0.05695,
+        "n": 5
+      },
+      "edge_feas_gain": {
+        "mean": -0.25,
+        "lo": -0.38716,
+        "hi": -0.11284,
+        "n": 5
+      },
+      "node_belief_mse": {
+        "mean": 0.09501,
+        "lo": 0.07994,
+        "hi": 0.11008,
+        "n": 5
+      },
+      "edge_belief_mse": {
+        "mean": 0.09525,
+        "lo": 0.08,
+        "hi": 0.1105,
+        "n": 5
+      },
+      "floor_mse": {
+        "mean": 0.09506,
+        "lo": 0.07997,
+        "hi": 0.11016,
+        "n": 5
+      },
+      "edge_beats_floor_sig": false,
+      "edge_beats_node_sig": false
+    },
+    "urban": {
+      "node_beats_floor": {
+        "mean": 0.00035,
+        "lo": -0.00022,
+        "hi": 0.00091,
+        "n": 5
+      },
+      "edge_beats_floor": {
+        "mean": 0.0021,
+        "lo": -0.00482,
+        "hi": 0.00902,
+        "n": 5
+      },
+      "edge_vs_node_mse": {
+        "mean": 0.00175,
+        "lo": -0.00553,
+        "hi": 0.00904,
+        "n": 5
+      },
+      "node_dir_acc": {
+        "mean": 0.91394,
+        "lo": 0.82059,
+        "hi": 1.00728,
+        "n": 5
+      },
+      "edge_dir_acc": {
+        "mean": 0.89348,
+        "lo": 0.83138,
+        "hi": 0.95558,
+        "n": 5
+      },
+      "node_feas_gain": {
+        "mean": -0.09375,
+        "lo": -0.35544,
+        "hi": 0.16794,
+        "n": 5
+      },
+      "edge_feas_gain": {
+        "mean": -0.325,
+        "lo": -0.49321,
+        "hi": -0.15679,
+        "n": 5
+      },
+      "node_belief_mse": {
+        "mean": 0.10263,
+        "lo": 0.08423,
+        "hi": 0.12103,
+        "n": 5
+      },
+      "edge_belief_mse": {
+        "mean": 0.10088,
+        "lo": 0.08259,
+        "hi": 0.11916,
+        "n": 5
+      },
+      "floor_mse": {
+        "mean": 0.10298,
+        "lo": 0.08495,
+        "hi": 0.121,
+        "n": 5
+      },
+      "edge_beats_floor_sig": false,
+      "edge_beats_node_sig": false
+    }
+  }
+}

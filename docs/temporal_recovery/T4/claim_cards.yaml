@@ -1,0 +1,47 @@
+- claim: >
+    Edge-level recurrence (a per-edge GRU carrying an [E,H] hidden across frames) does NOT beat node-level
+    recurrence or the stale-echo floor: edge_vs_node_mse and edge_beats_floor both span 0. Moving the recurrent
+    state from per-node to per-edge (task 3.4) recovers no additional CSI magnitude.
+  scope: T4; in-policy correction belief (residual_leak=0.1); 5 seeds x {random,urban}; delay-1; held
+  mechanism: edge-level recurrent state (task 3.4)
+  code_path: src/marl_topology/models/belief_residual_actor.py (belief_edge/edge_gru) + scripts/diagnostics/t4_edge_recurrence_gen.py
+  entrypoint: BeliefResidualActor(edge_recurrent=True).belief_edge / t4_edge_recurrence_gen._train(mode=edge)
+  config_flags: edge_recurrent=True; residual_leak=0.1; mode in {node, edge}
+  dataset: build_csi_scenes random+urban delay-1; train 5 / held 8 scenes/seed; 4 frames
+  seeds: [0,1,2,3,4]
+  split: train / held (seed-disjoint)
+  loss_uses_mechanism: "yes -- edge_gru is in the belief forward; correction Huber; true CSI training-only label"
+  eval_uses_mechanism: "held belief MSE + recovered psucc -> anchor feasibility"
+  runtime_activation_artifact: docs/temporal_recovery/T4/edge_recurrence_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T4_edge_recurrence.py (4 tests; belief_edge carry changes belief)
+  effect_on_decision_metrics: >
+    edge_beats_floor random -2e-4 [-2.7e-3,+2.3e-3] / urban +2.1e-3 [-4.8e-3,+9e-3] (spans 0);
+    edge_vs_node_mse random -2.4e-4 / urban +1.8e-3 (spans 0, sig=False both)
+  raw_result_artifact: docs/temporal_recovery/T4/edge_recurrence_metrics.json
+  conclusion_boundary: >
+    NEGATIVE on task 3.4: the recurrence locus is not the magnitude bottleneck. Third confirmation (T1 standalone
+    / T3 node / T4 edge) that the magnitude is not in the leak-free features.
+
+- claim: >
+    More temporal capacity makes the DECISION worse when the magnitude signal is absent: the edge GRU (more
+    params + per-edge memory) HURTS the recovered-psucc anchor feasibility significantly (feas_gain CI<0 both
+    regimes), worse than the node arm (which spans 0).
+  scope: T4; 5 seeds x {random,urban}; deployed 0-eval anchor; true evaluator
+  mechanism: edge recurrence capacity vs decision quality
+  code_path: t4_edge_recurrence_gen._held (recovered psucc -> t1 _anchor_with_psucc -> g6._cons)
+  entrypoint: _held(mode=edge) feas_gain
+  config_flags: tau_feas=0.9
+  dataset: build_csi_scenes random+urban delay-1 held
+  seeds: [0,1,2,3,4]
+  split: held
+  loss_uses_mechanism: "n/a (deployed anchor, 0 eval)"
+  eval_uses_mechanism: "yes -- edge-recovered psucc drives the anchor; true evaluator scores"
+  runtime_activation_artifact: docs/temporal_recovery/T4/edge_recurrence_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T1_oracle.py (the _anchor_with_psucc injection, reused)
+  effect_on_decision_metrics: >
+    edge_feas_gain random -0.25 [-0.387,-0.113] / urban -0.325 [-0.493,-0.157] (CI<0 both);
+    node_feas_gain random -0.219 [-0.494,+0.057] / urban -0.094 [-0.355,+0.168] (spans 0)
+  raw_result_artifact: docs/temporal_recovery/T4/edge_recurrence_metrics.json
+  conclusion_boundary: >
+    Capacity is not the bottleneck -- adding it hurts. Answers the LSTM question (more capacity -> not helpful).
+    The binding limit is the leak-free features' lack of the decision-critical magnitude, not the architecture.

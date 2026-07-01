@@ -28,7 +28,7 @@ class BeliefResidualActor(nn.Module):
 
     def __init__(self, node_dim: int, edge_dim: int, hidden: int = 64,
                  residual_logit_scale: float = 3.0, belief_extra_dim: int = 0,
-                 residual_leak: float = 0.0) -> None:
+                 residual_leak: float = 0.0, edge_recurrent: bool = False) -> None:
         super().__init__()
         if not (2.0 <= residual_logit_scale <= 4.0):
             raise ValueError(f"residual_logit_scale should be in [2,4] (got {residual_logit_scale})")
@@ -65,6 +65,16 @@ class BeliefResidualActor(nn.Module):
         self.edit_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
         self.repair_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
         self.safety_head = nn.Sequential(nn.Linear(edge_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
+        # T4 (Temporal Recovery): EDGE-level recurrent state (task 3.4). The CSI dynamics are EDGE attributes,
+        # but ``gru`` above is per-NODE; ``edge_gru`` carries a per-EDGE hidden [E,H] across frames (edges are a
+        # fixed candidate set per scene, so the hidden can be carried by index) and ``edge_belief_head`` reads
+        # that edge hidden DIRECTLY. Opt-in (allocated only when edge_recurrent) and appended LAST, so
+        # edge_recurrent=False is byte-identical to the frozen R1-R8 / T2 / T3 actor.
+        self.edge_recurrent = bool(edge_recurrent)
+        if self.edge_recurrent:
+            self.edge_gru = nn.GRUCell(edge_dim + 2 * hidden, hidden)
+            self.edge_belief_head = nn.Sequential(
+                nn.Linear(edge_dim + self.belief_extra_dim + hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
 
     def init_hidden(self, n_nodes: int, ref: Tensor) -> Tensor:
         return ref.new_zeros(n_nodes, self.hidden)
@@ -147,6 +157,46 @@ class BeliefResidualActor(nn.Module):
                  "repair_pred": self.repair_head(feats).squeeze(-1),
                  "safety_pred": self.safety_head(feats).squeeze(-1)}, h)
 
+    def _spatial_node_embed(self, nf: Tensor, ef: Tensor, ei: Tensor) -> Tensor:
+        """node encode + ONE directional message-passing round -> bounded spatial node embedding (NO recurrence).
+        Shared spatial context for the edge-level recurrent belief (T4); the temporal memory lives in edge_gru."""
+        n = nf.shape[0]
+        x = self.node_enc(nf)
+        agg = x.new_zeros(n, self.hidden)
+        if ei.shape[0] > 0:
+            u, v = ei[:, 0].long(), ei[:, 1].long()
+            src = torch.cat([u, v], dim=0)
+            dst = torch.cat([v, u], dim=0)
+            ef2 = torch.cat([ef, ef], dim=0)
+            m = self.msg(torch.cat([x[src], x[dst], ef2], dim=-1))
+            agg = agg.index_add(0, dst, m)
+            deg = agg.new_zeros(n).index_add(0, dst, torch.ones(dst.shape[0], device=agg.device))
+            agg = agg / deg.clamp_min(1.0).unsqueeze(-1)
+        return self.h_norm(x + agg)
+
+    def belief_edge(self, nf: Tensor, ef: Tensor, ei: Tensor, extra: Tensor | None = None,
+                    edge_hidden: Tensor | None = None) -> tuple[Tensor, Tensor]:
+        """T4 EDGE-LEVEL recurrent belief (task 3.4): a per-edge GRU over [ef, z_u, z_v] (z = spatial node
+        embedding) carrying a per-edge hidden [E,H] across frames; ``edge_belief_head`` reads that edge hidden
+        DIRECTLY (not node hu*hv), so the temporal state that tracks the per-edge CSI is itself per-edge. Returns
+        (belief_logit[E], new_edge_hidden[E,H]). ``edge_hidden=None`` starts from zeros (the no-edge-memory
+        ablation). The deployed actor NEVER reads the true current CSI."""
+        if not self.edge_recurrent:
+            raise RuntimeError("belief_edge requires edge_recurrent=True")
+        z = self._spatial_node_embed(nf, ef, ei)
+        if ei.shape[0] == 0:
+            return ef.new_zeros(0), ef.new_zeros(0, self.hidden)
+        zu, zv = z[ei[:, 0].long()], z[ei[:, 1].long()]
+        x_e = torch.cat([ef, zu, zv], dim=-1)
+        he0 = edge_hidden if edge_hidden is not None else ef.new_zeros(ei.shape[0], self.hidden)
+        h_e = self.edge_gru(x_e, he0)                              # per-EDGE cross-frame recurrence
+        parts = [ef]
+        if self.belief_extra_dim:
+            parts.append(extra if extra is not None else ef.new_zeros(ef.shape[0], self.belief_extra_dim))
+        parts.append(h_e)
+        bel = self.edge_belief_head(torch.cat(parts, dim=-1)).squeeze(-1)
+        return bel, h_e
+
     def boundary_report(self) -> dict:
         return {
             "model_id": self.model_id,
@@ -157,5 +207,7 @@ class BeliefResidualActor(nn.Module):
             "residual_logit_scale": self.residual_logit_scale,
             "residual_leak": self.residual_leak,
             "non_saturating_activation": self.residual_leak > 0.0,
+            "edge_recurrent": self.edge_recurrent,
+            "recurrence_locus": "node+edge" if self.edge_recurrent else "node",
             "outputs": "leaky_tanh_residual_logit + raw" if self.residual_leak > 0.0 else "tanh_residual_logit + raw",
         }

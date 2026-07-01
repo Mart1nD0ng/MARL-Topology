@@ -169,5 +169,18 @@ CI for any headline. Commit per stage, do NOT push.
   anchor ranking (T1's MSE⟂decisions, confirmed on the belief path). Binding limit = magnitude/precision
   recovery (direction learnable, magnitude not), consistent across T1 (standalone) + T3 (in-policy). Suite
   831/0.
-- **Next — T4:** edge-level recurrent state (task 3.4) — CSI dynamics are edge attributes; test whether an
-  edge-indexed hidden recovers the magnitude the per-node GRU cannot. One variable vs the T3 correction belief.
+- **T4 (this commit) — KEEP mechanism (opt-in) / HONEST NEGATIVE — edge recurrence does not help.**
+  `BeliefResidualActor(edge_recurrent=True)` adds a per-edge `edge_gru` [E,H] carried across frames (edges a
+  fixed candidate set) + `edge_belief_head` reading the edge hidden directly; `t4_edge_recurrence_gen.py` compares
+  node (T3) vs edge recurrence, both correction + `residual_leak=0.1`; 4 tests. **5-seed × {random,urban} delay-1:**
+  `edge_vs_node_mse` random −2.4e-4 / urban +1.8e-3 (spans 0 both, sig=False) and `edge_beats_floor` spans 0
+  both → edge ≈ node ≈ floor (no magnitude gain); edge `dir_acc` slightly lower (0.89 vs 0.92); **edge
+  significantly HURTS the anchor** (`edge_feas_gain` random −0.25 [−0.387,−0.113] / urban −0.325 [−0.493,−0.157]
+  CI<0 both) — worse than node (spans 0). More temporal capacity → worse decisions when the magnitude signal is
+  absent (answers the LSTM question: capacity is not the bottleneck). **Third confirmation** (T1 standalone / T3
+  node / T4 edge) that the decision-critical magnitude is not in the leak-free features — the recurrence locus is
+  not the limit. `edge_recurrent=False` default byte-identical (prior suite green; T0 tripwire preserved). Suite
+  835/0.
+- **Next — T5:** physical residual model + uncertainty head — predict a correction AND its variance; shrink
+  magnitude by confidence (feed the anchor a calibrated psucc). The one angle T1–T4 did not test; if it also
+  stalls, the binding limit is the env features (task-1 fallback: add leak-safe temporal structure).
