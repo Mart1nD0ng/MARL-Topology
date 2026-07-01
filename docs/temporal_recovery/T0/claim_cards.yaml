@@ -1,0 +1,62 @@
+- claim: >
+    At HEAD c74a71d the CSI-belief auxiliary regresses the ABSOLUTE true-current per-edge psucc logit, making
+    stale-echo the loss-optimal prediction for any edge whose channel is near-unchanged between t-1 and t.
+  scope: T0 audit; belief_residual_actor + csi_belief; no run (static code fact)
+  mechanism: CSI-belief target (direct p_t)
+  code_path: src/marl_topology/training/csi_belief.py
+  entrypoint: belief_target_logits / csi_belief_loss
+  config_flags: none (structural)
+  dataset: none (unit-level construction)
+  seeds: n/a
+  split: n/a
+  loss_uses_mechanism: "yes — csi_belief_loss = Huber(belief_logit, absolute_true_current_logit)"
+  eval_uses_mechanism: "no — true CSI is a training-only label; deployed actor reads stale ef"
+  runtime_activation_artifact: docs/temporal_recovery/T0/mechanism_path_matrix.md
+  load_bearing_tests: tests/unit/test_temporal_recovery_T0_audit.py::test_belief_target_is_absolute_current_echo_optimal
+  effect_on_decision_metrics: "n/a (audit) — the downstream echo failure is R2's 5-seed negative"
+  raw_result_artifact: n/a
+  conclusion_boundary: >
+    Documents WHY R2 echoed stale (a structural target defect); does NOT itself prove recovery is possible —
+    that is the T1 gate. The fix is T3 (correction target).
+
+- claim: >
+    At HEAD the residual decision logit passes the recurrent signal through a saturating tanh
+    (z = z_max*tanh(raw/z_max)); because the decoder thresholds on sign(residual_logit)=sign(raw), the tanh
+    magnitude-squash flattens the GRU's contribution to the ACTED logit.
+  scope: T0 audit; belief_residual_actor.forward; no run (static code fact)
+  mechanism: tanh residual-logit saturation
+  code_path: src/marl_topology/models/belief_residual_actor.py
+  entrypoint: BeliefResidualActor.forward
+  config_flags: residual_logit_scale in [2,4] (default 3)
+  dataset: none
+  seeds: n/a
+  split: n/a
+  loss_uses_mechanism: "yes — the acted logit is the tanh-squashed value"
+  eval_uses_mechanism: "yes — decode thresholds on sign(residual_logit)"
+  runtime_activation_artifact: docs/temporal_recovery/T0/mechanism_path_matrix.md
+  load_bearing_tests: tests/unit/test_temporal_recovery_T0_audit.py::test_residual_logit_saturates_and_gradient_vanishes
+  effect_on_decision_metrics: "R1 measured action_delta = 0 (recurrent == memoryless topology)"
+  raw_result_artifact: docs/belief_residual/R1/saturation_pilot.json (cited; R1 commit 27a184b)
+  conclusion_boundary: >
+    Documents the activation defect (task 2). The fix is T2 (non-saturating map). Does not claim the GRU is
+    useless — only that this activation prevents it reaching the acted logit.
+
+- claim: >
+    At HEAD the only recurrent cell is a per-node GRUCell (hidden [N,H]); the CSI dynamics it must track are
+    per-edge (ef rows), a node/edge locus mismatch.
+  scope: T0 audit; belief_residual_actor; no run
+  mechanism: per-node recurrence for edge-attribute CSI
+  code_path: src/marl_topology/models/belief_residual_actor.py
+  entrypoint: BeliefResidualActor.encode / .gru
+  config_flags: none (structural)
+  dataset: none
+  seeds: n/a
+  split: n/a
+  loss_uses_mechanism: "yes — the node hidden feeds all heads via hu,hv"
+  eval_uses_mechanism: "yes"
+  runtime_activation_artifact: docs/temporal_recovery/T0/mechanism_path_matrix.md
+  load_bearing_tests: >
+    tests/unit/test_temporal_recovery_T0_audit.py::test_recurrence_is_per_node_and_no_edge_state
+  effect_on_decision_metrics: n/a (audit)
+  conclusion_boundary: >
+    Documents the locus mismatch (task 3.4) and the absence of edge-level recurrent state. The fix is T4.
