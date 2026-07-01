@@ -1,5 +1,21 @@
 # CURRENT_BELIEF_RESIDUAL_STATUS — HEAD vs the Belief-Guided Evidence-Gated Residual PPO target
 
+> ## 🏁 BELIEF-GUIDED EVIDENCE-GATED RESIDUAL PPO — CAMPAIGN COMPLETE (2026-07-01)
+> R0–R8 built and tested the full method under the Contract v4 Claim-Path evidence regime, then R10 closed it
+> out. **CENTRAL RESULT: no deployable arm beats the `local_hysteresis` anchor on the CURRENT channel (R6/R7)
+> OR the STALE channel (R8) at N≤16 — the binding limit is the deployable PRECISION of the beneficial-edit
+> direction signal.** The signal genuinely EXISTS (R4, `positive_edit_rate` CI>0) and is locally RANKABLE (R5,
+> held top-k CI>0 on random) — the campaign's first deployable-learning positive — but it does NOT CONVERT into
+> a deployed feasibility/return gain: the evidence gate is correct/safe/load-bearing yet reproduces the anchor
+> at its best operating point on both channels (R6/R8 sweeps: no `tau_edit` beats the anchor), and an adaptive
+> anchor-KL trust region also lands at the anchor (R7). The stale-CSI premise is CONFIRMED (stale significantly
+> degrades the anchor: urban −0.165, matching Q14 0.80→0.66) but the method does not repair it. Every mechanism
+> is verified-correct + adversarially checked (Workflows per stage); each is individually informative. This is
+> the **4th independent campaign** (v2-static / D0–D14 dynamic / POMDP-QP-FAR / Belief-Residual) to reach the
+> same honest negative — now with the most precise diagnosis (see the 4-chain ledger in §5 and the
+> `BELIEF-GUIDED RESIDUAL PPO CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md`).
+> **Commits R0–R8 + R10 on `decentralized-marl-trunk`, NOT pushed (owner's decision). Suite 817/0.**
+
 > Authority of record for THIS round (highest priority):
 > 1. `docs/MARL-Topology-Belief-Guided-Residual-PPO-TechSpec.md`
 > 2. `docs/MARL-Topology-Belief-Guided-Residual-PPO-Workflow.md`
@@ -199,5 +215,37 @@ deployable direction-signal precision holds the method to the anchor on BOTH the
 channels; NOT a leak/mechanism/trainer bug. 2 tests; Workflow `w4hpxwg29` 3-lens+synthesis MINOR (PASS/PASS/
 MINOR; byte-level leak-free repro; 2 wording fixes applied — inferred-not-measured stale precision, overlay
 active-in-deployed-observation). suite 817/0. **CAMPAIGN COMPLETE (experimental): no deployable arm beats the
-`local_hysteresis` anchor on the current OR the stale channel at N≤16. Next: R10** — honest close-out (4-chain
-diagnosis + README/CURRENT_HEAD_STATUS/URBAN_V2X_RESEARCH_LOG/AGENTS + AskUser whether to push).
+`local_hysteresis` anchor on the current OR the stale channel at N≤16.**
+**R10 DONE — honest close-out (pure docs).** COMPLETE banner (this doc, top) + `BELIEF-GUIDED RESIDUAL PPO
+CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md` + Belief-Residual banner on
+`docs/CURRENT_HEAD_STATUS.md` + `AGENTS.md` pointer; the 4-chain diagnosis (§5 below). Suite unchanged 817/0.
+
+---
+
+## 5. FINAL 4-CHAIN DIAGNOSIS (R10 close-out) — where the method's value is, and where it stops
+
+The TechSpec method had four chains. Each was built, made load-bearing, and adversarially verified; the
+campaign's value is the PRECISE localization of the binding limit.
+
+| chain | mechanism | status | result (path-specific) |
+|---|---|---|---|
+| 1. temporal / belief | GRU over stale history → current-CSI belief → edge score | **✗ non-load-bearing** | R1 fixed logit saturation but the ACTION is unchanged (logit-level only); R2 the CSI belief is a NO-OP — it does not beat the stale-echo floor (5-seed CI entirely negative). Recurrence null. |
+| 2. trainer stability | residual → old/new logp → PPO clip/KL → CTDE critic; adaptive anchor-KL | **✓ correct, but no direction** | R3 residual PPO GENUINELY wired (per-edge ratio, target_kl, CTDE EV 0.08–0.56) — ELIMINATES the free-REINFORCE collapse (0/5 vs 1/5) but residual == anchor (edit 0). R7 adaptive anchor-KL (load-bearing controller) ALSO == anchor. The trainer is not the limit. |
+| 3. direction supervision | central beneficial-edit labels → repair/safety/edit heads | **EXISTS → RANKABLE → NOT CONVERTIBLE** | R4 the signal EXISTS (`positive_edit_rate` random 0.096 / urban 0.125, CI>0; anchor NOT a local optimum). R5 LOCAL heads can RANK it (held top-k − base random +0.251 CI>0, 3.2× lift; urban mean-positive) — the campaign's FIRST deployable-learning positive. R6/R8 it does NOT CONVERT to a deployed gain (no `tau_edit` beats the anchor on current OR stale). |
+| 4. evidence-gated action | gate residual on the repair/safety heads; adaptive KL | **✓ correct/safe, == anchor** | R6/R8 the gate is budget-safe, zero→anchor, 0-eval, load-bearing — but at its best operating point it reproduces the anchor (suppresses edits); firing edits is net-negative (harmful-edit feasibility cost > beneficial-edit gain). |
+
+**BINDING LIMIT = the deployable PRECISION of the beneficial-edit direction signal**, on BOTH the current
+channel (R6/R7) and the stale channel (R8, the actual failure regime — premise confirmed, no repair). The
+direction signal is real and locally learnable, but a deployable local policy cannot convert its ~40%-precision
+ranking into a net feasibility/return gain over the near-optimal (or stale-degraded) `local_hysteresis` anchor
+at N≤16 — a harmful edit costs more feasibility than a beneficial edit gains, and the heads cannot separate them
+sharply enough to fire only the winners.
+
+**This is the 4th independent campaign** (v2-static / D0–D14 dynamic / POMDP-QP-FAR / Belief-Residual) to reach
+the same honest negative — now localized to the direction-signal precision, NOT its existence (R4), its
+learnability (R5), the trainer (R3/R7), the gate (R6/R8), the temporal/belief chain (R1/R2), or any leak.
+
+**Open frontier (deferred):** N≥24 with a cheaper exact-fault evaluator; a higher-precision direction signal
+(e.g. richer local features or a learned edge encoder that lifts held top-k precision well above ~40%) is the
+only lever that could plausibly flip the deployed conversion — the campaign shows precision, not mechanism, is
+the wall.

@@ -1,6 +1,28 @@
 # CURRENT HEAD STATUS — Phase 0 freeze (spec-driven reconstruction)
 
-> ## ⏩ POMDP-QP-FAR CAMPAIGN COMPLETE (2026-06-28) — the latest campaign; confirms the same honest negative
+> ## 🏁 BELIEF-GUIDED EVIDENCE-GATED RESIDUAL PPO CAMPAIGN COMPLETE (2026-07-01) — the LATEST campaign; the 4th honest negative, now precisely localized
+> The owner-authorized Belief-Residual campaign (binding `MARL-Topology-Belief-Guided-Residual-PPO-TechSpec.md`
+> + `…-Workflow.md` + the Claim-Path evidence regime `MARL-Topology-Development-Contract-v4.md`) built and tested
+> the full "Belief-Guided Evidence-Gated Residual PPO" method against the Q14 residual failure. Full ledger: the
+> `BELIEF-GUIDED RESIDUAL PPO CAMPAIGN SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md`; per-stage status
+> + 4-chain diagnosis: `docs/CURRENT_BELIEF_RESIDUAL_STATUS.md`; per-stage `docs/belief_residual/R*/`.
+> - **CENTRAL RESULT: no deployable arm beats the `local_hysteresis` anchor on the CURRENT channel (R6/R7) OR
+>   the STALE channel (R8) at N≤16.** The beneficial-edit direction signal genuinely EXISTS (R4,
+>   `positive_edit_rate` CI>0) and is locally RANKABLE (R5, held top-k CI>0 on random — the campaign's first
+>   deployable-learning positive), but it does NOT CONVERT into a deployed feasibility/return gain: the evidence
+>   gate is correct/safe/load-bearing yet reproduces the anchor at its best operating point on both channels (no
+>   `tau_edit` beats the anchor), and an adaptive anchor-KL trust region also lands at the anchor (R7).
+> - **The stale-CSI premise is CONFIRMED** (stale significantly degrades the anchor: urban −0.165, matching Q14
+>   0.80→0.66) but the method does NOT repair it (R8). Every mechanism is verified-correct + adversarially
+>   checked (a multi-lens Workflow per stage) and individually informative; each stays **opt-in / default-off**.
+> - **Binding limit = the deployable PRECISION of the beneficial-edit direction signal** — NOT its existence
+>   (R4), learnability (R5), the trainer (R3/R7), the gate (R6/R8), the temporal/belief chain (R1/R2), or a
+>   leak. This is the **4th independent campaign** (v2-static / D0–D14 / POMDP-QP-FAR / Belief-Residual) to reach
+>   the same honest finding, now the most precisely localized.
+> - **Recommended config (unchanged):** deployable arm = `local_hysteresis`; all Belief-Residual mechanisms stay
+>   opt-in. Commits R0–R8 + R10 on `decentralized-marl-trunk`, **NOT pushed (owner's decision).** Suite 817/0.
+
+> ## ⏩ POMDP-QP-FAR CAMPAIGN COMPLETE (2026-06-28) — the prior campaign; confirms the same honest negative
 > The owner-authorized POMDP-QP-FAR campaign (Q0–Q13, binding `MARL-Topology-Development-Contract-v3.md` +
 > the two `…-POMDP-QP-FAR-…` specs) attacked the two diagnosed D0–D14 bottlenecks head-on: **Axis A temporal
 > degeneracy** (via stale/partial CSI making history valuable) and **Axis B feasibility plateau** (via a

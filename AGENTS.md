@@ -116,9 +116,10 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 
 > **CURRENT STATE (2026-06-28) — three campaigns complete; see `docs/CURRENT_HEAD_STATUS.md` for the live
 > ledger.** The in-range-parity snapshot below is a HISTORICAL milestone (pre-CTDE recalibration); it has
-> since been superseded by three completed, adversarially-verified campaigns that all reach the same honest
+> since been superseded by FOUR completed, adversarially-verified campaigns that all reach the same honest
 > finding — at N ≤ 16, every sophisticated mechanism is verified-correct but gives no headline gain, and the
-> binding limit is **RL feasibility-region learning**:
+> binding limit is **RL feasibility-region learning** (sharpened by the latest campaign to the deployable
+> PRECISION of the beneficial-edit direction signal):
 > - **v2 static** (R0–R7 + Phase 8–13): Graph-MAPPO + MLP + closed-form decoder is best in-range and
 >   best-generalizing.
 > - **Dynamic-repair** (D0–D14): the T>1 task built + corrected (10 gaps) on real 4-RSU urban data; all
@@ -130,8 +131,21 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 >   deployable baseline), and it beats the anchor only modestly and not significantly (Q12 paired CI spans
 >   0). No learned arm beats the deployable anchor. Ledger: `docs/URBAN_V2X_RESEARCH_LOG.md` +
 >   `docs/pomdp_qpfar/`.
+> - **Belief-Guided Evidence-Gated Residual PPO** (R0–R8 + R10; Contract v4 Claim-Path evidence): the full
+>   method vs the Q14 residual failure — CSI-belief aux, residual PPO + CTDE critic, beneficial-edit
+>   supervision (repair/safety/edit heads), an evidence gate, an adaptive anchor-KL. **The beneficial-edit
+>   direction signal genuinely EXISTS (R4) and is locally RANKABLE (R5, held top-k CI>0 — the campaign's first
+>   deployable-learning positive), but it does NOT CONVERT into a deployed gain: no `tau_edit` beats the anchor
+>   on the current channel (R6) or the stale channel (R8), and an adaptive anchor-KL also lands at the anchor
+>   (R7).** The stale-CSI premise is CONFIRMED (stale degrades the anchor, urban −0.165 ≈ Q14) but the method
+>   does not repair it. Binding limit = **the deployable PRECISION of the direction signal** (not its existence,
+>   learnability, the trainer, the gate, the temporal/belief chain, or a leak). All mechanisms opt-in /
+>   default-off, adversarially verified per stage. Ledger: `docs/CURRENT_BELIEF_RESIDUAL_STATUS.md` (4-chain
+>   diagnosis §5) + the `BELIEF-GUIDED RESIDUAL PPO CAMPAIGN SUMMARY` in `docs/URBAN_V2X_RESEARCH_LOG.md` +
+>   `docs/belief_residual/R*/`.
 >
-> Open frontier (deferred): large-N (N ≥ 24) generalization (needs a cheaper exact-fault evaluator).
+> Open frontier (deferred): large-N (N ≥ 24) generalization (needs a cheaper exact-fault evaluator); a
+> higher-precision local direction signal (the only lever the Belief-Residual campaign leaves open).
 
 The legacy "+0.177 beat at out-of-range N = 24" is **retired** — it was produced under the
 pre-recalibration (incorrect) env-math. Under the **corrected** math (P0–P4 + recalibration)

@@ -4529,3 +4529,80 @@ This addendum closes that loop (eval-only diagnostics, no src/test change). Full
   anchor; anneal the trust-region; add a CTDE critic; entropy + raw-logit regularization; PPO/KL trust-region;
   a supervised CSI-prediction auxiliary. Recommendations only — each would be a new ≥5-seed experiment.
 - Verification: Workflows `wmr40pusa` (joint experiment, MINOR) + `wsdvtxdv7` (success-case C/E/L, MINOR).
+
+---
+
+## 🏁 BELIEF-GUIDED EVIDENCE-GATED RESIDUAL PPO CAMPAIGN SUMMARY (2026-07-01 — R0–R8 + R10, Contract v4)
+
+The owner-authorized Belief-Residual campaign (governed by `MARL-Topology-Belief-Guided-Residual-PPO-TechSpec.md`,
+`…-Workflow.md`, and `MARL-Topology-Development-Contract-v4.md` — the Claim-Path evidence regime) took the levers
+the Q14 addendum listed as untested (residual PPO, a CTDE critic, a CSI-belief auxiliary, beneficial-edit
+supervision, an evidence gate, an adaptive trust region) and built + tested each as ONE variable per stage, with
+a per-stage Claim Card + Mechanism-Path Matrix + failing-first load-bearing test + Effect-on-Decision test +
+path-specific negative, and an adversarial multi-lens Workflow verification. Per-stage docs: `docs/belief_residual/R*/`;
+per-stage status: `docs/CURRENT_BELIEF_RESIDUAL_STATUS.md` (with the 4-chain ledger in §5).
+
+**CENTRAL RESULT.** No deployable arm beats the `local_hysteresis` anchor on the CURRENT channel (R6/R7) OR the
+STALE channel (R8) at N≤16. The binding limit is the deployable PRECISION of the beneficial-edit direction
+signal — it EXISTS and is locally learnable, but does not CONVERT into a deployed feasibility/return gain.
+
+**Stage ledger (all commits on `decentralized-marl-trunk`, NOT pushed — owner's decision):**
+- **R0** (`fea80fc`) — froze Q14 + audited the residual trainer: PPO/critic/entropy/KL exist ONLY in the
+  graph_mappo trunk; the residual path was REINFORCE + moving baseline + fixed flip-penalty (Contract v4 §7:
+  trunk PPO ≠ residual PPO). 3 load-bearing audit tests (incl. the R3 PPO spy tripwire).
+- **R1** (`27a184b`) — logit-saturation fix: `BeliefResidualActor` with a SEPARATE small-range residual head
+  (z_max 3, exposes raw) + raw-logit L2 + all-frame standardization. The OLD ±10 shared head reproduces Q14
+  (frac_near_rail 1.0, recurrent−memoryless logit delta 0.0 = inert); the NEW head is unsaturated and recurrence
+  passes at the LOGIT level. **Honest scope: logit-level only — the topology (action) is unchanged.**
+- **R2** (`2807316`) — CSI belief auxiliary: `belief_head` + `L_CSI` genuinely enter the actor loss (grads →
+  GRU, leak-free, verified). **HONEST NEGATIVE: the belief is a NO-OP CSI predictor** — it does not beat the
+  trivial stale-echo floor (5-seed floor−belief CI entirely negative, 0/5; velocity + 200–400 epochs don't
+  help; it learns to echo the stale input). Chain 1 (temporal/belief) confirmed non-load-bearing.
+- **R3** (`4182b52`) — residual PPO + CTDE critic: `residual_ppo_train.py` GENUINELY calls
+  `graph_mappo.ppo_clip_actor_loss` on the residual path with PER-EDGE ratios (144 distinct, spy-verified),
+  logs approx_kl/clip_fraction, target_kl early-stops; `ResidualValueCritic` EV 0.08–0.56. **PPO ELIMINATES the
+  free-REINFORCE collapse (0/5 vs 1/5) BUT residual == anchor (edit 0) = a missing-direction-signal outcome,
+  not a PPO failure.**
+- **R4** (`74f04fe`) — beneficial oracle-edit dataset (the FIRST hopeful result): `oracle_edit_dataset.py`
+  true-evaluator-scores local add/remove/swap over the anchor. **The direction signal EXISTS: 5-seed
+  `positive_edit_rate` random 0.096 [0.055,0.137] / urban 0.125 [0.074,0.175], both CI>0; the anchor is NOT a
+  local optimum.** Central-reference (training-only); teacher-only, never the full oracle topology.
+- **R5** (`eb26b90`) — repair/safety/edit heads (the deployable-learning crux; the campaign's FIRST
+  deployable-learning positive): heads trained on ONLY LOCAL features to rank the R4 edits. **Held top-k
+  precision − random base: random +0.251 [+0.089,+0.413] (CI>0, 3.2× lift), urban +0.184 (4.5× lift, CI spans 0
+  by 0.005, mean-positive not 95%-sig at n=5); the UNTRAINED-head control is at chance + a causal ablation
+  (zeroing edit_head collapses +0.324→−0.128) proves the lift is learned. The R4 signal IS locally learnable.**
+- **R6** (`96f35f7`) — evidence-gated residual action: the frozen R5 heads gate anchor-relative candidate edits
+  (budget-safe, zero→anchor, 0-eval; heads ACTIVE_IN_EVAL→ACTIVE_IN_DEPLOY). **KEEP MECHANISM / HONEST NEGATIVE
+  on the deployed gain: at the neutral threshold B == anchor (edit ~0); the threshold sweep is downhill from the
+  empty gate — NO `tau_edit` beats the anchor, firing edits is net-negative with rising unsafe. A deployable
+  CONVERSION gap (the R5 ~40%-precision ranking doesn't convert).** Trained heads' only deployable value is safe
+  suppression (B > random-gate C in mean).
+- **R7** (`4357eb6`) — adaptive anchor-KL (replace the fixed flip penalty): `anchor_kl_penalty` in the actor
+  loss + a retention-driven `update_beta` controller. **CONFIRMATORY NEGATIVE: adaptive == fixed == anchor
+  EXACTLY (5-seed adaptive−anchor CI [0.0,0.0], edit 0, retention 1.0, 0/5 diverged); the beta controller is
+  load-bearing (tightens AND loosens) yet the residual never leaves the anchor. Closes the "did you try
+  adaptive, not fixed?" objection — the fixed protection was NOT the cause.**
+- **R8** (`8e03327`) — the stale-CSI PREMISE test (the campaign's raison d'être): `CsiObservationModel(mode=
+  delay, delay_frames=1)` — the deployed actor observes STALE CSI, the evaluator stays on the TRUE channel
+  (leak-free, byte-identical); heads retrained on stale features. **PREMISE CONFIRMED: stale significantly
+  degrades the anchor (stale_drop random 0.055 / urban 0.165, CI>0; urban 0.815→0.650 matches Q14 0.80→0.66).
+  HONEST NEGATIVE: the method does NOT repair it — (gated−stale_anchor) feas spans 0 / is exactly 0; the
+  stale-CSI sweep has NO `tau_edit` with lo>0; the stale-degraded anchor's "room" does NOT rescue the method
+  ("room" hypothesis refuted). Same precision limit, now in the actual failure regime.**
+- **R10** — this close-out (pure docs; suite unchanged 817/0).
+
+**4-CHAIN DIAGNOSIS.** (1) temporal/belief ✗ non-load-bearing (R1 logit-only, R2 no-op); (2) trainer ✓ correct
+but no direction (R3 PPO + R7 adaptive-KL both == anchor); (3) direction supervision EXISTS (R4) → RANKABLE (R5,
+deployable-learning positive) → NOT CONVERTIBLE (R6 current + R8 stale); (4) evidence gate ✓ correct/safe/
+load-bearing but == anchor. **Binding limit = deployable direction-signal PRECISION on BOTH channels.**
+
+**Verification.** Every stage adversarially verified by a multi-lens Workflow (R1 `wfv50jg36`, R2 `wozljm9uf`,
+R3 `wj8pzo538`, R4 `w1o20fuos`, R5 `w4refc811`, R6 `wa52tamrf`, R7 `wguwwbury`, R8 `w4hpxwg29`) — all confirmed
+load-bearing + leak-free with independent reproductions; wording tightenings applied per stage.
+
+**Recommended config (unchanged):** deployable arm = `local_hysteresis`; all Belief-Residual mechanisms
+(BeliefResidualActor + heads, residual PPO, adaptive anchor-KL, the evidence gate, the CSI-belief aux) stay
+opt-in / default-off. This is the 4th independent campaign to confirm the same honest negative — now localized
+to the direction-signal precision. Open frontier: N≥24 (cheaper exact-fault evaluator) and a higher-precision
+local direction signal.
