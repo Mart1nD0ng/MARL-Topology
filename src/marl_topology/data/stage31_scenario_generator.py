@@ -132,6 +132,11 @@ class PhysicsRegime:
     #   -- pre_prepare = primary star, prepare/commit = validator vote, clients never vote -- instead of
     #   reusing one all-pairs record set for all three phases. Reliability untouched. Default off.
     phase_specific_accounting: bool = False
+    # shadow_decorrelation_distance_m (DF1, goal 2): shadow-fading spatial decorrelation distance (m); the
+    # swept knob for tunable TEMPORAL autocorrelation of the decision-critical psucc. Default 10 m = TR 36.885
+    # urban (byte-identical). Larger = slower decorrelation = stronger frame-to-frame autocorrelation.
+    # Appended LAST (after phase_specific_accounting) to keep positional PhysicsRegime construction unaffected.
+    shadow_decorrelation_distance_m: float = 10.0
 
     def channel_config(self) -> ChannelModelConfig:
         return ChannelModelConfig(
@@ -143,6 +148,7 @@ class PhysicsRegime:
             shadowing_37885=getattr(self, "shadowing_37885", False),
             nlosv_37885=getattr(self, "nlosv_37885", False),
             shadowing_realization=getattr(self, "shadowing_realization", 0),
+            shadow_decorrelation_distance_m=getattr(self, "shadow_decorrelation_distance_m", 10.0),
         )
 
     def link_config(self) -> LinkTransmissionConfig:

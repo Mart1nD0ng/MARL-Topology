@@ -1,0 +1,72 @@
+{
+  "config": {
+    "links": 150,
+    "frames": 8,
+    "field_seeds": 6,
+    "dt": 1.0,
+    "speed_min": 5.0,
+    "speed_max": 15.0,
+    "dist_min": 60.0,
+    "dist_max": 170.0,
+    "tx_power": -8.0,
+    "seed": 0,
+    "out": "docs/decision_focused/DF1/env_probe_metrics.json"
+  },
+  "per_decorr": {
+    "10.0": {
+      "mean_rho": 0.044348610241236215,
+      "rho_ci_half": 0.021592978990193443,
+      "n_seed_means": 6,
+      "rho_defined_frac": 0.8044444444444444,
+      "psucc_mean": 0.6367224048223604,
+      "psucc_std": 0.4774857626912235,
+      "psucc_frac_in_0p2_0p8": 0.009305555555555555,
+      "ks_vs_d10": 0.0,
+      "n_psucc": 7200
+    },
+    "25.0": {
+      "mean_rho": 0.3136975650541467,
+      "rho_ci_half": 0.02576334762074784,
+      "n_seed_means": 6,
+      "rho_defined_frac": 0.6711111111111111,
+      "psucc_mean": 0.6553440061890415,
+      "psucc_std": 0.4717366265041345,
+      "psucc_frac_in_0p2_0p8": 0.009444444444444445,
+      "ks_vs_d10": 0.020277777777777783,
+      "n_psucc": 7200
+    },
+    "50.0": {
+      "mean_rho": 0.39082616858285024,
+      "rho_ci_half": 0.014959771214543543,
+      "n_seed_means": 6,
+      "rho_defined_frac": 0.52,
+      "psucc_mean": 0.6382070685885061,
+      "psucc_std": 0.47668258745945713,
+      "psucc_frac_in_0p2_0p8": 0.011666666666666667,
+      "ks_vs_d10": 0.003888888888888886,
+      "n_psucc": 7200
+    },
+    "100.0": {
+      "mean_rho": 0.4286022031856997,
+      "rho_ci_half": 0.03572757548978385,
+      "n_seed_means": 6,
+      "rho_defined_frac": 0.37666666666666665,
+      "psucc_mean": 0.6649739604008177,
+      "psucc_std": 0.4683669205616958,
+      "psucc_frac_in_0p2_0p8": 0.009305555555555555,
+      "ks_vs_d10": 0.030555555555555558,
+      "n_psucc": 7200
+    }
+  },
+  "rho_by_decorr": {
+    "10.0": 0.044348610241236215,
+    "25.0": 0.3136975650541467,
+    "50.0": 0.39082616858285024,
+    "100.0": 0.4286022031856997
+  },
+  "rho_monotone_nondecreasing": true,
+  "rho_rise_d10_to_d100": 0.3842535929444635,
+  "knob_gate_pass": true,
+  "max_ks_marginal_vs_d10": 0.030555555555555558,
+  "marginal_invariance_note": "smaller KS = more invariant; large KS => renormalize before the sweep"
+}

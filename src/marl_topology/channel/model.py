@@ -93,6 +93,12 @@ class ChannelModelConfig:
     # (shadow field, NLOSv states and losses) for the same scene -- M-draw distributional
     # feasibility evaluates the same topology under realizations 0..M-1.
     shadowing_realization: int = 0
+    # shadow_decorrelation_distance_m (DF1, goal 2): the shadow-fading spatial decorrelation distance (m) --
+    # the cell size of the _shadow_field lattice. Default 10 m = TR 36.885 urban (byte-identical to HEAD).
+    # Exposed as a swept knob so the decision-critical psucc gets tunable TEMPORAL autocorrelation: a moving
+    # vehicle's frame-to-frame shadow correlation rises with it (governing ratio v*dt/d_corr). Requires
+    # shadowing_37885; larger = slower decorrelation = stronger autocorrelation.
+    shadow_decorrelation_distance_m: float = SHADOW_DECORRELATION_DISTANCE_M
 
     def __post_init__(self) -> None:
         if not self.channel_model_id:
@@ -117,6 +123,8 @@ class ChannelModelConfig:
             raise ValueError("shadowing_37885 / nlosv_37885 require path_loss_model v2x_37885")
         if self.shadowing_37885 and self.shadowing_std_db > 0.0:
             raise ValueError("shadowing_37885 replaces the legacy shadowing_std_db term")
+        if self.shadow_decorrelation_distance_m <= 0:
+            raise ValueError("shadow_decorrelation_distance_m must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,14 +430,16 @@ def _shadow_field_corner(seed: str, ix: int, iy: int) -> float:
     return random.Random(f"{seed}:shadowfield:{ix}:{iy}").gauss(0.0, 1.0)
 
 
-def _shadow_field_value(seed: str, x_m: float, y_m: float) -> float:
-    """Unit-variance lattice Gaussian field with cell size = the 10 m decorrelation
-    distance: normalized bilinear interpolation of seeded corner normals. Correlation
+def _shadow_field_value(seed: str, x_m: float, y_m: float,
+                        decorr_m: float = SHADOW_DECORRELATION_DISTANCE_M) -> float:
+    """Unit-variance lattice Gaussian field with cell size = ``decorr_m`` (default the 10 m
+    decorrelation distance): normalized bilinear interpolation of seeded corner normals. Correlation
     decays to zero beyond one cell -- the position-form (Gudmundson-type) counterpart of
     the TR 36.885 exponential shadowing update, and a pure function of position, so
-    vehicle motion yields temporally correlated shadowing."""
-    gx = x_m / SHADOW_DECORRELATION_DISTANCE_M
-    gy = y_m / SHADOW_DECORRELATION_DISTANCE_M
+    vehicle motion yields temporally correlated shadowing. The corner normals are cell-size-independent
+    (keyed only by seed + lattice index), so ``decorr_m`` re-scales the field with NO lru_cache collision."""
+    gx = x_m / decorr_m
+    gy = y_m / decorr_m
     ix, iy = floor(gx), floor(gy)
     fx, fy = gx - ix, gy - iy
     weights = (
@@ -448,14 +458,16 @@ def _shadowing_37885_db(
     seed: str,
     is_v2v: bool,
     link_state: str,
+    decorr_m: float = SHADOW_DECORRELATION_DISTANCE_M,
 ) -> float:
-    """Reciprocal, spatially correlated log-normal shadowing with per-state sigma."""
+    """Reciprocal, spatially correlated log-normal shadowing with per-state sigma. ``decorr_m`` sets the
+    spatial decorrelation distance (the DF1 goal-2 knob for temporal autocorrelation)."""
     if is_v2v:
         sigma = V2V_SHADOW_STD_NLOS_DB if link_state == "nlos" else V2V_SHADOW_STD_LOS_DB
     else:
         sigma = UMI_SHADOW_STD_NLOS_DB if link_state == "nlos" else UMI_SHADOW_STD_LOS_DB
-    g_tx = _shadow_field_value(seed, visibility.ray_start_m.x_m, visibility.ray_start_m.y_m)
-    g_rx = _shadow_field_value(seed, visibility.ray_end_m.x_m, visibility.ray_end_m.y_m)
+    g_tx = _shadow_field_value(seed, visibility.ray_start_m.x_m, visibility.ray_start_m.y_m, decorr_m)
+    g_rx = _shadow_field_value(seed, visibility.ray_end_m.x_m, visibility.ray_end_m.y_m, decorr_m)
     return sigma * (g_tx + g_rx) / sqrt(2.0)
 
 
@@ -504,7 +516,8 @@ def _channel_terms(
             )
         if config.shadowing_37885:
             scene_seed = _scene_shadowing_seed(visibility, config, shadowing_seed)
-            shadowing = _shadowing_37885_db(visibility, scene_seed, is_v2v, link_state)
+            shadowing = _shadowing_37885_db(visibility, scene_seed, is_v2v, link_state,
+                                            config.shadow_decorrelation_distance_m)
             path_loss = base_path_loss + los_penalty + shadowing
             rx_power_dbm = (
                 tx_power_dbm
