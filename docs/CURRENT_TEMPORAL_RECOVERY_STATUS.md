@@ -148,4 +148,15 @@ CI for any headline. Commit per stage, do NOT push.
   feasibility. **Verdict:** not the env-feature fallback (perfect recovery succeeds); the bottleneck is the model
   architecture, and T1 validates the fix direction — *correction not absolute, ranking not MSE*. Artifact
   `docs/temporal_recovery/T1/oracle_recovery_metrics.json`. Suite 823/0.
-- **Next — T2:** activation redesign (non-saturating recurrent→logit; the T0 saturation tripwire flips).
+- **T2 (this commit) — KEEP (enabling fix).** `BeliefResidualActor(residual_leak=λ)`: leaky-tanh
+  `z = z_max·tanh(raw/z_max) + λ·raw`; gradient `sech²(·)+λ ≥ λ > 0` never vanishes → the temporal signal reaches
+  the acted logit. `λ=0` (default) **byte-identical** to the frozen R1–R8 head (zero blast radius); campaign uses
+  `λ=0.1`. `test_temporal_recovery_T2_activation.py` (4 tests: byte-identical / actor-applies-map / grad-never-
+  vanishes / effect-on-decision). Effect-on-Decision (saturation regime): recurrent−memoryless logit_delta tanh
+  **<0.05** (inert) vs leaky **>0.15** (>5×). Real-data pilot (`docs/temporal_recovery/T2/mechanism_activation.json`,
+  untrained urban): raw large (raw_abs_mean≈3449, tanh 37.5% railed = Q14 regime), leaky carries ≥ signal
+  (0.0164≥0.0149). Honest scope: ENABLING/gradient-level (like R1), no topology conversion (T6); trained-regime
+  raw is small (raw-L2) so payoff is robustness when T3's correction drives raw up. Suite 827/0.
+- **Next — T3:** belief target → correction (the highest-value stage; T1-validated). `L_CSI` absolute-`p_t` →
+  stale→current correction (echo = zero-baseline) + directional signal; accept = beat stale-echo floor AND
+  recovered-psucc anchor improves (ranking, not MSE). T3 actor uses `residual_leak>0`.

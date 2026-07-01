@@ -1,0 +1,28 @@
+- claim: >
+    Adding a linear skip to the residual activation (leaky-tanh: z = z_max*tanh(raw/z_max) + residual_leak*raw)
+    makes the residual-logit gradient non-vanishing (bounded below by residual_leak>0), so the recurrent
+    temporal signal reaches the ACTED logit regardless of raw magnitude; residual_leak=0 is byte-identical to
+    the frozen tanh head.
+  scope: T2; BeliefResidualActor.forward; unit + real-data pilot (delay-1 stale urban); enabling mechanism
+  mechanism: non-saturating leaky-tanh residual activation
+  code_path: src/marl_topology/models/belief_residual_actor.py
+  entrypoint: BeliefResidualActor.__init__(residual_leak=...) / forward
+  config_flags: residual_leak (default 0.0 back-compat; campaign uses 0.1)
+  dataset: unit tensors + build_csi_scenes urban delay-1 (pilot)
+  seeds: n/a (deterministic mechanism; not a 5-seed headline)
+  split: n/a
+  loss_uses_mechanism: "yes (when leak>0) -- the acted residual logit is the leaky-tanh output; raw-L2 unchanged"
+  eval_uses_mechanism: "yes -- the decode thresholds on the (leaky) residual logit"
+  runtime_activation_artifact: docs/temporal_recovery/T2/mechanism_activation.json
+  load_bearing_tests: >
+    tests/unit/test_temporal_recovery_T2_activation.py::test_actor_applies_leaky_map,
+    ::test_leaky_map_gradient_never_vanishes, ::test_leak_zero_is_byte_identical_to_tanh
+  effect_on_decision_metrics: >
+    saturation-regime recurrent-vs-memoryless logit_delta: tanh < 0.05 (behaviorally inert) vs leaky > 0.15
+    (>5x); real-data pilot leak_carries_ge_signal=True (leak rec_logit_delta 0.0164 >= tanh 0.0149)
+  raw_result_artifact: docs/temporal_recovery/T2/mechanism_activation.json
+  conclusion_boundary: >
+    ENABLING fix only -- guarantees the temporal signal can reach the logit (non-vanishing gradient); does NOT
+    itself change the topology/feasibility (direction signal = T3, conversion = T6). On the trained actor the
+    raw-L2 keeps raw small so both activations are near-linear; the payoff is robustness when the T3 correction
+    signal makes raw grow. Default leak=0 leaves the frozen R1-R8 campaign byte-identical.

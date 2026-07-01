@@ -1,0 +1,54 @@
+{
+  "scope": "T2 non-saturating leaky-tanh activation pilot on real delay-1 stale urban scenes; untrained actor, identical init, only residual_leak differs. Enabling mechanism (not a 5-seed headline).",
+  "residual_leak": 0.1,
+  "tanh_head": {
+    "boundary_report": {
+      "model_id": "belief_residual_actor_v1",
+      "global_topology_used": false,
+      "decentralized_with_communication": true,
+      "cross_frame_recurrence": true,
+      "separate_residual_head": true,
+      "residual_logit_scale": 3.0,
+      "residual_leak": 0.0,
+      "non_saturating_activation": false,
+      "outputs": "tanh_residual_logit + raw"
+    },
+    "saturation": {
+      "raw_abs_mean": 3448.59765625,
+      "raw_abs_p95": 9195.6640625,
+      "frac_abs_raw_gt_30": 0.375,
+      "frac_abs_logit_gt_9_5": 0.0,
+      "frac_logit_near_rail": 0.375,
+      "n": 1864
+    },
+    "recurrent_logit_delta_mean": 0.014874311784903208,
+    "recurrent_logit_delta_max": 0.04386866092681885,
+    "recurrent_action_delta_mean": 0.0
+  },
+  "leak_head": {
+    "boundary_report": {
+      "model_id": "belief_residual_actor_v1",
+      "global_topology_used": false,
+      "decentralized_with_communication": true,
+      "cross_frame_recurrence": true,
+      "separate_residual_head": true,
+      "residual_logit_scale": 3.0,
+      "residual_leak": 0.1,
+      "non_saturating_activation": true,
+      "outputs": "leaky_tanh_residual_logit + raw"
+    },
+    "saturation": {
+      "raw_abs_mean": 3448.59765625,
+      "raw_abs_p95": 9195.6640625,
+      "frac_abs_raw_gt_30": 0.375,
+      "frac_abs_logit_gt_9_5": 0.375,
+      "frac_logit_near_rail": 0.375,
+      "n": 1864
+    },
+    "recurrent_logit_delta_mean": 0.01638132520020008,
+    "recurrent_logit_delta_max": 0.04829394817352295,
+    "recurrent_action_delta_mean": 0.0
+  },
+  "activation_non_saturating": true,
+  "leak_carries_ge_signal": true
+}

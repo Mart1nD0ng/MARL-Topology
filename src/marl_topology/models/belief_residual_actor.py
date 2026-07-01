@@ -27,14 +27,22 @@ class BeliefResidualActor(nn.Module):
     model_id = BELIEF_RESIDUAL_ACTOR_MODEL_ID
 
     def __init__(self, node_dim: int, edge_dim: int, hidden: int = 64,
-                 residual_logit_scale: float = 3.0, belief_extra_dim: int = 0) -> None:
+                 residual_logit_scale: float = 3.0, belief_extra_dim: int = 0,
+                 residual_leak: float = 0.0) -> None:
         super().__init__()
         if not (2.0 <= residual_logit_scale <= 4.0):
             raise ValueError(f"residual_logit_scale should be in [2,4] (got {residual_logit_scale})")
+        if residual_leak < 0.0:
+            raise ValueError(f"residual_leak must be >= 0 (got {residual_leak})")
         self.node_dim = node_dim
         self.edge_dim = edge_dim
         self.hidden = hidden
         self.residual_logit_scale = float(residual_logit_scale)
+        # T2 (Temporal Recovery): a LINEAR SKIP on the residual activation -> z = z_max*tanh(raw/z_max)
+        # + residual_leak*raw. The gradient sech^2(raw/z_max) + residual_leak is bounded BELOW by
+        # residual_leak, so it never vanishes at the tanh rail -> the recurrent temporal signal always reaches
+        # the ACTED logit (T0 defect 2). residual_leak=0.0 is byte-identical to the frozen R1-R8 tanh head.
+        self.residual_leak = float(residual_leak)
         self.belief_extra_dim = int(belief_extra_dim)   # R2: leak-free per-edge extras (velocity) for belief
         self.node_enc = nn.Sequential(nn.Linear(node_dim, hidden), nn.ReLU())
         self.msg = nn.Sequential(nn.Linear(2 * hidden + edge_dim, hidden), nn.ReLU())
@@ -92,7 +100,15 @@ class BeliefResidualActor(nn.Module):
             return ef.new_zeros(0), ef.new_zeros(0), h
         raw = self.residual_raw(ef, ei, h)
         s = self.residual_logit_scale
-        residual_logits = s * torch.tanh(raw / s)          # small-range, sign- and order-preserving
+        # leaky-tanh: bounded tanh core (stability) + a linear skip (residual_leak) so the gradient never
+        # vanishes at the rail and the temporal signal reaches the logit (T2). leak=0 SHORT-CIRCUITS to pure
+        # tanh -> byte-identical to the frozen R1-R8 head on the WHOLE domain (incl. raw=+-inf: skipping the
+        # +leak*raw term avoids 0*inf=NaN).
+        core = s * torch.tanh(raw / s)
+        if self.residual_leak:
+            residual_logits = core + self.residual_leak * raw
+        else:
+            residual_logits = core
         return residual_logits, raw, h
 
     def belief(self, nf: Tensor, ef: Tensor, ei: Tensor, extra: Tensor | None = None,
@@ -139,5 +155,7 @@ class BeliefResidualActor(nn.Module):
             "cross_frame_recurrence": True,
             "separate_residual_head": True,
             "residual_logit_scale": self.residual_logit_scale,
-            "outputs": "small_range_residual_logit + raw",
+            "residual_leak": self.residual_leak,
+            "non_saturating_activation": self.residual_leak > 0.0,
+            "outputs": "leaky_tanh_residual_logit + raw" if self.residual_leak > 0.0 else "tanh_residual_logit + raw",
         }
