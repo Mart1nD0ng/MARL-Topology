@@ -43,9 +43,9 @@ Status ∈ {NOT_PRESENT, IMPLEMENTED_ONLY, CALLABLE, ACTIVE_IN_LOSS, ACTIVE_IN_E
 | separate residual head (small-range logits) | NOT_PRESENT (shared ±10 head) | NOT_PRESENT | NOT_PRESENT | ACTIVE (R1) |
 | beneficial-edit supervision (repair/safety/edit) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_EVAL (R5)** — heads trained (L_edit BCE / L_repair/L_safety Huber) on R4 labels; held top-k beats random (random CI>0, urban mean-positive); local features only |
 | evidence-gated residual action | NOT_PRESENT | NOT_PRESENT (all-edge Bernoulli) | NOT_PRESENT | **ACTIVE_IN_DEPLOY (R6)** — gate on frozen R5 heads filters candidate edits (spy); budget-safe, zero→anchor, 0-eval; correct+load-bearing BUT B==anchor (deployed gain negative) |
-| adaptive anchor KL / safety constraint | NOT_PRESENT | NOT_PRESENT (fixed flip penalty) | NOT_PRESENT (fixed) | ACTIVE_IN_LOSS (R7) |
+| adaptive anchor KL / safety constraint | NOT_PRESENT | NOT_PRESENT (fixed flip penalty) | NOT_PRESENT (fixed) | **ACTIVE_IN_LOSS (R7)** — anchor_kl in actor loss + adaptive beta controller (load-bearing, tightens/loosens); residual == anchor (confirmatory negative) |
 | D_quorum potential | — | CALLABLE (PBRS) | CALLABLE | edit-label + repair head (R4–R5) |
-| stale/partial CSI observation | — | NOT_PRESENT (current CSI) | **ACTIVE_IN_EVAL** (`--csi-mode`) | belief input (R2) |
+| stale/partial CSI observation | — | NOT_PRESENT (current CSI) | **ACTIVE_IN_EVAL** (`--csi-mode`) | **ACTIVE in deployed obs (R8)** — delay-1 stale; premise confirmed (drop CI>0) but gate doesn't repair |
 
 **Audit takeaway:** PPO/critic/entropy exist ONLY in the graph_mappo trunk; the residual path is REINFORCE +
 moving baseline + fixed flip-penalty, with NO belief/edit-supervision/gating. Contract v4 §7 forbids citing
@@ -64,8 +64,8 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 | R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | **DONE (KEEP — beneficial-edit signal EXISTS)** — `oracle_edit_dataset.py` (teacher-only; anchor + single edit + Δ's, never the oracle topology). 5-seed positive_edit_rate **random 0.096 [0.055,0.137] / urban 0.125 [0.074,0.175]** (CIs strictly >0); repairable 0.26/0.18; safe-prune 0.28/0.75; best ΔJ 0.73/0.12. CENTRAL-reference signal (∝ Q7/Q8) — deployable learning is R5. 6 tests, suite 800/0; Workflow `w1o20fuos` | non-zero positive-edit rate ✓; no full-oracle imitation ✓ → R5 |
 | R5 | repair/safety/utility/edit heads (supervised) | **DONE (KEEP — PARTIAL POSITIVE: the R4 signal IS locally learnable)** — `edit_head`/`repair_head`/`safety_head` on `BeliefResidualActor` (local features `[ef, h_u⊙h_v, |h_u−h_v|]` only) + `edit_head_training.py` (L_edit BCE + L_repair/L_safety Huber; held eval). 5-seed held top-k precision−base: **random +0.251 [+0.089, +0.413] (CI>0, 3.2× lift)**, urban +0.184 [−0.005, +0.373] (4.5× lift, spans 0 by 0.005). repair_corr random +0.226 [+0.176,+0.277]. **UNTRAINED control at chance** ([−0.088,+0.094]/[−0.033,+0.093]) → the lift is from LOCAL-feature training, not the metric. 5 tests, suite 805/0; Workflow `w4refc811` | held top-k edit hit rate > random — **random MET decisively, urban met in mean (not 95%-sig at n=5)** → KEEP → R6 |
 | R6 | evidence-gated residual action | **DONE (KEEP MECHANISM / HONEST NEGATIVE on deployed gain — deployable CONVERSION gap)** — `evidence_gated_action.py` (`local_candidates` + `evidence_gated_residual`: anchor 0-eval → frozen R5 heads score → repair/safety/edit gate → budget-safe mutual decode; zero-gated→anchor). Mechanism correct+safe+load-bearing (5 tests; budget-safe; 0 unsafe at tau 0.5; 0 eval). **5-seed A/B (tau 0.5): B−A feas spans 0 (random 0.000 [−0.022,+0.022] / urban +0.005 [−0.009,+0.019]) = B==anchor; edit_rate ~0.001 (mean), zero_edit ~0.97; B−C feas +0.095/+0.12 mean (heads suppress; not 95%-sig).** Threshold sweep: every FIRING tau_edit (0.35→0.05) net-negative in mean, unsafe rises urban 0.00→0.09, no tau's B−A lo>0 → **no operating point beats the anchor**. Workflow `wa52tamrf` PASS/PASS/MINOR/MINOR (no MAJOR). suite 810/0 | bad edits gated out ✓ / zero→anchor ✓ / budget-safe ✓ / 0-eval ✓ **MET (mechanism)**; deployed gain **NOT met (B==anchor at best, <anchor when firing)** = R5 ranking's ~40% precision doesn't CONVERT deployably |
-| R7 | adaptive anchor KL / safety constraint (replace fixed flip penalty) | NOT_IMPLEMENTED | no retention=0 collapse and no edit_rate=0 clamp |
-| R8 | full-method pilot (6 arms × urban delay1/current, random delay1) | NOT_IMPLEMENTED | ≥1 learned arm beats anchor or repairs the stale drop, OR the failing layer is localized |
+| R7 | adaptive anchor KL / safety constraint (replace fixed flip penalty) | **DONE (KEEP MECHANISM / CONFIRMATORY NEGATIVE — == anchor)** — `residual_ppo_train.py` adaptive path: `anchor_kl_penalty` (mean σ(z) over candidates) in the actor loss + `update_beta` (retention<τ→×1.5 / stable+val↑→×0.7) + `_map_retention` (0-eval); one variable vs R3 (adaptive_anchor_kl=False = exact R3). **5-seed A/B: adaptive residual_feas == anchor == fixed EXACTLY (random 0.300 / urban 0.783; adaptive−anchor CI [0.0,0.0]), edit_rate 0.0, retention 1.0, 0/5 diverged; beta_anchor controller load-bearing (tightens AND loosens per seed).** Even with residual_prior=0 + self-loosening, residual == anchor → fixed protection NOT the cause. Workflow `wguwwbury` PASS/PASS/PASS (byte-level repro). suite 815/0 | no collapse ✓ / no clamp-artifact ✓ (retention 1.0, 0 diverged, beta adapts); deployed gain **== anchor** (confirmatory) — closes the "fixed vs adaptive" objection |
+| R8 | stale-CSI premise test (does the method repair the stale drop?) | **DONE (HONEST NEGATIVE under the REAL regime; premise CONFIRMED)** — `r8_stale_csi_gen.py` (`build_csi_scenes` with `CsiObservationModel(mode="delay", delay_frames=1)`; heads retrained on STALE features, labels from TRUE evaluator; 3 arms current/stale anchor + stale gated; 0-eval deploy) + `r8_stale_threshold_sweep.py`. **Premise CONFIRMED: stale drop random 0.055 [+0.009,+0.101] / urban 0.165 [+0.118,+0.212] (both CI>0; urban matches Q14 0.80→0.66). NO repair: (gated−stale_anchor) feas random +0.010 [−0.007,+0.027] / urban 0.000 [0,0] (edit 0); sweep — NO tau_edit lo>0, firing net-negative + unsafe rises → no operating point repairs the drop; "room" hypothesis refuted.** 2 tests (leak-free stale overlay); Workflow `w4hpxwg29` PASS/PASS/MINOR (byte-level leak-free repro). suite 817/0 | ≥1 arm repairs the stale drop → **NOT met** (no tau repairs; failing layer localized = deployable direction-signal PRECISION, same as R6, now in the STALE regime) |
 | R9 | 5-seed research campaign | NOT_IMPLEMENTED | per-seed + CI + budget + scope |
 | R10 | docs close-out | NOT_IMPLEMENTED | what was/ wasn't active; did residual PPO beat anchor; did belief make recurrence useful |
 
@@ -165,6 +165,39 @@ trainer/leak bug.** This SHARPENS the campaign's binding limit from "no directio
 direction signal's deployable-rankable PRECISION is insufficient to beat the anchor at N≤16", and empirically
 pre-empts R7's adaptive-anchor-KL premise (optimal anchor-deviation = 0). Chain 3 fully characterized: EXISTS
 (R4) → RANKABLE (R5) → NOT deployably CONVERTIBLE (R6). Workflow `wa52tamrf` 4-lens+synthesis MINOR (PASS/PASS/
-MINOR/MINOR, no MAJOR; 3 wording fixes applied). suite 810/0. **Next: R7** (adaptive anchor-KL/safety — a
-confirmatory check, expected == anchor per the sweep) → R8 pilot → R10 honest close-out; OR proceed to the
-close-out given the decisive sweep.
+MINOR/MINOR, no MAJOR; 3 wording fixes applied). suite 810/0.
+**R7 DONE — KEEP MECHANISM / CONFIRMATORY NEGATIVE (adaptive anchor-KL residual == anchor).** `residual_ppo_
+train.py` adaptive path (additive; `adaptive_anchor_kl=False` = exact R3): `anchor_kl_penalty` (mean σ(z) over
+candidate edges = deviation from the flip-nothing anchor) in the actor loss + `update_beta` adaptive controller
+(retention<τ → ×1.5 tighten / retention≥τ ∧ val↑ → ×0.7 loosen / clamp) + `_map_retention` (0-eval signal). One
+variable vs R3 = the anchor pull, FIXED → ADAPTIVE. **5-seed A/B (deployed MAP decode, true PBFT feas): adaptive
+residual_feas == anchor_feas == fixed_resid_feas EXACTLY (random 0.300 / urban 0.783; adaptive−anchor CI
+[0.0,0.0], adaptive−fixed CI [0.0,0.0]); edit_rate 0.0; retention 1.0; 0/5 diverged. The beta_anchor controller
+is LOAD-BEARING (per-seed trajectories tighten AND loosen, 22-23 up / 30-31 down steps across 5 seeds, distinct
+per seed, never diverges) — yet the residual never leaves the anchor.** Even with the fixed pull removed
+(residual_prior=0) and a self-loosening trust region, the PPO advantage gives no beneficial-direction gradient
+(R3 finding; the direction lives in the frozen R5 heads, not this policy). **CONFIRMATORY NEGATIVE — CLOSES the
+"did you try adaptive, not fixed?" objection: the fixed anchor protection was NOT why R3/R6 == anchor.** THREE
+independent mechanisms (R3 fixed-prior PPO, R6 evidence gate, R7 adaptive KL) all land at the anchor → R6's
+precision-limit binding stands. Workflow `wguwwbury` 3-lens+synthesis **PASS/PASS/PASS** (independent byte-level
+repro: beta trajectory byte-matched, anchor_kl in loss, R3 reproduced exactly flag-off, leak-free; no doc edits
+required). suite 815/0.
+**R8 DONE — HONEST NEGATIVE under the REAL regime (the campaign's premise test); premise CONFIRMED.**
+`r8_stale_csi_gen.py` turns the stale-CSI overlay ON (`CsiObservationModel(mode="delay", delay_frames=1)` →
+`build_csi_scenes`): the deployed actor observes STALE CSI (cols 0–3 = frame t−1, +[age, mask]) while the
+evaluator stays on the TRUE current channel (leak-free — test: CSI cols diverge at t≥1, evaluator byte-identical
+stale-vs-current). Heads RETRAINED on stale features (labels from the TRUE evaluator, training-only); evidence-
+gated action deployed under stale CSI, 0 eval. Arms: current_anchor (ceiling) / stale_anchor (degraded) /
+stale_gated. **Premise CONFIRMED: the stale overlay significantly degrades the anchor — stale_drop random 0.055
+[+0.009,+0.101] / urban 0.165 [+0.118,+0.212] (both CI>0; urban 0.815→0.650 matches Q14 0.80→0.66). But the
+method does NOT repair it: (gated−stale_anchor) feas random +0.010 [−0.007,+0.027] spans 0 / urban 0.000 [0,0]
+(edit 0 → == stale_anchor); the stale-CSI threshold sweep — NO tau_edit ∈ [0.05,0.5] has a (gated−stale_anchor)
+feas CI lo>0, firing edits net-negative in mean with rising unsafe (urban 0.00→0.045), same downhill pattern as
+R6's current channel. The stale-degraded anchor's "room" does NOT rescue the method — the "room" hypothesis is
+REFUTED.** (The 1-seed pilot's +0.0625 was noise.) Diagnosis: a DATA/precision limit in the STALE regime — the
+deployable direction-signal precision holds the method to the anchor on BOTH the current (R6/R7) AND stale (R8)
+channels; NOT a leak/mechanism/trainer bug. 2 tests; Workflow `w4hpxwg29` 3-lens+synthesis MINOR (PASS/PASS/
+MINOR; byte-level leak-free repro; 2 wording fixes applied — inferred-not-measured stale precision, overlay
+active-in-deployed-observation). suite 817/0. **CAMPAIGN COMPLETE (experimental): no deployable arm beats the
+`local_hysteresis` anchor on the current OR the stale channel at N≤16. Next: R10** — honest close-out (4-chain
+diagnosis + README/CURRENT_HEAD_STATUS/URBAN_V2X_RESEARCH_LOG/AGENTS + AskUser whether to push).

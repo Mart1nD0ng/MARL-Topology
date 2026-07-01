@@ -1,0 +1,290 @@
+{
+  "scope": "R8 stale-CSI threshold sweep: (gated - stale_anchor) feas/return vs tau_edit; 5 seeds x {random,urban}; reuses stale-trained actor per seed",
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "tau_edit_grid": [
+    0.5,
+    0.35,
+    0.25,
+    0.15,
+    0.05
+  ],
+  "by_data": {
+    "random": {
+      "0.5": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": 0.01,
+          "lo": -0.007,
+          "hi": 0.027,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.00318,
+          "lo": -0.01258,
+          "hi": 0.00622,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.00288,
+          "lo": -0.00104,
+          "hi": 0.0068,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        }
+      },
+      "0.35": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.015,
+          "lo": -0.0929,
+          "hi": 0.0629,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.0053,
+          "lo": -0.01513,
+          "hi": 0.00453,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.00422,
+          "lo": 0.00128,
+          "hi": 0.00716,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.01,
+          "lo": -0.01776,
+          "hi": 0.03776,
+          "n": 5
+        }
+      },
+      "0.25": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.04,
+          "lo": -0.13716,
+          "hi": 0.05716,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.0033,
+          "lo": -0.00947,
+          "hi": 0.00287,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.01106,
+          "lo": -0.00561,
+          "hi": 0.02773,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.025,
+          "lo": -0.01889,
+          "hi": 0.06889,
+          "n": 5
+        }
+      },
+      "0.15": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.07,
+          "lo": -0.18488,
+          "hi": 0.04488,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.04639,
+          "lo": -0.12717,
+          "hi": 0.03439,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.0211,
+          "lo": -0.00224,
+          "hi": 0.04444,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.03,
+          "lo": -0.004,
+          "hi": 0.064,
+          "n": 5
+        }
+      },
+      "0.05": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.06,
+          "lo": -0.1814,
+          "hi": 0.0614,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.0421,
+          "lo": -0.10338,
+          "hi": 0.01919,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.02676,
+          "lo": 0.00036,
+          "hi": 0.05317,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.025,
+          "lo": -0.00604,
+          "hi": 0.05604,
+          "n": 5
+        }
+      }
+    },
+    "urban": {
+      "0.5": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        }
+      },
+      "0.35": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.015,
+          "lo": -0.04276,
+          "hi": 0.01276,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.03129,
+          "lo": -0.09101,
+          "hi": 0.02843,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.00786,
+          "lo": -0.0055,
+          "hi": 0.02123,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.02,
+          "lo": -0.014,
+          "hi": 0.054,
+          "n": 5
+        }
+      },
+      "0.25": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": 0.005,
+          "lo": -0.08112,
+          "hi": 0.09112,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.03657,
+          "lo": -0.09754,
+          "hi": 0.0244,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.02741,
+          "lo": -0.01606,
+          "hi": 0.07089,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.025,
+          "lo": -0.00604,
+          "hi": 0.05604,
+          "n": 5
+        }
+      },
+      "0.15": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.005,
+          "lo": -0.10166,
+          "hi": 0.09166,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.0372,
+          "lo": -0.09747,
+          "hi": 0.02307,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.03597,
+          "lo": -0.0248,
+          "hi": 0.09675,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.035,
+          "lo": -0.00664,
+          "hi": 0.07664,
+          "n": 5
+        }
+      },
+      "0.05": {
+        "gated_minus_stale_anchor_feas": {
+          "mean": -0.015,
+          "lo": -0.12819,
+          "hi": 0.09819,
+          "n": 5
+        },
+        "gated_minus_stale_anchor_ret": {
+          "mean": -0.03733,
+          "lo": -0.09762,
+          "hi": 0.02297,
+          "n": 5
+        },
+        "edit_rate": {
+          "mean": 0.03848,
+          "lo": -0.02128,
+          "hi": 0.09823,
+          "n": 5
+        },
+        "unsafe_edit": {
+          "mean": 0.045,
+          "lo": -0.01861,
+          "hi": 0.10861,
+          "n": 5
+        }
+      }
+    }
+  }
+}

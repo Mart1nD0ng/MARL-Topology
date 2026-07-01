@@ -1,0 +1,44 @@
+{
+  "stage": "R8",
+  "title": "stale-CSI premise test -- HONEST NEGATIVE under the real regime; premise confirmed (stale degrades the anchor); method does not repair it",
+  "source_commit_cited": "4357eb6 (R7); R6 96f35f7 (current-channel: no gate operating point beats the anchor); Q14 (stale drops the anchor)",
+  "decision": "HONEST NEGATIVE under the real regime. Premise CONFIRMED (stale CSI significantly degrades the anchor: random -0.055 CI>0 / urban -0.165 CI>0). The evidence-gated action does NOT repair the drop at any tau_edit (no (gated - stale_anchor) feas CI lo>0); best point is the empty gate (== stale_anchor); firing edits net-negative + unsafe rises. The 'room' hypothesis is refuted. Completes the campaign -> R10 close-out.",
+  "mechanism": {
+    "stale_csi_overlay": {"status": "ACTIVE_IN_DEPLOY_OBSERVATION", "path": "CsiObservationModel(mode=delay, delay_frames=1)", "effect": "the DEPLOYED actor observes stale CSI cols 0-3 (frame t-1) + [age, mask] at DECISION time; the evaluator stays on the TRUE current channel (leak-free score)"},
+    "heads_retrained_on_stale": {"status": "ACTIVE_IN_DEPLOY", "note": "heads see stale ef; labels from TRUE evaluator (training-only)"},
+    "evidence_gate": {"status": "reused (R6)", "effect_stale": "== stale_anchor at tau 0.5 (urban edit 0); net-negative when firing"}
+  },
+  "deployable": {
+    "actor_sees_stale_not_true_csi": true,
+    "decision_sees_evaluator_or_critic": false,
+    "eval_calls_at_decision": 0,
+    "evaluator_on_true_current_channel": true
+  },
+  "result_5seed_ab": {
+    "artifact": "result_save/belief_residual/R8/stale_csi_metrics.json",
+    "random": {"current_anchor": 0.375, "stale_anchor": 0.320, "stale_gated": 0.330,
+               "stale_drop_ci": [0.00897, 0.10103], "gated_minus_stale_anchor_feas_ci": [-0.007, 0.027],
+               "edit_rate": 0.00288, "unsafe": 0.0},
+    "urban": {"current_anchor": 0.815, "stale_anchor": 0.650, "stale_gated": 0.650,
+              "stale_drop_ci": [0.11793, 0.21207], "gated_minus_stale_anchor_feas_ci": [0.0, 0.0],
+              "edit_rate": 0.0, "unsafe": 0.0}
+  },
+  "threshold_sweep": {
+    "artifact": "result_save/belief_residual/R8/stale_threshold_sweep.json",
+    "finding": "no tau_edit gives (gated - stale_anchor) feas CI lo>0; downhill-from-empty-gate; firing net-negative in mean + unsafe rises. Same pattern as R6 current-channel, now in the STALE regime. 'Room' hypothesis refuted.",
+    "random_gated_minus_stale_anchor_feas": {"0.5": 0.01, "0.35": -0.015, "0.25": -0.04, "0.15": -0.07, "0.05": -0.06},
+    "urban_gated_minus_stale_anchor_feas": {"0.5": 0.0, "0.35": -0.015, "0.25": 0.005, "0.15": -0.005, "0.05": -0.015}
+  },
+  "interpretation": "Premise confirmed (stale CSI significantly degrades the anchor, CI>0 both regimes; urban -0.165 matches Q14 0.80->0.66). But the evidence-gated action does not repair the drop at any operating point (DEPLOYED A/B + sweep): the gate suppresses at tau 0.5 (== stale_anchor) or fires net-harmful edits at lower tau. R8 did NOT re-measure the stale-trained heads' held top-k precision; the no-repair is established from the deployed outcome and is consistent with an equal-or-lower precision than R5's ~40% current-channel figure (inferred, not measured). The stale-degraded anchor's 'room' does not rescue the method. The deployable direction-signal precision limit holds in BOTH the current-channel (R6/R7) and stale-channel (R8) regimes.",
+  "diagnosis_scope": "DATA/precision limit under the STALE regime; NOT a leak/mechanism/trainer bug. Completes the campaign's central finding: no deployable arm beats the local_hysteresis anchor on either channel at N<=16.",
+  "effect_on_decision": "gate changes topology when loosened (edit up to 0.038 urban / 0.027 random) but net-harmful; == stale_anchor at tau 0.5 (urban edit 0). Load-bearing; deployed effect null-or-negative vs stale anchor.",
+  "tests": "tests/unit/test_belief_residual_R8_stale_csi.py 2/2; full suite 817/0",
+  "adversarial_verification": {
+    "workflow": "w4hpxwg29 (4 agents, 3 lenses + synthesis)",
+    "synthesis_verdict": "MINOR (load_bearing_confirmed=true; no MAJOR)",
+    "lens_verdicts": {"stale-leak-free": "PASS", "result-and-sweep": "PASS", "diagnosis-scope": "MINOR"},
+    "independent_checks": "runtime: stale CSI cols diverge at t>=1 (max|diff|=1.0), ef dim +2 [age,mask]; evaluator byte-identical stale-vs-current over 32 topologies x every frame (leak-free); paired stale_drop (same seed hd_s vs hd_c); sweep programmatically confirmed NO tau has (gated-stale_anchor) feas CI lo>0; CI midpoints == means (t=2.776,n=5).",
+    "minor_fixes_applied": "(1) qualified the '~40% precision (stale)' as INFERRED from the deployed no-repair, not re-measured (R8 measured the deployed outcome, not stale head top-k); (2) relabeled stale_csi_overlay status ACTIVE_IN_EVAL -> ACTIVE in the DEPLOYED decision observation."
+  },
+  "no_push": true
+}

@@ -1,0 +1,126 @@
+{
+  "scope": "R8 stale-CSI premise test (delay-1): does the evidence-gated action repair the stale feasibility drop? 5 seeds x {random,urban}; heads retrained on STALE features, labels from TRUE current evaluator (training-only); deployed 0-eval, true evaluator scores.",
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "taus": {
+    "tau_edit": 0.5,
+    "tau_repair": 0.0,
+    "tau_safety": 0.0
+  },
+  "by_data": {
+    "random": {
+      "current_anchor_feas": {
+        "mean": 0.375,
+        "lo": 0.14905,
+        "hi": 0.60095,
+        "n": 5
+      },
+      "stale_anchor_feas": {
+        "mean": 0.32,
+        "lo": 0.08527,
+        "hi": 0.55473,
+        "n": 5
+      },
+      "stale_gated_feas": {
+        "mean": 0.33,
+        "lo": 0.10469,
+        "hi": 0.55531,
+        "n": 5
+      },
+      "stale_drop": {
+        "mean": 0.055,
+        "lo": 0.00897,
+        "hi": 0.10103,
+        "n": 5
+      },
+      "gated_minus_stale_anchor_feas": {
+        "mean": 0.01,
+        "lo": -0.007,
+        "hi": 0.027,
+        "n": 5
+      },
+      "gated_minus_stale_anchor_ret": {
+        "mean": -0.00318,
+        "lo": -0.01258,
+        "hi": 0.00622,
+        "n": 5
+      },
+      "stale_gated_edit": {
+        "mean": 0.00288,
+        "lo": -0.00104,
+        "hi": 0.0068,
+        "n": 5
+      },
+      "stale_gated_unsafe": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 5
+      },
+      "repairs_stale_drop": false
+    },
+    "urban": {
+      "current_anchor_feas": {
+        "mean": 0.815,
+        "lo": 0.74355,
+        "hi": 0.88645,
+        "n": 5
+      },
+      "stale_anchor_feas": {
+        "mean": 0.65,
+        "lo": 0.57398,
+        "hi": 0.72602,
+        "n": 5
+      },
+      "stale_gated_feas": {
+        "mean": 0.65,
+        "lo": 0.57398,
+        "hi": 0.72602,
+        "n": 5
+      },
+      "stale_drop": {
+        "mean": 0.165,
+        "lo": 0.11793,
+        "hi": 0.21207,
+        "n": 5
+      },
+      "gated_minus_stale_anchor_feas": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 5
+      },
+      "gated_minus_stale_anchor_ret": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 5
+      },
+      "stale_gated_edit": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 5
+      },
+      "stale_gated_unsafe": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 5
+      },
+      "repairs_stale_drop": false
+    }
+  }
+}

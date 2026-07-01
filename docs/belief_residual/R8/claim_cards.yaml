@@ -1,0 +1,47 @@
+# R8 Claim Cards (Contract v4 §1)
+
+- claim: "The stale-CSI regime is set up leak-free: with CsiObservationModel(mode='delay', delay_frames=1) the
+    deployed actor observes a STALE channel (CSI cols 0-3 = frame t-1; +[csi_age, csi_observed_mask]) while the
+    evaluator/reward stay on the TRUE current channel. The R5 heads are RETRAINED on stale features; the
+    true-evaluator labels are training-only. 0 evaluator calls at decision."
+  scope: "R8, build_csi_scenes + evidence_gated_residual under stale CSI; leak-free audit"
+  mechanism: "delay-1 stale observation overlay (actor) + true-channel evaluator (score); heads retrained on stale ef"
+  code_path: "scripts/diagnostics/r8_stale_csi_gen.py::build_csi_scenes; src/.../csi_observation_model.py; evidence_gated_residual"
+  entrypoint: "tests/unit/test_belief_residual_R8_stale_csi.py; scripts/diagnostics/r8_stale_csi_gen.py"
+  config_flags: "mode=delay, delay_frames=1; tau_edit 0.5, tau_repair 0, tau_safety 0; epochs 40, hidden 64"
+  loss_uses_mechanism: "heads trained (L_edit BCE + L_repair/L_safety Huber) on STALE features; labels from TRUE evaluator (training-only)"
+  eval_uses_mechanism: "deployed 0-eval; true evaluator scores the produced topology (current real channel + quorum tail)"
+  runtime_activation_artifact: "result_save/belief_residual/R8/stale_csi_metrics.json"
+  load_bearing_tests:
+    - "test_stale_overlay_changes_obs_not_evaluator (CSI cols diverge at t>=1; evaluator identical stale-vs-current)"
+    - "test_build_csi_scenes_active_flag (stale + current builds; deployed decode = 0-eval evidence_gated_residual)"
+  effect_on_decision_metrics: "stale_drop (current-stale anchor), (gated - stale_anchor) feas/return, edit_rate, unsafe_edit"
+  conclusion_boundary: "R8 sets up the stale regime correctly (actor stale, score true); whether the gate REPAIRS the drop is the second claim."
+
+- claim: "THE PREMISE RESULT -- HONEST NEGATIVE. The stale drop is REAL and significant (stale_drop random
+    0.055 CI[0.009,0.101] / urban 0.165 CI[0.118,0.212]; urban matches Q14 0.80->0.66 -- premise CONFIRMED),
+    but the evidence-gated action does NOT repair it: gated_minus_stale_anchor feas random +0.010 [-0.007,0.027]
+    spans 0, urban 0.000 [0,0] (edit 0 -> == stale_anchor). Threshold sweep: NO tau_edit in [0.05,0.5] gives a
+    (gated - stale_anchor) feas CI lo>0; firing edits net-negative in mean + unsafe rises (same downhill pattern
+    as R6 current channel). The stale-degraded anchor's 'room' does NOT rescue the method (room hypothesis
+    refuted). The 1-seed pilot +0.0625 was noise. NOT a leak/mechanism/trainer bug -- a data/precision limit in
+    the stale regime. Completes the campaign: no deployable arm beats the anchor on current (R6/R7) OR stale (R8)."
+  scope: "R8, urban+random, N<=16, 5 seeds, stale delay-1; (gated - stale_anchor) feas/return CI"
+  mechanism: "evidence-gated action (stale-retrained heads) vs stale anchor vs current anchor (ceiling)"
+  code_path: "scripts/diagnostics/r8_stale_csi_gen.py::{build_csi_scenes, _agg, _rollout}"
+  entrypoint: "scripts/diagnostics/r8_stale_csi_gen.py"
+  seeds: "5"
+  split: "heads trained on STALE train scenes; deployed on SEPARATE stale held (held never trained)"
+  eval_uses_mechanism: "held stale feasibility / true return; paired 95% CI on (gated - stale_anchor)"
+  runtime_activation_artifact: "result_save/belief_residual/R8/stale_csi_metrics.json"
+  effect_on_decision_metrics: "stale_drop random 0.055 CI[0.009,0.101] / urban 0.165 CI[0.118,0.212] (CI>0, premise confirmed); (gated - stale_anchor) feas random +0.010 [-0.007,0.027] / urban 0.000 [0,0]; sweep no tau lo>0; edit 0.003/0.0; unsafe 0.0; return net-negative when firing."
+  raw_result_artifact: "result_save/belief_residual/R8/stale_csi_metrics.json + stale_threshold_sweep.json"
+  decision: "HONEST NEGATIVE under the real regime (premise confirmed; method does not repair at any tau). Completes the campaign."
+  conclusion_boundary: "Tests the campaign's premise (repair the stale drop). Unlike R6 (current channel,
+    near-optimal anchor, no room), the stale anchor is degraded -> there IS room. A CI>0 would be the first
+    genuine positive; the true C/E/L are always on the current real channel."
+
+cited_from: "docs/belief_residual/R6/decision.md (current-channel: no gate operating point beats the anchor); Q14 (stale drops the anchor)"
+source_commit: "4357eb6 (R7)"
+why_retraining_not_required: "R8 retrains the heads on STALE features (a new regime); the R5/R6 machinery is reused."
+what_claim_is_supported: "whether the evidence-gated action repairs the stale-CSI feasibility drop in the campaign's actual failure regime."
