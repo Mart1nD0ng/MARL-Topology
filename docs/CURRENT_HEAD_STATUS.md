@@ -1,6 +1,26 @@
 # CURRENT HEAD STATUS — Phase 0 freeze (spec-driven reconstruction)
 
-> ## 🏁 BELIEF-GUIDED EVIDENCE-GATED RESIDUAL PPO CAMPAIGN COMPLETE (2026-07-01) — the LATEST campaign; the 4th honest negative, now precisely localized
+> ## 🏁 TEMPORAL-RECOVERY CAMPAIGN COMPLETE (2026-07-01) — the LATEST campaign; the 5th honest negative, binding limit REFINED
+> The owner-authorized Temporal-Recovery campaign (T0–T7, Contract v4 Claim-Path regime) redesigned the
+> temporal/CSI-belief module to recover the current channel from stale history and beat the stale-degraded
+> `local_hysteresis` anchor (the Belief-Residual R8 negative). Full ledger: the `TEMPORAL-RECOVERY CAMPAIGN
+> SUMMARY` at the tail of `docs/URBAN_V2X_RESEARCH_LOG.md`; per-stage status: `docs/CURRENT_TEMPORAL_RECOVERY_
+> STATUS.md`; per-stage `docs/temporal_recovery/T*/`.
+> - **CENTRAL RESULT: no temporal module beats the stale anchor.** The stale-CSI headroom is REAL (T1 oracle:
+>   true-CSI recovery converts, urban +0.165), but every realizable mechanism fails to convert it — activation
+>   (T2, enabling), correction target (T3), edge recurrence (T4), uncertainty-gating (T5) all HONEST NEGATIVE
+>   (direction learnable, magnitude not). **T6 refines it:** the env is not structureless (stale adds recoverable
+>   R² beyond geometry; recoverability scales with temporal autocorrelation) but that R² gain does not convert.
+> - **Binding limit = the deployable PRECISION of the recovered channel at the anchor's decision boundary** —
+>   realizable predictions beat the echo on average but not at the decision-critical edges. This is the **5th
+>   independent campaign** (v2-static / D0–D14 / POMDP-QP-FAR / Belief-Residual / Temporal-Recovery) to reach the
+>   same "deployable precision at N≤16" wall, now localized to the temporal/CSI axis.
+> - Every mechanism verified-correct + adversarially checked (Workflow per stage, all PASS 0-MAJOR); all stay
+>   **opt-in / default-off** (byte-identical off). Commits T0–T7 on `decentralized-marl-trunk`, **NOT pushed
+>   (owner's decision).** Suite 843/0. Open frontier: the task-1 env-feature MODIFICATION (add decision-critical
+>   temporal autocorrelation) + larger-N.
+
+> ## ⏩ BELIEF-GUIDED EVIDENCE-GATED RESIDUAL PPO CAMPAIGN COMPLETE (2026-07-01) — the prior campaign; the 4th honest negative, now precisely localized
 > The owner-authorized Belief-Residual campaign (binding `MARL-Topology-Belief-Guided-Residual-PPO-TechSpec.md`
 > + `…-Workflow.md` + the Claim-Path evidence regime `MARL-Topology-Development-Contract-v4.md`) built and tested
 > the full "Belief-Guided Evidence-Gated Residual PPO" method against the Q14 residual failure. Full ledger: the

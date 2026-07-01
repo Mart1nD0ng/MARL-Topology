@@ -114,12 +114,12 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 
 ## Headline result (under the corrected environment math)
 
-> **CURRENT STATE (2026-06-28) — three campaigns complete; see `docs/CURRENT_HEAD_STATUS.md` for the live
+> **CURRENT STATE (2026-07-01) — five campaigns complete; see `docs/CURRENT_HEAD_STATUS.md` for the live
 > ledger.** The in-range-parity snapshot below is a HISTORICAL milestone (pre-CTDE recalibration); it has
-> since been superseded by FOUR completed, adversarially-verified campaigns that all reach the same honest
+> since been superseded by FIVE completed, adversarially-verified campaigns that all reach the same honest
 > finding — at N ≤ 16, every sophisticated mechanism is verified-correct but gives no headline gain, and the
-> binding limit is **RL feasibility-region learning** (sharpened by the latest campaign to the deployable
-> PRECISION of the beneficial-edit direction signal):
+> binding limit is **RL feasibility-region learning** (sharpened by the latest campaigns to the deployable
+> PRECISION of the recovered signal at the anchor's decision boundary):
 > - **v2 static** (R0–R7 + Phase 8–13): Graph-MAPPO + MLP + closed-form decoder is best in-range and
 >   best-generalizing.
 > - **Dynamic-repair** (D0–D14): the T>1 task built + corrected (10 gaps) on real 4-RSU urban data; all
@@ -143,9 +143,22 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 >   default-off, adversarially verified per stage. Ledger: `docs/CURRENT_BELIEF_RESIDUAL_STATUS.md` (4-chain
 >   diagnosis §5) + the `BELIEF-GUIDED RESIDUAL PPO CAMPAIGN SUMMARY` in `docs/URBAN_V2X_RESEARCH_LOG.md` +
 >   `docs/belief_residual/R*/`.
+> - **Temporal Recovery** (T0–T7; Contract v4): redesign the temporal / CSI-belief module to recover the CURRENT
+>   channel from STALE history and beat the stale-degraded anchor. **The stale-CSI headroom is REAL (T1 oracle:
+>   true-CSI recovery converts, urban +0.165), and the current channel is PARTIALLY recoverable (T6: the stale
+>   history adds recoverable R² beyond geometry), but no realizable temporal mechanism CONVERTS it** — a
+>   non-saturating activation (T2, enabling), a correction target (T3), edge-level recurrence (T4), and
+>   uncertainty-gating (T5) are all HONEST NEGATIVE on conversion (direction learnable dir_acc≈0.92, magnitude
+>   not). Binding limit = **the deployable PRECISION of the recovered channel at the anchor's decision boundary**
+>   (realizable predictions beat the echo on average, not at the decision-critical edges). All mechanisms
+>   (`residual_leak`, `edge_recurrent`, `belief_uncertainty`) opt-in / default-off, byte-identical off,
+>   adversarially verified per stage. Ledger: `docs/CURRENT_TEMPORAL_RECOVERY_STATUS.md` + the
+>   `TEMPORAL-RECOVERY CAMPAIGN SUMMARY` in `docs/URBAN_V2X_RESEARCH_LOG.md` + `docs/temporal_recovery/T*/`.
 >
 > Open frontier (deferred): large-N (N ≥ 24) generalization (needs a cheaper exact-fault evaluator); a
-> higher-precision local direction signal (the only lever the Belief-Residual campaign leaves open).
+> higher-precision recovered signal at the decision boundary; and the task-1 env MODIFICATION — give the
+> production channel's *decision-critical* component temporal autocorrelation (motivated by T6's synthetic
+> sweep) and re-run the oracle for feasibility conversion.
 
 The legacy "+0.177 beat at out-of-range N = 24" is **retired** — it was produced under the
 pre-recalibration (incorrect) env-math. Under the **corrected** math (P0–P4 + recalibration)

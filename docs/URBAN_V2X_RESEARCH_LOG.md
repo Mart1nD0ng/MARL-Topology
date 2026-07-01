@@ -4606,3 +4606,63 @@ load-bearing + leak-free with independent reproductions; wording tightenings app
 opt-in / default-off. This is the 4th independent campaign to confirm the same honest negative — now localized
 to the direction-signal precision. Open frontier: N≥24 (cheaper exact-fault evaluator) and a higher-precision
 local direction signal.
+
+---
+
+# TEMPORAL-RECOVERY CAMPAIGN SUMMARY (T0–T7, 2026-07-01, owner /loop, Contract v4)
+
+**Goal.** Redesign the temporal / CSI-belief module (the Belief-Residual chain-1) so a decentralized policy can
+recover the CURRENT channel from STALE (delay-1) history and beat the stale-degraded deployable `local_hysteresis`
+anchor (the R8 negative: stale drops the anchor urban 0.815→0.650). Attacks the user's diagnosed defects:
+direct-`p_t` belief target (stale-echo optimum), `tanh` saturation, per-node recurrence for per-edge CSI, and
+mean-only prediction. All mechanisms opt-in / default-off (byte-identical off).
+
+**CENTRAL RESULT — no temporal module beats the stale anchor; binding limit = deployable PRECISION at the
+anchor's decision boundary.** The stale-CSI headroom is REAL (T1 oracle), and the current channel is PARTIALLY
+recoverable from the leak-free features (T6, R² gain over echo), but no realizable mechanism converts the
+recovered channel into a deployed feasibility gain — realizable predictions beat the echo *on average* but are
+not precise enough at the decision-critical edges near the anchor's keep/add thresholds. 5th independent campaign
+(v2-static / D0–D14 / POMDP-QP-FAR / Belief-Residual / Temporal-Recovery) at the same "deployable precision at
+N≤16" wall, now localized to the temporal/CSI axis.
+
+**Stage ledger (each: 5-seed CIs where a headline, failing-first load-bearing test, adversarial Workflow PASS
+0-MAJOR, commit-per-stage, NO push):**
+- **T0** `2c09691` — freeze + audit; pinned 4 chain-1 defects (direct-`p_t` target / `tanh` saturation /
+  per-node-GRU vs edge-CSI / no edge recurrence) as load-bearing tripwires. Suite 820/0.
+- **T1** `3b47eec` — **oracle GATE PASS.** 4-arm anchor oracle (stale / direct-belief / physics / true psucc
+  injected into `local_hysteresis`; anchor decides purely on psucc col 0; true evaluator, 0-eval). Ceiling
+  `D−A` **urban +0.165 [+0.118,+0.212] / random +0.055 [+0.009,+0.101]** (CI>0, reproduces R8 → perfect recovery
+  CONVERTS); direct `B−A` **−0.25** (CI<0, absolute-`p_t` architecture is *harmful* — why R2 failed); physics
+  `C−B` **+0.21/+0.275** (CI>0 — correction structure essential); realizable `C−A` spans 0 (marginal). **MSE ⟂
+  decisions.** Verdict: fix the model, not the env features. Workflow `w3fx2yp7j`. Suite 823/0.
+- **T2** `b6b7d38` — leaky-tanh activation `z = z_max·tanh(raw/z_max) + λ·raw` (grad ≥ λ > 0, never vanishes).
+  `λ=0` default byte-identical (incl. raw=±inf). Effect-on-decision (saturation regime): recurrent−memoryless
+  logit_delta tanh <0.05 vs leaky >0.15 (>5×). ENABLING only (action_delta 0 on the real pilot). Workflow
+  `w7or4jsv2`. Suite 827/0.
+- **T3** `8a147ac` — belief CORRECTION target `belief_logit = stale_logit + head` (echo = zero-baseline).
+  **HONEST NEGATIVE:** correction MSE ≈ stale-echo floor (`cor_beats_floor` random +5e-05 nil / urban spans 0);
+  DIRECTION captured (`dir_acc` ~0.92 ≫ chance) but MAGNITUDE not (a move-weight pilot overshoots 0.10→0.35);
+  no anchor conversion (`cor_feas_gain` spans 0; absolute significantly hurts). Workflow `w569gv274`. Suite 831/0.
+- **T4** `999922e` — EDGE-level recurrence (`edge_recurrent`, per-edge GRU [E,H]). **HONEST NEGATIVE:**
+  `edge_vs_node_mse` and `edge_beats_floor` span 0 (≈ node ≈ floor, no magnitude gain); edge *significantly
+  hurts* the anchor (`edge_feas_gain` CI<0, worse than node) → more temporal capacity, worse decisions (answers
+  the LSTM question: capacity is not the bottleneck). Workflow `w82f3rn07`. Suite 835/0.
+- **T5** `b6d4ffd` — UNCERTAINTY head (heteroscedastic Gaussian NLL; `confidence_gate = sigmoid(−logvar)`;
+  gated recovery). **HONEST NEGATIVE:** `gated_feas_gain` spans 0 (no "no-harm"), not better than mean
+  (`gated_beats_mean=False`); the uncertainty is WEAKLY calibrated (calib 0.06/0.18) → shrinks corrections
+  ~uniformly, not selectively. Model-side levers EXHAUSTED. Workflow `wxbgwz70w`. Suite 841/0.
+- **T6** `01e5a7a` — env temporal-structure DIAGNOSTIC (task-1 fallback; no env change). **REFINES the limit:**
+  the env is NOT structureless — the stale history adds recoverable R² beyond geometry (`temporal_contribution`
+  random +0.149 [0.127,0.172] / urban +0.450 [0.410,0.490]; geo+stale R² 0.60/0.64 beats echo 0.47/0.56); a
+  synthetic AR sweep shows recoverability rises monotonically with the temporal autocorrelation ρ (r2_pred
+  0→0.81). But the R² gain does NOT convert (T1 arm C / T3–T5, cited §8) → **binding limit = decision-boundary
+  PRECISION**, not the absence of recoverable info (supersedes the T3–T5 "magnitude not in features" wording).
+  Workflow `wtwf15cxb`. Suite 843/0.
+- **T7** (this) — pure-docs close-out: COMPLETE banners + this summary + `AGENTS.md` 5th bullet + `docs/
+  temporal_recovery/T7/decision.md`. Suite unchanged 843/0.
+
+**Recommended config (unchanged):** deployable arm = `local_hysteresis` on the stale channel; all
+Temporal-Recovery mechanisms (`residual_leak`, `edge_recurrent`, `belief_uncertainty`, the correction /
+uncertainty losses) stay opt-in / default-off. **Open frontier (owner decision):** the task-1 env MODIFICATION —
+give the production channel's *decision-critical* component temporal autocorrelation (motivated by T6's synthetic
+sweep) and re-run the oracle for feasibility conversion; and larger-N with a cheaper exact-fault evaluator.

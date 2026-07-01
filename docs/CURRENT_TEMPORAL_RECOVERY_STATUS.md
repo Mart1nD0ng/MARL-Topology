@@ -1,5 +1,30 @@
 # CURRENT_TEMPORAL_RECOVERY_STATUS — HEAD vs the Temporal-Recovery target
 
+> ## 🏁 TEMPORAL-RECOVERY CAMPAIGN COMPLETE (2026-07-01) — 5th honest negative, binding limit REFINED
+> T0–T7 redesigned the temporal/CSI-belief module to recover the current channel from stale history and beat the
+> stale-degraded `local_hysteresis` anchor. **CENTRAL RESULT: no temporal module beats the stale anchor.** The
+> arc: the stale-CSI headroom is REAL (T1 oracle — perfect/true-CSI recovery converts, urban +0.165 CI[+0.118,
+> +0.212]), but every realizable temporal mechanism fails to convert it — activation (T2, enabling only),
+> correction target (T3), edge-level recurrence (T4), and uncertainty-gating (T5) all HONEST NEGATIVE on
+> conversion (direction learnable dir_acc≈0.92, magnitude not). **T6 REFINES the diagnosis:** the env is NOT
+> structureless — the stale history adds recoverable R² beyond geometry (temporal_contribution random +0.149
+> [0.127,0.172] / urban +0.450 [0.410,0.490]) and recoverability scales with temporal autocorrelation — but that
+> R² gain does NOT convert to feasibility. So the **binding limit is the deployable PRECISION at the anchor's
+> decision boundary**: realizable predictions beat the stale echo *on average* but are not precise enough at the
+> decision-critical edges near the keep/add thresholds. This is the project's recurring **"deployable precision
+> at N≤16"** wall (v2-static / D0–D14 / POMDP-QP-FAR / Belief-Residual / Temporal-Recovery = five campaigns),
+> now localized to the temporal/CSI-recovery axis with the sharpest mechanistic story yet.
+> - Every mechanism is verified-correct + adversarially checked (a multi-lens Workflow per stage, all PASS
+>   0-MAJOR) and stays **opt-in / default-off** (byte-identical when off; the whole prior suite unaffected).
+> - **Recommended config (unchanged):** deployable arm = `local_hysteresis` on the stale channel; all
+>   Temporal-Recovery mechanisms (`residual_leak`, `edge_recurrent`, `belief_uncertainty`) stay opt-in.
+> - **Open frontier (owner decision):** modify the production channel so its *decision-critical* component has
+>   temporal autocorrelation (the task-1 env-feature MODIFICATION, motivated by T6's diagnostic + synthetic
+>   sweep) and re-run the oracle for feasibility conversion; and larger-N with a cheaper exact-fault evaluator.
+> - Commits T0–T7 on `decentralized-marl-trunk`, **NOT pushed (owner's decision).** Suite 843/0. Per-stage
+>   ledger: §5 below; per-stage `docs/temporal_recovery/T*/`; `TEMPORAL-RECOVERY CAMPAIGN SUMMARY` at the tail of
+>   `docs/URBAN_V2X_RESEARCH_LOG.md`.
+
 > Campaign: **Temporal Recovery** (the T-series). Owner `/loop`, dynamic mode. Governed by
 > `docs/MARL-Topology-Development-Contract-v4.md` (Claim-Path evidence) + v3 (still binding) and the
 > Belief-Guided Residual PPO TechSpec (`docs/MARL-Topology-Belief-Guided-Residual-PPO-TechSpec.md`, §2–§3
