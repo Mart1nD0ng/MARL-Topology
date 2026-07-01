@@ -42,7 +42,7 @@ Status ∈ {NOT_PRESENT, IMPLEMENTED_ONLY, CALLABLE, ACTIVE_IN_LOSS, ACTIVE_IN_E
 | CSI-belief auxiliary (`L_CSI`, belief_head) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_LOSS (R2) but NO-OP for recovery** — belief does NOT beat the stale-echo floor (5-seed CI entirely negative, 0/5); leak-free + in-loss verified; `L_CSI` ablatable at R3 |
 | separate residual head (small-range logits) | NOT_PRESENT (shared ±10 head) | NOT_PRESENT | NOT_PRESENT | ACTIVE (R1) |
 | beneficial-edit supervision (repair/safety/edit) | NOT_PRESENT | NOT_PRESENT | NOT_PRESENT | **ACTIVE_IN_EVAL (R5)** — heads trained (L_edit BCE / L_repair/L_safety Huber) on R4 labels; held top-k beats random (random CI>0, urban mean-positive); local features only |
-| evidence-gated residual action | NOT_PRESENT | NOT_PRESENT (all-edge Bernoulli) | NOT_PRESENT | ACTIVE_IN_DEPLOY (R6) |
+| evidence-gated residual action | NOT_PRESENT | NOT_PRESENT (all-edge Bernoulli) | NOT_PRESENT | **ACTIVE_IN_DEPLOY (R6)** — gate on frozen R5 heads filters candidate edits (spy); budget-safe, zero→anchor, 0-eval; correct+load-bearing BUT B==anchor (deployed gain negative) |
 | adaptive anchor KL / safety constraint | NOT_PRESENT | NOT_PRESENT (fixed flip penalty) | NOT_PRESENT (fixed) | ACTIVE_IN_LOSS (R7) |
 | D_quorum potential | — | CALLABLE (PBRS) | CALLABLE | edit-label + repair head (R4–R5) |
 | stale/partial CSI observation | — | NOT_PRESENT (current CSI) | **ACTIVE_IN_EVAL** (`--csi-mode`) | belief input (R2) |
@@ -63,7 +63,7 @@ the trunk's PPO as residual PPO — the residual path must be built and proven o
 | R3 | residual PPO + CTDE critic (clip/KL/entropy, `A_t=G_t−V`) | **DONE (KEEP — PPO stabilizes; == anchor)** — `residual_ppo_train.py` genuinely calls `ppo_clip_actor_loss` (per-edge ratios, spy), logs approx_kl/clip_fraction, target_kl early-stop; `ResidualValueCritic` EV **0.56** (LayerNorm fix), entropy, raw-L2. PPO **stable** (retention 1.0, 0 collapse) — fixes free-REINFORCE bimodal collapse — BUT residual **== anchor** (edit_rate 0.0): missing-direction-signal (R4–R5), not a PPO failure. 7 tests, suite 794/0; Workflow PENDING | PPO+critic active ✓; clamp/collapse reduced ✓; == anchor → direction-signal gap |
 | R4 | beneficial oracle-edit dataset (ΔC/ΔD/ΔE/ΔL/ΔJ; only positive-gain local edits) | **DONE (KEEP — beneficial-edit signal EXISTS)** — `oracle_edit_dataset.py` (teacher-only; anchor + single edit + Δ's, never the oracle topology). 5-seed positive_edit_rate **random 0.096 [0.055,0.137] / urban 0.125 [0.074,0.175]** (CIs strictly >0); repairable 0.26/0.18; safe-prune 0.28/0.75; best ΔJ 0.73/0.12. CENTRAL-reference signal (∝ Q7/Q8) — deployable learning is R5. 6 tests, suite 800/0; Workflow `w1o20fuos` | non-zero positive-edit rate ✓; no full-oracle imitation ✓ → R5 |
 | R5 | repair/safety/utility/edit heads (supervised) | **DONE (KEEP — PARTIAL POSITIVE: the R4 signal IS locally learnable)** — `edit_head`/`repair_head`/`safety_head` on `BeliefResidualActor` (local features `[ef, h_u⊙h_v, |h_u−h_v|]` only) + `edit_head_training.py` (L_edit BCE + L_repair/L_safety Huber; held eval). 5-seed held top-k precision−base: **random +0.251 [+0.089, +0.413] (CI>0, 3.2× lift)**, urban +0.184 [−0.005, +0.373] (4.5× lift, spans 0 by 0.005). repair_corr random +0.226 [+0.176,+0.277]. **UNTRAINED control at chance** ([−0.088,+0.094]/[−0.033,+0.093]) → the lift is from LOCAL-feature training, not the metric. 5 tests, suite 805/0; Workflow `w4refc811` | held top-k edit hit rate > random — **random MET decisively, urban met in mean (not 95%-sig at n=5)** → KEEP → R6 |
-| R6 | evidence-gated residual action | NOT_IMPLEMENTED | bad edits gated out; zero-candidate→anchor; budget-safe; 0-eval deploy |
+| R6 | evidence-gated residual action | **DONE (KEEP MECHANISM / HONEST NEGATIVE on deployed gain — deployable CONVERSION gap)** — `evidence_gated_action.py` (`local_candidates` + `evidence_gated_residual`: anchor 0-eval → frozen R5 heads score → repair/safety/edit gate → budget-safe mutual decode; zero-gated→anchor). Mechanism correct+safe+load-bearing (5 tests; budget-safe; 0 unsafe at tau 0.5; 0 eval). **5-seed A/B (tau 0.5): B−A feas spans 0 (random 0.000 [−0.022,+0.022] / urban +0.005 [−0.009,+0.019]) = B==anchor; edit_rate ~0.001 (mean), zero_edit ~0.97; B−C feas +0.095/+0.12 mean (heads suppress; not 95%-sig).** Threshold sweep: every FIRING tau_edit (0.35→0.05) net-negative in mean, unsafe rises urban 0.00→0.09, no tau's B−A lo>0 → **no operating point beats the anchor**. Workflow `wa52tamrf` PASS/PASS/MINOR/MINOR (no MAJOR). suite 810/0 | bad edits gated out ✓ / zero→anchor ✓ / budget-safe ✓ / 0-eval ✓ **MET (mechanism)**; deployed gain **NOT met (B==anchor at best, <anchor when firing)** = R5 ranking's ~40% precision doesn't CONVERT deployably |
 | R7 | adaptive anchor KL / safety constraint (replace fixed flip penalty) | NOT_IMPLEMENTED | no retention=0 collapse and no edit_rate=0 clamp |
 | R8 | full-method pilot (6 arms × urban delay1/current, random delay1) | NOT_IMPLEMENTED | ≥1 learned arm beats anchor or repairs the stale drop, OR the failing layer is localized |
 | R9 | 5-seed research campaign | NOT_IMPLEMENTED | per-seed + CI + budget + scope |
@@ -144,6 +144,27 @@ features, NOT a metric artifact.** This answers the deployable-LEARNING question
 mean-positive on urban) — it is NOT a learning gap; R4 proved the signal exists, R5 proves local features can
 learn to RANK it. **Honest scope: R5 proves the RANKING is locally learnable, NOT yet that gating the residual
 action on the heads improves the DEPLOYED topology (R6), and urban is not 95%-significant at n=5.** 5 tests,
-suite 805/0; Workflow `w4refc811`. **Next: R6** — evidence-gated residual action (sample only among edits
-passing the repair/safety gate; zero candidates → anchor; budget-safe; 0 evaluator at deployment); measure
-whether the learned ranking converts into a deployed feasibility/return gain on BOTH regimes.
+suite 805/0; Workflow `w4refc811`.
+**R6 DONE — KEEP MECHANISM / HONEST NEGATIVE on the deployed gain (a deployable CONVERSION gap).**
+`src/marl_topology/training/evidence_gated_action.py` (`local_candidates` deployable enumeration +
+`evidence_gated_residual`): compute the anchor (0 eval) → enumerate LOCAL candidates → score with the FROZEN R5
+heads (`edit_scores`, local features only) → gate (add iff repair_pred≥τ_r ∧ σ(edit_logit)≥τ_e; remove iff
+safety_pred≤τ_s ∧ σ(edit_logit)≥τ_e) → apply via the budget-safe mutual decode; zero gated → anchor exactly.
+The heads move ACTIVE_IN_EVAL (R5) → ACTIVE_IN_DEPLOY (R6). Mechanism is CORRECT + SAFE + load-bearing (5
+failing-first tests: gate calls heads in the decision path / zero→anchor / bad-head→anchor & good-head→edits /
+budget-safe / no-evaluator; 0 unsafe at tau 0.5; 0 eval at decision — all independently re-verified by Workflow
+`wa52tamrf`). **BUT the deployed gain is NEGATIVE: 5-seed A/B (tau 0.5) B−A feasibility spans 0 (random 0.000
+[−0.022,+0.022], urban +0.005 [−0.009,+0.019]) = B == anchor (the calibrated heads suppress edits, edit_rate
+~0.001 mean, zero_edit ~0.97); the threshold sweep is downhill from the empty gate — every FIRING tau_edit
+(0.35→0.05) is net-negative in mean with unsafe_edit rising (urban 0.00→0.09), and NO tau's B−A lower bound
+> 0 → no operating point beats the anchor.** B > random-gate C in mean (+0.095/+0.12, not 95%-sig): the trained
+heads' only deployable value is SAFE SUPPRESSION. **Diagnosis (Contract v4 §13): a DATA/precision limit — the
+R4 signal exists (R4) and the R5 local ranking is real (~40% top-k), but that precision does NOT CONVERT into a
+net deployed gain (a harmful edit's feasibility cost exceeds a beneficial edit's gain) — NOT a mechanism/path/
+trainer/leak bug.** This SHARPENS the campaign's binding limit from "no direction signal" (pre-R4) to "the
+direction signal's deployable-rankable PRECISION is insufficient to beat the anchor at N≤16", and empirically
+pre-empts R7's adaptive-anchor-KL premise (optimal anchor-deviation = 0). Chain 3 fully characterized: EXISTS
+(R4) → RANKABLE (R5) → NOT deployably CONVERTIBLE (R6). Workflow `wa52tamrf` 4-lens+synthesis MINOR (PASS/PASS/
+MINOR/MINOR, no MAJOR; 3 wording fixes applied). suite 810/0. **Next: R7** (adaptive anchor-KL/safety — a
+confirmatory check, expected == anchor per the sweep) → R8 pilot → R10 honest close-out; OR proceed to the
+close-out given the decisive sweep.

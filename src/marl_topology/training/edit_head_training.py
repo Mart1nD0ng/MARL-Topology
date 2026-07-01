@@ -169,4 +169,4 @@ def train_edit_heads(train_scenes, held_scenes, T, *, epochs=40, hidden=64, lr=0
         opt.step()
     trained = topk_metrics(held_ex, actor)
     return {"untrained_held": untrained, "trained_held": trained, "n_train_examples": len(train_ex),
-            "n_held_examples": len(held_ex)}
+            "n_held_examples": len(held_ex), "actor": actor, "mean": mean, "std": std, "hidden": hidden}

@@ -1,0 +1,52 @@
+# R6 Claim Cards (Contract v4 §1)
+
+- claim: "The evidence-gated residual action is a DEPLOYABLE decision mechanism: it computes the anchor
+    (0 eval), enumerates LOCAL candidate edits, scores them with the FROZEN R5 heads (edit_logit/repair_pred/
+    safety_pred from local features only), and applies ONLY gate-passing edits via the budget-safe mutual
+    decode. Zero gated candidates -> the anchor EXACTLY. No evaluator / true-CSI / critic / central decoder in
+    the decision path. The heads move ACTIVE_IN_EVAL (R5) -> ACTIVE_IN_DEPLOY (R6)."
+  scope: "R6, evidence_gated_residual; deployable mechanism audit (0 eval at decision)"
+  mechanism: "gate: add passes iff repair_pred>=tau_repair AND sigmoid(edit_logit)>=tau_edit; remove passes iff safety_pred<=tau_safety AND sigmoid(edit_logit)>=tau_edit; apply via residual_decode_from_flips"
+  code_path: "src/marl_topology/training/evidence_gated_action.py::{local_candidates,evidence_gated_residual}"
+  entrypoint: "tests/unit/test_belief_residual_R6_gate.py; scripts/diagnostics/r6_evidence_gate_gen.py"
+  config_flags: "tau_edit, tau_repair, tau_safety, mode=full"
+  loss_uses_mechanism: "n/a (R6 is a deployable decoder over the frozen R5 heads; no new loss -- the heads were trained at R5)"
+  eval_uses_mechanism: "deployable A/B on held: feasibility (consensus>=0.9), true return J, edit_rate, unsafe_edit_rate, retention, zero_edit_rate; eval_calls at decision = 0"
+  runtime_activation_artifact: "result_save/belief_residual/R6/evidence_gate_metrics.json"
+  load_bearing_tests:
+    - "test_gate_calls_heads_in_decision_path (spy: edit_scores called; repair/safety/edit used to filter)"
+    - "test_zero_gated_candidates_returns_anchor (topology == anchor exactly)"
+    - "test_gate_blocks_bad_edits (bad-head -> anchor; good-head -> edits applied; both directions)"
+    - "test_gate_is_budget_safe / test_gate_deploy_uses_no_evaluator"
+  effect_on_decision_metrics: "edit_rate (>0 with trained heads vs R3's 0.0), unsafe_edit_rate, retention, zero_edit_rate; topology_delta vs anchor"
+  conclusion_boundary: "R6 establishes the gated MECHANISM is correct + deployable; whether it BEATS the anchor (deployed feasibility/return gain) is the second claim."
+
+- claim: "DEPLOYABLE A/B -- the evidence-gated action (frozen R5 heads, 0 eval) does NOT beat the anchor at ANY
+    operating point. 5-seed (B-A) feasibility CI spans 0 at tau_edit 0.5 (B==anchor: random 0.000[-0.022,0.022],
+    urban +0.005[-0.009,0.019]); the threshold sweep is downhill from the empty gate -- every firing threshold
+    (tau_edit 0.35..0.05) gives NEGATIVE B-A feasibility IN MEAN with rising unsafe_edit (urban 0.00->0.09); each
+    per-tau CI itself spans 0, so the load-bearing claim is 'no tau's B-A lower bound > 0'. No tau_edit beats the
+    anchor; the best deployable edit policy over the anchor is 'no edit'. HONEST NEGATIVE on the deployed gain =
+    a deployable CONVERSION gap: R4 signal exists + R5 ranking real (~40% top-k) but that precision is
+    insufficient to convert into a net deployed gain. Trained heads' deployable value = safe SUPPRESSION (B >
+    random-gate C in mean, +0.095/+0.12, not 95%-sig). Stale-CSI overlay OFF (current-frame channel); overlay-on
+    full pilot is R8."
+  scope: "R6, urban+random, N<=16, 5 seeds; deployed (B-A) and (B-C) on held, 0 eval at decision"
+  mechanism: "evidence-gated (trained heads) vs anchor vs evidence-gated (untrained heads = random-gate control)"
+  code_path: "src/marl_topology/training/evidence_gated_action.py::evidence_gated_residual"
+  entrypoint: "scripts/diagnostics/r6_evidence_gate_gen.py"
+  seeds: "5"
+  split: "R5 heads trained on TRAIN scenes (R4 evaluator = training labels), FROZEN, deployed on SEPARATE held"
+  eval_uses_mechanism: "held feasibility / true return J / edit_rate / unsafe_edit_rate / retention; paired 95% CI on (B-A), (B-C)"
+  runtime_activation_artifact: "result_save/belief_residual/R6/evidence_gate_metrics.json"
+  effect_on_decision_metrics: "(B-A) feas random 0.000[-0.022,0.022]/urban +0.005[-0.009,0.019] (spans 0); sweep downhill-from-empty-gate (every firing tau_edit negative in mean, no tau lo>0); edit_rate 0.001@tau0.5(5-seed mean; per-seed ~0.006)->0.11@tau0.05; unsafe 0.005->0.035 random / 0.00->0.09 urban; (B-C) feas +0.095/+0.12 mean (not 95%-sig)."
+  raw_result_artifact: "result_save/belief_residual/R6/evidence_gate_metrics.json + threshold_sweep.json"
+  decision: "KEEP mechanism (correct/safe/load-bearing + suppression value); HONEST NEGATIVE on deployed gain (deployable conversion gap)."
+  conclusion_boundary: "Tests whether the locally-learned ranking (R5) becomes a DEPLOYED gain. A (B-A) that
+    spans 0 is NOT a STOP: the mechanism is correct and R5 learnability holds; it routes to R7's adaptive gate.
+    The true C/E/L/J are always on the current real channel; the evaluator is never in the decision path."
+
+cited_from: "docs/belief_residual/R5/decision.md (the R4 signal IS locally learnable; R5 heads frozen for R6)"
+source_commit: "eb26b90 (R5)"
+why_retraining_not_required: "R6 deploys the R5-trained heads frozen; no new training (the gate is a decoder)."
+what_claim_is_supported: "whether the evidence-gated residual action is a correct deployable mechanism and whether it beats the anchor."

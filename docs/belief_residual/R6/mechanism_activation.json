@@ -1,0 +1,49 @@
+{
+  "stage": "R6",
+  "title": "evidence-gated residual action -- KEEP mechanism / HONEST NEGATIVE on deployed gain (deployable conversion gap)",
+  "source_commit_cited": "eb26b90 (R5: the R4 signal IS locally learnable)",
+  "decision": "KEEP the mechanism (correct + safe + suppression value); HONEST NEGATIVE on the deployed feasibility/return gain -- B == anchor at best, every firing threshold net-negative in mean, no threshold beats the anchor.",
+  "mechanism": {
+    "evidence_gate": {"status": "ACTIVE_IN_DEPLOY", "path": "evidence_gated_residual", "net_effect_vs_anchor": "== anchor at tau_edit 0.5 (best); net-negative when firing edits"},
+    "edit_head/repair_head/safety_head": {"status": "ACTIVE_IN_DEPLOY", "role": "gate signal (frozen R5 heads, local features)"},
+    "local_candidates": {"status": "ACTIVE_IN_DEPLOY", "path": "local_candidates", "eval_calls": 0}
+  },
+  "deployable": {
+    "decision_sees_evaluator": false,
+    "decision_sees_true_csi_or_critic": false,
+    "budget_safe": true,
+    "zero_gated_returns_anchor": true,
+    "eval_calls_at_decision": 0,
+    "csi_scope": "current-frame channel (stale overlay off, as R5); stale-overlay-on full pilot is R8"
+  },
+  "result_5seed_ab": {
+    "artifact": "result_save/belief_residual/R6/evidence_gate_metrics.json",
+    "taus": {"tau_edit": 0.5, "tau_repair": 0.0, "tau_safety": 0.0},
+    "random": {"A_feas": 0.375, "B_feas": 0.375, "C_feas": 0.28,
+               "BminusA_feas_ci": [-0.02195, 0.02195], "BminusA_ret_ci": [-0.00366, 0.00247],
+               "BminusC_feas_mean": 0.095, "B_edit_rate": 0.00084, "B_unsafe_edit": 0.005, "B_zero_edit": 0.98},
+    "urban": {"A_feas": 0.815, "B_feas": 0.82, "C_feas": 0.70,
+              "BminusA_feas_ci": [-0.00888, 0.01888], "BminusA_ret_ci": [-0.00155, 0.00329],
+              "BminusC_feas_mean": 0.12, "B_edit_rate": 0.00124, "B_unsafe_edit": 0.0, "B_zero_edit": 0.96}
+  },
+  "threshold_sweep": {
+    "artifact": "result_save/belief_residual/R6/threshold_sweep.json",
+    "finding": "downhill from the empty gate: best operating point is the empty gate (tau_edit 0.5, B==anchor); every firing threshold is net-negative IN MEAN and raises unsafe_edit (curve is drop-then-partial-recovery, not strictly monotone; each per-tau B-A CI spans 0, so the load-bearing claim is no-tau-lower-bound>0, not per-tau significance).",
+    "random_BminusA_feas": {"0.5": 0.0, "0.35": -0.02, "0.25": -0.045, "0.15": -0.06, "0.05": -0.05},
+    "urban_BminusA_feas": {"0.5": 0.005, "0.35": -0.07, "0.25": -0.055, "0.15": -0.055, "0.05": -0.045},
+    "random_unsafe": {"0.5": 0.005, "0.35": 0.01, "0.25": 0.025, "0.15": 0.035, "0.05": 0.03},
+    "urban_unsafe": {"0.5": 0.0, "0.35": 0.09, "0.25": 0.085, "0.15": 0.085, "0.05": 0.085}
+  },
+  "interpretation": "The gate mechanism is correct/safe/load-bearing and the R5 ranking is real, but the ranking's ~40% top-k precision does not convert into a net deployed gain: at every operating point the gate either does nothing (B==anchor) or fires net-harmful edits (a harmful edit's feasibility cost exceeds a beneficial edit's gain). Deployable CONVERSION gap -- distinct from R5's learnability positive (significant on random; strong-mean-but-not-significant on urban). Trained heads' only deployable value = safe suppression (B > random-gate C in mean, not 95%-sig).",
+  "diagnosis_scope": "DATA/precision limit at the observation+evaluation scope; NOT a mechanism/path/trainer/leak bug. Binding limit sharpened: deployable PRECISION of the beneficial-edit direction signal, not its existence (R4) or learnability (R5).",
+  "effect_on_decision": "gate changes final topology (edit_rate 0.001 at tau0.5 -> up to 0.11 at tau0.05); trained-head effect net-neutral (==anchor), random-gate effect net-harmful (C<A); load-bearing on the action.",
+  "tests": "tests/unit/test_belief_residual_R6_gate.py 5/5; full suite 810/0",
+  "adversarial_verification": {
+    "workflow": "wa52tamrf (5 agents, 4 lenses + synthesis)",
+    "synthesis_verdict": "MINOR (load_bearing_confirmed=true; no MAJOR)",
+    "lens_verdicts": {"mechanism-deploy": "PASS", "load-bearing": "PASS", "stats-honesty": "MINOR", "diagnosis-scope": "MINOR"},
+    "independent_checks": "leak-free grep (only evaluator token = static .scene budgets); budget-safe degree-count under aggressive head; zero-gated->anchor with tau=2.0; hand-recomputed gate matches module gated_add/gated_remove exactly; trained-vs-untrained gate differ (B depends on training); train/held seed-disjoint, held never in loss; every CI reconstructs from t=2.776/n=5.",
+    "minor_fixes_applied": "(1) 'monotone downhill' -> 'downhill from the empty gate; every firing threshold net-negative in mean; no tau lo>0' (curve is drop-then-partial-recovery, per-tau CIs span 0); (2) 'R5 learnability positive' hedged (significant random, strong-mean-not-sig urban); (3) 'edit_rate ~0.001' noted as 5-seed mean (per-seed ~0.006)."
+  },
+  "no_push": true
+}

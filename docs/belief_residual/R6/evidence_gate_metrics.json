@@ -1,0 +1,175 @@
+{
+  "scope": "R6 evidence-gated residual action vs anchor; deployed on held, 0 eval at decision; 5 seeds x {random,urban}; (B-A) and (B-C) feasibility/return CI",
+  "taus": {
+    "tau_edit": 0.5,
+    "tau_repair": 0.0,
+    "tau_safety": 0.0
+  },
+  "tau_feas": 0.9,
+  "by_data": {
+    "random": {
+      "A_feas": {
+        "mean": 0.375,
+        "lo": 0.14905,
+        "hi": 0.60095,
+        "n": 5
+      },
+      "B_feas": {
+        "mean": 0.375,
+        "lo": 0.1668,
+        "hi": 0.5832,
+        "n": 5
+      },
+      "C_feas": {
+        "mean": 0.28,
+        "lo": -0.04359,
+        "hi": 0.60359,
+        "n": 5
+      },
+      "A_ret": {
+        "mean": -0.42873,
+        "lo": -0.6067,
+        "hi": -0.25076,
+        "n": 5
+      },
+      "B_ret": {
+        "mean": -0.42933,
+        "lo": -0.60451,
+        "hi": -0.25414,
+        "n": 5
+      },
+      "C_ret": {
+        "mean": -0.52199,
+        "lo": -0.75929,
+        "hi": -0.28469,
+        "n": 5
+      },
+      "BminusA_feas": {
+        "mean": 0.0,
+        "lo": -0.02195,
+        "hi": 0.02195,
+        "n": 5
+      },
+      "BminusA_ret": {
+        "mean": -0.0006,
+        "lo": -0.00366,
+        "hi": 0.00247,
+        "n": 5
+      },
+      "BminusC_feas": {
+        "mean": 0.095,
+        "lo": -0.06835,
+        "hi": 0.25835,
+        "n": 5
+      },
+      "BminusC_ret": {
+        "mean": 0.09266,
+        "lo": -0.08258,
+        "hi": 0.26791,
+        "n": 5
+      },
+      "B_edit_rate": {
+        "mean": 0.00084,
+        "lo": -0.00043,
+        "hi": 0.00212,
+        "n": 5
+      },
+      "B_unsafe_edit": {
+        "mean": 0.005,
+        "lo": -0.00888,
+        "hi": 0.01888,
+        "n": 5
+      },
+      "B_zero_edit": {
+        "mean": 0.98,
+        "lo": 0.95403,
+        "hi": 1.00597,
+        "n": 5
+      },
+      "beats_anchor_feas": false,
+      "beats_anchor_ret": false
+    },
+    "urban": {
+      "A_feas": {
+        "mean": 0.815,
+        "lo": 0.74355,
+        "hi": 0.88645,
+        "n": 5
+      },
+      "B_feas": {
+        "mean": 0.82,
+        "lo": 0.7603,
+        "hi": 0.8797,
+        "n": 5
+      },
+      "C_feas": {
+        "mean": 0.7,
+        "lo": 0.51508,
+        "hi": 0.88492,
+        "n": 5
+      },
+      "A_ret": {
+        "mean": -0.0348,
+        "lo": -0.09595,
+        "hi": 0.02635,
+        "n": 5
+      },
+      "B_ret": {
+        "mean": -0.03393,
+        "lo": -0.09281,
+        "hi": 0.02496,
+        "n": 5
+      },
+      "C_ret": {
+        "mean": -0.15732,
+        "lo": -0.35829,
+        "hi": 0.04364,
+        "n": 5
+      },
+      "BminusA_feas": {
+        "mean": 0.005,
+        "lo": -0.00888,
+        "hi": 0.01888,
+        "n": 5
+      },
+      "BminusA_ret": {
+        "mean": 0.00087,
+        "lo": -0.00155,
+        "hi": 0.00329,
+        "n": 5
+      },
+      "BminusC_feas": {
+        "mean": 0.12,
+        "lo": -0.05474,
+        "hi": 0.29474,
+        "n": 5
+      },
+      "BminusC_ret": {
+        "mean": 0.1234,
+        "lo": -0.08999,
+        "hi": 0.33678,
+        "n": 5
+      },
+      "B_edit_rate": {
+        "mean": 0.00124,
+        "lo": -0.0022,
+        "hi": 0.00467,
+        "n": 5
+      },
+      "B_unsafe_edit": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 5
+      },
+      "B_zero_edit": {
+        "mean": 0.96,
+        "lo": 0.84896,
+        "hi": 1.07104,
+        "n": 5
+      },
+      "beats_anchor_feas": false,
+      "beats_anchor_ret": false
+    }
+  }
+}
