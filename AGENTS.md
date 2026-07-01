@@ -114,12 +114,13 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 
 ## Headline result (under the corrected environment math)
 
-> **CURRENT STATE (2026-07-01) — five campaigns complete; see `docs/CURRENT_HEAD_STATUS.md` for the live
+> **CURRENT STATE (2026-07-01) — six campaigns complete; see `docs/CURRENT_HEAD_STATUS.md` for the live
 > ledger.** The in-range-parity snapshot below is a HISTORICAL milestone (pre-CTDE recalibration); it has
-> since been superseded by FIVE completed, adversarially-verified campaigns that all reach the same honest
+> since been superseded by SIX completed, adversarially-verified campaigns that all reach the same honest
 > finding — at N ≤ 16, every sophisticated mechanism is verified-correct but gives no headline gain, and the
 > binding limit is **RL feasibility-region learning** (sharpened by the latest campaigns to the deployable
-> PRECISION of the recovered signal at the anchor's decision boundary):
+> PRECISION of the recovered signal at the anchor's decision boundary — and, by the DF campaign, localized to
+> the leak-free INFORMATION available at that boundary, i.e. aleatoric):
 > - **v2 static** (R0–R7 + Phase 8–13): Graph-MAPPO + MLP + closed-form decoder is best in-range and
 >   best-generalizing.
 > - **Dynamic-repair** (D0–D14): the T>1 task built + corrected (10 gaps) on real 4-RSU urban data; all
@@ -154,6 +155,20 @@ The smoke must exit 0, print a `[data] pool ...` line, and run a few updates.
 >   (`residual_leak`, `edge_recurrent`, `belief_uncertainty`) opt-in / default-off, byte-identical off,
 >   adversarially verified per stage. Ledger: `docs/CURRENT_TEMPORAL_RECOVERY_STATUS.md` + the
 >   `TEMPORAL-RECOVERY CAMPAIGN SUMMARY` in `docs/URBAN_V2X_RESEARCH_LOG.md` + `docs/temporal_recovery/T*/`.
+> - **Decision-Focused (DF)** (DF0–DF4; Contract v4): the owner's three proposed fixes for the "MSE ⊥ decisions"
+>   wall — a decision-focused objective (goal 1), an env with stronger temporal autocorrelation (goal 2), an
+>   activation change (goal 3). **All three are adversarially-verified HONEST NEGATIVES converging on ONE cause:
+>   deployable precision at the anchor decision boundary is limited by leak-free INFORMATION (aleatoric), not the
+>   objective, the env, or the activation.** The true-CSI oracle converts (paired `true−mse = +0.131`, p=0.0022)
+>   but NO realizable arm reaches it. Goal 1 (DF3): a decision-focused BWAR objective (10-config val sweep +
+>   marginal-slot + a B.3(iii) engagement audit) does not beat MSE — the strong hypothesis is refuted; the
+>   small-effect question is underpowered (n=5). Goal 2 (DF2): the `shadow_decorrelation_distance_m` knob raises
+>   per-link ρ (DF1: 0.044→0.429, marginal-invariant) but does NOT convert (`feas(realizable)==feas(stale)` with a
+>   real MSE gain) — raising autocorrelation is self-defeating (it makes the stale echo accurate). Goal 3 (DF4):
+>   leaky-tanh is sound for the per-edge logit; softmax is a category error (top-b == anchor 0.9935 → no-op at
+>   deploy; keep-mass 1/N breaks cross-N). All new mechanisms opt-in / default-off / byte-identical; each stage
+>   adversarially verified (DF2/DF3 Workflows returned REVISE → statistical over-claims corrected). Ledger:
+>   `docs/CURRENT_DECISION_FOCUSED_STATUS.md` + `docs/decision_focused/DF*/` + `docs/decision_focused/中文总结报告.md`.
 >
 > Open frontier (deferred): large-N (N ≥ 24) generalization (needs a cheaper exact-fault evaluator); a
 > higher-precision recovered signal at the decision boundary; and the task-1 env MODIFICATION — give the

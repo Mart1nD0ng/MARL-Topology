@@ -4666,3 +4666,52 @@ Temporal-Recovery mechanisms (`residual_leak`, `edge_recurrent`, `belief_uncerta
 uncertainty losses) stay opt-in / default-off. **Open frontier (owner decision):** the task-1 env MODIFICATION —
 give the production channel's *decision-critical* component temporal autocorrelation (motivated by T6's synthetic
 sweep) and re-run the oracle for feasibility conversion; and larger-N with a cheaper exact-fault evaluator.
+(NOTE: this task-1 env-modification frontier was TAKEN UP and RESOLVED by the Decision-Focused campaign below.)
+
+---
+
+## DECISION-FOCUSED (DF) CAMPAIGN SUMMARY (DF0–DF4, 2026-07-01) — the 6th honest negative
+
+**Successor to Temporal-Recovery (base HEAD `1bf773f`).** Owner proposed three fixes for the confirmed "MSE ⊥
+decisions" wall: (1) a decision-focused prediction objective, (2) an env with stronger temporal autocorrelation in
+the decision-critical channel component (the task-1 env-modification frontier above), (3) an activation change
+(leaky-tanh vs softmax). **All three are adversarially-verified HONEST NEGATIVES that converge on ONE cause —
+deployable precision at the anchor decision boundary is limited by the leak-free INFORMATION (aleatoric), not by
+the objective, the env temporal structure, or the activation.** The true-CSI oracle converts (paired
+`true−mse = +0.131`, CI [0.079,0.184], p=0.0022) but no realizable arm reaches it. Contract v4; commits
+`735e5a7 / e0c59a7 / 40c6962 / 1592cb4 / 731b1b7`; suite 850/0.
+
+- **DF0** (`735e5a7`, docs): framing + a validation design adversarially verified by two critics (BOTH REVISE) →
+  v2 added the goal-2 marginal-invariance gate + nested-subset arms + pooled-ratio RGF, and the goal-1
+  recalibration control arm + marginal-slot negative-gate.
+- **DF1** (`e0c59a7`, goal 2 capability): exposed `shadow_decorrelation_distance_m` (the shadow-fading
+  decorrelation distance, previously a hardcoded constant) as a config knob. The campaign channel was ALREADY
+  shadow-faded; weak recoverability = fast decorrelation (`ρ≈0.37` at `dt=1s`). Env-property probe: ρ rises
+  monotonically 0.044→0.429 with `d_corr {10,25,50,100}` AND the psucc marginal stays invariant (KS ≤ 0.031) — the
+  knob moves ρ, not difficulty. Byte-identical off.
+- **DF2** (`40c6962`, goal 2 GATE): oracle re-gate — `feas(realizable) == feas(stale)` at every `d_corr` (a real
+  per-link MSE gain, zero feasibility movement); the pure-temporal arm (2 stale lags, no distance) is
+  decision-irrelevant (≤0.006) at all ρ; only current geometry helps, and only at LOW ρ. **Raising temporal
+  autocorrelation is self-defeating** (it makes the stale echo accurate as fast as it creates recoverable
+  structure). 3-critic Workflow REVISE → conclusion_robust=TRUE; caveats folded (anchored on the point-identity;
+  ρ scoped ≤0.42, high-ρ feasibility untested; geometry-vs-temporal shown non-tautologically via the pure-temporal
+  arm).
+- **DF3** (`1592cb4`, goal 1 HEADLINE): decision-focused BWAR (boundary-weighted asymmetric regret) — a 10-config
+  val sweep (incl. an MSE-equivalent), a budget-margin marginal-slot variant, and a B.3(iii) engagement audit. No
+  decision-focus config beats MSE; the best config is decision-focus-OFF. The B.3(iii) audit shows BWAR ENGAGED
+  the decision direction (`dir_acc +0.079` on echo-wrong edges) but both stay below chance → engaged-but-aleatoric.
+  2-critic Workflow REVISE / conclusion_robust=FALSE → v2 corrected the statistical over-claim: the STRONG claim
+  (no realizable objective closes the +0.131 oracle gap) is well-powered; the WEAK claim (a small decision-focus
+  gain over MSE) is underpowered/inconclusive at n=5 (all CIs span 0, p=0.11–0.41).
+- **DF4** (`731b1b7`, goal 3): leaky-tanh is sound for the per-edge residual logit (bounded + non-vanishing
+  gradient; the T2 fix; softsign a downgrade). Softmax is a category error: (Test 1) its top-b == the anchor's
+  0.9935 (monotone → no-op at deployment); (Test 2) its per-edge keep-mass is `1/N` vs sigmoid's N-invariant `0.5`
+  (breaks cross-N / multi-edge). Edit-selection (where softmax is right) is moot — the same aleatoric wall.
+
+**DF5 collapsed** (no winning config; the ≥5-seed evidence is in DF1–DF3). New knob `shadow_decorrelation_distance_m`
+and the diagnostics (`df1_decorr_env_probe`, `df2_oracle_regate_gen`, `df2b_persistent_recovery_probe`, `df3*`,
+`df4_activation_probe`) are opt-in / default-off / byte-identical. 中文 report:
+`docs/decision_focused/中文总结报告.md`. **Open frontier (owner decision):** since the wall is now localized to
+leak-free INFORMATION, the only promising direction is adding deployable observables (multi-hop neighbour
+broadcast, longer stale history, explicit AR shadow-state estimate) under strict leak-free validation — NOT another
+objective/env/activation change; and larger-N (≥24).

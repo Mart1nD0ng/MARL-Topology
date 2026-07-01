@@ -1,6 +1,18 @@
 # CURRENT HEAD STATUS — Phase 0 freeze (spec-driven reconstruction)
 
-> ## 🏁 TEMPORAL-RECOVERY CAMPAIGN COMPLETE (2026-07-01) — the LATEST campaign; the 5th honest negative, binding limit REFINED
+> ## 🏁 DECISION-FOCUSED (DF) CAMPAIGN COMPLETE (2026-07-01) — the LATEST campaign; the 6th honest negative
+> Successor to Temporal-Recovery. Owner proposed three fixes for the "MSE ⊥ decisions" wall — a decision-focused
+> objective (goal 1), an env with stronger temporal autocorrelation (goal 2), an activation change (goal 3). **All
+> three are adversarially-verified honest negatives converging on ONE cause: deployable precision at the anchor
+> decision boundary is limited by leak-free INFORMATION (aleatoric), not the objective, the env, or the
+> activation.** True-CSI oracle converts (paired +0.131, p=0.0022); no realizable arm reaches it. Goal 1 (DF3):
+> BWAR does not beat MSE (owner hypothesis refuted; small-effect inconclusive at n=5; B.3(iii): engaged but
+> below-chance). Goal 2 (DF2): the `d_corr` knob raises ρ (0.044→0.429) but does not convert — self-defeating
+> autocorrelation. Goal 3 (DF4): leaky-tanh sound; softmax a category error (no-op at deploy + 1/N cross-N break).
+> Commits DF0–DF4 `735e5a7..731b1b7` on `decentralized-marl-trunk` (ahead 5, NOT pushed — owner's decision). Suite
+> 850/0. Ledger: `docs/CURRENT_DECISION_FOCUSED_STATUS.md`; 中文: `docs/decision_focused/中文总结报告.md`.
+>
+> ## 🏁 TEMPORAL-RECOVERY CAMPAIGN COMPLETE (2026-07-01) — the 5th honest negative, binding limit REFINED
 > The owner-authorized Temporal-Recovery campaign (T0–T7, Contract v4 Claim-Path regime) redesigned the
 > temporal/CSI-belief module to recover the current channel from stale history and beat the stale-degraded
 > `local_hysteresis` anchor (the Belief-Residual R8 negative). Full ledger: the `TEMPORAL-RECOVERY CAMPAIGN

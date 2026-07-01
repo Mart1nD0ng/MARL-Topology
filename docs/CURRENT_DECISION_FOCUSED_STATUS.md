@@ -1,7 +1,23 @@
 # CURRENT — Decision-Focused CSI Recovery (DF) campaign
 
-**Status: DF0 IN PROGRESS (framing + research + validation design).** No large experiments yet
-(Contract v4: `experiment_plan` + validation design before any campaign run).
+> ## 🏁 DF CAMPAIGN COMPLETE (2026-07-01) — all 3 owner goals answered; the 6th honest negative
+> All three owner-proposed fixes for the "MSE ⊥ decisions" wall are adversarially-verified HONEST NEGATIVES that
+> converge on ONE cause — **deployable precision at the anchor decision boundary is limited by leak-free
+> INFORMATION (aleatoric), not by the objective (goal 1), the env temporal structure (goal 2), or the activation
+> (goal 3).** The true-CSI oracle converts (paired `true−mse = +0.131`, p=0.0022) but NO realizable arm reaches it.
+> - **Goal 1 (DF3):** decision-focused BWAR does not beat MSE — owner's strong hypothesis refuted (aleatoric);
+>   the small-effect question is underpowered/inconclusive (n=5); B.3(iii) audit: BWAR engaged (dir_acc +0.079)
+>   but below chance. Adversarially verified (REVISE→corrected).
+> - **Goal 2 (DF2):** the `d_corr` knob raises per-link ρ (DF1: 0.044→0.429) but does NOT convert
+>   (`feas(realizable)==feas(stale)` with a real MSE gain); raising autocorrelation is self-defeating (it makes the
+>   echo accurate). Adversarially verified.
+> - **Goal 3 (DF4):** leaky-tanh is sound for the per-edge logit; softmax is a category error (top-b == anchor
+>   0.9935 → no-op at deploy; keep-mass 1/N breaks cross-N); edit-selection is moot (same wall).
+> Commits DF0–DF4 `735e5a7 / e0c59a7 / 40c6962 / 1592cb4 / 731b1b7` on `decentralized-marl-trunk` (ahead 5, NOT
+> pushed — owner's decision). Suite 850/0. 中文 report: `docs/decision_focused/中文总结报告.md`. Detail: the DF0–DF4
+> `docs/decision_focused/DF*/decision.md` cards + this doc.
+
+**Status: DF0–DF4 COMPLETE; DF5 collapsed (no winning config); DF6 = this close-out.** (Historical framing below.)
 
 - **Base HEAD:** `1bf773f` (Temporal-Recovery T7 close-out — CAMPAIGN COMPLETE, pushed to `origin/decentralized-marl-trunk`).
 - **Branch:** `decentralized-marl-trunk`. **Contract:** v4 (Claim-Path evidence regime).
