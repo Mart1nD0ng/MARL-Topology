@@ -131,3 +131,48 @@ def directional_accuracy(correction_pred: Tensor, correction_target: Tensor, *, 
     if int(moved.sum()) == 0:
         return float("nan")
     return float((torch.sign(cp[moved]) == torch.sign(ct[moved])).double().mean())
+
+
+# --------------------------------------------------------------------------- T5: uncertainty-gated correction
+_LOGVAR_MIN, _LOGVAR_MAX = -6.0, 6.0
+
+
+def csi_correction_nll(mu: Tensor, logvar: Tensor, correction_target: Tensor, weights: Tensor | None = None) -> Tensor:
+    """Heteroscedastic Gaussian NLL for the correction (task 4.3): the head predicts a correction MEAN ``mu`` and
+    a log-variance ``logvar``; NLL = 0.5*(exp(-logvar)*(mu-target)^2 + logvar). Unlike MSE, this lets ``mu`` fit
+    the predictable part while ``logvar`` ABSORBS the unpredictable magnitude (large logvar where the correction
+    is noise) instead of shrinking ``mu`` toward 0. Weighted; logvar clamped for stability."""
+    if mu.numel() == 0:
+        return mu.new_zeros(())
+    lv = logvar.clamp(_LOGVAR_MIN, _LOGVAR_MAX)
+    nll = 0.5 * (torch.exp(-lv) * (mu - correction_target) ** 2 + lv)
+    if weights is None:
+        return nll.mean()
+    w = weights.to(nll.dtype)
+    return (w * nll).sum() / w.sum().clamp_min(1e-9)
+
+
+def confidence_gate(logvar: Tensor) -> Tensor:
+    """Confidence in [0,1] from the predicted log-variance: 1/(1+var) = sigmoid(-logvar) (exact for the CLAMPED
+    logvar in [_LOGVAR_MIN,_LOGVAR_MAX]). High variance (unpredictable magnitude) -> gate ~ 0 -> the correction
+    shrinks to echo (stale); low variance -> gate ~ 1."""
+    return torch.sigmoid(-logvar.clamp(_LOGVAR_MIN, _LOGVAR_MAX))
+
+
+def gated_correction(mu: Tensor, logvar: Tensor) -> Tensor:
+    """Confidence-gated correction (T5): apply the correction mean ONLY where the model is confident, else fall
+    back to the stale value (echo). recovered_correction = confidence_gate(logvar) * mu."""
+    return confidence_gate(logvar) * mu
+
+
+def uncertainty_calibration(mu: Tensor, logvar: Tensor, correction_target: Tensor) -> float:
+    """Spearman-free calibration check: Pearson corr between the predicted log-variance and the actual squared
+    error of ``mu``. Positive -> the uncertainty is meaningful (high logvar where mu is wrong); ~0 -> uninformative."""
+    if mu.numel() < 2:
+        return float("nan")
+    lv = logvar.clamp(_LOGVAR_MIN, _LOGVAR_MAX).reshape(-1)
+    se = ((mu - correction_target) ** 2).reshape(-1)
+    lv = lv - lv.mean()
+    se = se - se.mean()
+    denom = (lv.norm() * se.norm()).clamp_min(1e-9)
+    return float((lv * se).sum() / denom)

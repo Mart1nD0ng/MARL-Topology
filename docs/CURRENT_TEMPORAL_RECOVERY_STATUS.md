@@ -181,6 +181,19 @@ CI for any headline. Commit per stage, do NOT push.
   node / T4 edge) that the decision-critical magnitude is not in the leak-free features — the recurrence locus is
   not the limit. `edge_recurrent=False` default byte-identical (prior suite green; T0 tripwire preserved). Suite
   835/0.
-- **Next — T5:** physical residual model + uncertainty head — predict a correction AND its variance; shrink
-  magnitude by confidence (feed the anchor a calibrated psucc). The one angle T1–T4 did not test; if it also
-  stalls, the binding limit is the env features (task-1 fallback: add leak-safe temporal structure).
+- **T5 (this commit) — KEEP mechanism (opt-in) / HONEST NEGATIVE — uncertainty gating does not convert.**
+  `BeliefResidualActor(belief_uncertainty=True)` + `belief_with_uncertainty` (mu==belief() + per-edge logvar);
+  `csi_belief.py` gains `csi_correction_nll` (heteroscedastic Gaussian NLL) / `confidence_gate` (sigmoid(−logvar))
+  / `gated_correction` / `uncertainty_calibration`; `t5_uncertainty_gated_gen.py` compares mean vs gated recovery
+  on the SAME NLL model; 6 tests. **5-seed × {random,urban} delay-1:** `gated_feas_gain` random −0.20 [−0.44,+0.04]
+  / urban −0.188 [−0.383,+0.008] (spans 0, negative mean → NO "no-harm"); `gated_minus_mean_feas` spans 0
+  (`gated_beats_mean=False`) → gating not better than mean; **uncertainty WEAKLY calibrated** (calib random 0.063
+  spans 0 / urban 0.177 small; gate ~0.14–0.18) → shrinks corrections ~uniformly (loses mean's small MSE benefit,
+  `gated_vs_mean_mse` CI<0 random) without selectively protecting. Default byte-identical (prior suite green).
+  Suite 841/0. **MODEL LEVERS EXHAUSTED** (T2 activation / T3 correction / T4 edge / T5 uncertainty all NEGATIVE
+  on conversion) → binding limit definitively the FEATURES (leak-free geometry → direction, not magnitude nor its
+  uncertainty); T1 oracle POSITIVE (headroom real) → realizability, not existence, fails.
+- **Next — T6:** integrated A/B (best module T3 vs stale anchor, plain deployable result) + the **task-1
+  env-feature fallback** (add a leak-safe temporally-recoverable channel component and re-probe whether the module
+  converts when the magnitude IS recoverable — distinguishes "method inadequate" from "env has no recoverable
+  temporal structure"). Then **T7** docs close-out + 中文 report.

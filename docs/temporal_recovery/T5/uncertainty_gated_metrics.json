@@ -1,0 +1,123 @@
+{
+  "scope": "T5 uncertainty-gated correction belief (delay-1); heteroscedastic NLL; mean vs confidence-gated recovery on the SAME model; in-policy, residual_leak=0.1; true current psucc = training-only label; 5 seeds x {random,urban}.",
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "by_data": {
+    "random": {
+      "mean_beats_floor": {
+        "mean": 0.00218,
+        "lo": 0.00061,
+        "hi": 0.00375,
+        "n": 5
+      },
+      "gated_beats_floor": {
+        "mean": 3e-05,
+        "lo": -1e-05,
+        "hi": 8e-05,
+        "n": 5
+      },
+      "gated_vs_mean_mse": {
+        "mean": -0.00215,
+        "lo": -0.00368,
+        "hi": -0.00061,
+        "n": 5
+      },
+      "mean_feas_gain": {
+        "mean": -0.23125,
+        "lo": -0.52874,
+        "hi": 0.06624,
+        "n": 5
+      },
+      "gated_feas_gain": {
+        "mean": -0.2,
+        "lo": -0.4401,
+        "hi": 0.0401,
+        "n": 5
+      },
+      "gated_minus_mean_feas": {
+        "mean": 0.03125,
+        "lo": -0.03595,
+        "hi": 0.09845,
+        "n": 5
+      },
+      "calibration": {
+        "mean": 0.06299,
+        "lo": -0.03652,
+        "hi": 0.16251,
+        "n": 5
+      },
+      "mean_gate": {
+        "mean": 0.13686,
+        "lo": -0.02603,
+        "hi": 0.29976,
+        "n": 5
+      },
+      "gated_no_harm": false,
+      "gated_beats_mean": false
+    },
+    "urban": {
+      "mean_beats_floor": {
+        "mean": 0.00215,
+        "lo": -0.00041,
+        "hi": 0.0047,
+        "n": 5
+      },
+      "gated_beats_floor": {
+        "mean": 3e-05,
+        "lo": 1e-05,
+        "hi": 5e-05,
+        "n": 5
+      },
+      "gated_vs_mean_mse": {
+        "mean": -0.00212,
+        "lo": -0.00465,
+        "hi": 0.00042,
+        "n": 5
+      },
+      "mean_feas_gain": {
+        "mean": -0.19375,
+        "lo": -0.345,
+        "hi": -0.0425,
+        "n": 5
+      },
+      "gated_feas_gain": {
+        "mean": -0.1875,
+        "lo": -0.38341,
+        "hi": 0.00841,
+        "n": 5
+      },
+      "gated_minus_mean_feas": {
+        "mean": 0.00625,
+        "lo": -0.10818,
+        "hi": 0.12068,
+        "n": 5
+      },
+      "calibration": {
+        "mean": 0.17691,
+        "lo": 0.05121,
+        "hi": 0.30261,
+        "n": 5
+      },
+      "mean_gate": {
+        "mean": 0.17529,
+        "lo": -0.00686,
+        "hi": 0.35745,
+        "n": 5
+      },
+      "gated_no_harm": false,
+      "gated_beats_mean": false
+    }
+  }
+}

@@ -28,7 +28,8 @@ class BeliefResidualActor(nn.Module):
 
     def __init__(self, node_dim: int, edge_dim: int, hidden: int = 64,
                  residual_logit_scale: float = 3.0, belief_extra_dim: int = 0,
-                 residual_leak: float = 0.0, edge_recurrent: bool = False) -> None:
+                 residual_leak: float = 0.0, edge_recurrent: bool = False,
+                 belief_uncertainty: bool = False) -> None:
         super().__init__()
         if not (2.0 <= residual_logit_scale <= 4.0):
             raise ValueError(f"residual_logit_scale should be in [2,4] (got {residual_logit_scale})")
@@ -75,6 +76,13 @@ class BeliefResidualActor(nn.Module):
             self.edge_gru = nn.GRUCell(edge_dim + 2 * hidden, hidden)
             self.edge_belief_head = nn.Sequential(
                 nn.Linear(edge_dim + self.belief_extra_dim + hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
+        # T5 (Temporal Recovery): heteroscedastic UNCERTAINTY head (task 4.3) -> per-edge log-variance of the
+        # correction. Same input as belief_head (the correction MEAN); appended LAST -> byte-identical when off.
+        # The gated recovery applies the correction only where confident (low variance), else falls back to stale.
+        self.belief_uncertainty = bool(belief_uncertainty)
+        if self.belief_uncertainty:
+            self.belief_logvar_head = nn.Sequential(
+                nn.Linear(edge_dim + self.belief_extra_dim + 2 * hidden, hidden), nn.ReLU(), nn.Linear(hidden, 1))
 
     def init_hidden(self, n_nodes: int, ref: Tensor) -> Tensor:
         return ref.new_zeros(n_nodes, self.hidden)
@@ -140,6 +148,28 @@ class BeliefResidualActor(nn.Module):
         parts += [hu * hv, torch.abs(hu - hv)]
         bel = self.belief_head(torch.cat(parts, dim=-1)).squeeze(-1)
         return bel, h
+
+    def belief_with_uncertainty(self, nf: Tensor, ef: Tensor, ei: Tensor, extra: Tensor | None = None,
+                                hidden: Tensor | None = None) -> tuple[Tensor, Tensor, Tensor]:
+        """T5 heteroscedastic belief: returns (mu[E], logvar[E], new_hidden). ``mu`` is the correction MEAN
+        (identical to ``belief()``'s output -- same head + features); ``logvar`` is the per-edge log-variance
+        (the uncertainty head, task 4.3). The gated recovery applies mu only where confident (low variance),
+        else falls back to the stale value. The deployed actor NEVER reads the true current CSI."""
+        if not self.belief_uncertainty:
+            raise RuntimeError("belief_with_uncertainty requires belief_uncertainty=True")
+        h = self.encode(nf, ef, ei, hidden)
+        if ei.shape[0] == 0:
+            return ef.new_zeros(0), ef.new_zeros(0), h
+        hb = self.h_norm(h)
+        hu, hv = hb[ei[:, 0].long()], hb[ei[:, 1].long()]
+        parts = [ef]
+        if self.belief_extra_dim:
+            parts.append(extra if extra is not None else ef.new_zeros(ef.shape[0], self.belief_extra_dim))
+        parts += [hu * hv, torch.abs(hu - hv)]
+        feats = torch.cat(parts, dim=-1)
+        mu = self.belief_head(feats).squeeze(-1)                        # correction MEAN (== belief())
+        logvar = self.belief_logvar_head(feats).squeeze(-1)            # per-edge log-variance (uncertainty)
+        return mu, logvar, h
 
     def edit_scores(self, nf: Tensor, ef: Tensor, ei: Tensor,
                     hidden: Tensor | None = None) -> tuple[dict, Tensor]:
@@ -209,5 +239,6 @@ class BeliefResidualActor(nn.Module):
             "non_saturating_activation": self.residual_leak > 0.0,
             "edge_recurrent": self.edge_recurrent,
             "recurrence_locus": "node+edge" if self.edge_recurrent else "node",
+            "belief_uncertainty": self.belief_uncertainty,
             "outputs": "leaky_tanh_residual_logit + raw" if self.residual_leak > 0.0 else "tanh_residual_logit + raw",
         }

@@ -1,0 +1,48 @@
+- claim: >
+    Confidence-gated recovery (apply the correction only where the predicted variance is low, else fall back to
+    stale) does NOT achieve a safe anchor input: gated_feas_gain spans 0 with a negative mean, and gating is NOT
+    significantly better than the ungated mean rule (gated_minus_mean_feas spans 0, gated_beats_mean=False).
+  scope: T5; in-policy heteroscedastic belief (residual_leak=0.1); 5 seeds x {random,urban}; delay-1; deployed 0-eval
+  mechanism: uncertainty-gated correction (task 4.3)
+  code_path: src/marl_topology/training/csi_belief.py (confidence_gate/gated_correction) + models/belief_residual_actor.py (belief_with_uncertainty) + scripts/diagnostics/t5_uncertainty_gated_gen.py
+  entrypoint: t5_uncertainty_gated_gen._held (mean vs gated recovery) on the NLL-trained model
+  config_flags: belief_uncertainty=True; residual_leak=0.1
+  dataset: build_csi_scenes random+urban delay-1; train 5 / held 8 scenes/seed; 4 frames
+  seeds: [0,1,2,3,4]
+  split: train / held (seed-disjoint)
+  loss_uses_mechanism: "yes -- Gaussian NLL csi_correction_nll(mu, logvar, correction_target); true CSI training-only label"
+  eval_uses_mechanism: "held: recovered psucc (mean/gated) -> anchor feasibility; true evaluator scores"
+  runtime_activation_artifact: docs/temporal_recovery/T5/uncertainty_gated_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T5_uncertainty.py (6 tests; gate shrinks / NLL heteroscedastic / byte-identical)
+  effect_on_decision_metrics: >
+    gated_feas_gain random -0.2 [-0.44,+0.04] / urban -0.1875 [-0.383,+0.008] (spans 0, negative mean);
+    gated_minus_mean_feas random +0.031 [-0.036,+0.098] / urban +0.006 [-0.108,+0.121] (spans 0)
+  raw_result_artifact: docs/temporal_recovery/T5/uncertainty_gated_metrics.json
+  conclusion_boundary: >
+    NEGATIVE on conversion: gating does not rescue the recovery; the mechanism is correct but the uncertainty
+    signal is too weak. Fourth confirmation of the feature limit.
+
+- claim: >
+    The predicted uncertainty is weakly calibrated (Pearson corr between logvar and the actual squared error of
+    mu is ~0.06 on random (spans 0) and ~0.18 on urban), so the gate cannot SELECTIVELY suppress the harmful
+    corrections -- it shrinks them roughly uniformly (gate ~0.14-0.18), losing the mean's small MSE benefit
+    without gaining feasibility.
+  scope: T5; 5 seeds x {random,urban}; delay-1; held
+  mechanism: heteroscedastic uncertainty calibration (task 4.3)
+  code_path: src/marl_topology/training/csi_belief.py (uncertainty_calibration) + t5 generator
+  entrypoint: uncertainty_calibration(mu, logvar, correction_target)
+  config_flags: logvar clamp [-6,6]
+  dataset: build_csi_scenes random+urban delay-1 held
+  seeds: [0,1,2,3,4]
+  split: held
+  loss_uses_mechanism: "the NLL trains logvar; calibration is a held diagnostic"
+  eval_uses_mechanism: "held calibration + mean_gate"
+  runtime_activation_artifact: docs/temporal_recovery/T5/uncertainty_gated_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T5_uncertainty.py::test_uncertainty_calibration_positive_when_logvar_tracks_error
+  effect_on_decision_metrics: >
+    calibration random 0.063 [-0.037,+0.163] (spans 0) / urban 0.177 [+0.051,+0.303] (small); mean_gate 0.137/0.175;
+    gated_vs_mean_mse random -0.00215 [-0.0037,-0.0006] (gating raises MSE toward the floor)
+  raw_result_artifact: docs/temporal_recovery/T5/uncertainty_gated_metrics.json
+  conclusion_boundary: >
+    Calibrating the uncertainty requires knowing WHERE the magnitude is unpredictable, which -- like the
+    magnitude itself -- is not in the leak-free features. The binding limit is the features, not the mechanism.
