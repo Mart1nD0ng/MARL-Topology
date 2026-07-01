@@ -103,3 +103,31 @@ def belief_mse(belief_logits: Tensor, target_logits: Tensor) -> float:
     if belief_logits.numel() == 0:
         return 0.0
     return float((torch.sigmoid(belief_logits) - torch.sigmoid(target_logits)).pow(2).mean())
+
+
+# --------------------------------------------------------------------------- T3: correction parametrization
+def stale_logit(stale_psucc: Tensor) -> Tensor:
+    """Logit of the STALE observed psucc -- the correction's zero-baseline (echo). Leak-free: the deployed
+    actor observes the stale psucc (ef col 0). T3 parametrizes the belief as ``stale_logit + head_output`` so
+    the head predicts a CORRECTION on the stale value, and echo (head_output=0) is the zero-baseline."""
+    return _logit(stale_psucc.reshape(-1))
+
+
+def belief_correction_target(scene, t: int, edge_ids, stale_psucc: Tensor) -> Tensor:
+    """The stale->current CORRECTION target in logit space: ``logit(true_current) - logit(stale)`` (task 3.1).
+    Echo (correction 0) is loss-optimal ONLY where the channel did NOT move between t-1 and t -> stale-echo is
+    no longer a GLOBAL optimum (the R2 failure). The head learns the SIGNED delta, which also carries the
+    direction (task 3.2). Training-only: reads the true current channel via ``belief_target_logits``."""
+    return belief_target_logits(scene, t, edge_ids) - stale_logit(stale_psucc)
+
+
+def directional_accuracy(correction_pred: Tensor, correction_target: Tensor, *, moved_eps: float = 0.1) -> float:
+    """Fraction of MOVED edges (|correction_target| > moved_eps in logit space) where the predicted correction
+    has the CORRECT sign -- the directional signal (task 3.2): can the head tell an edge is improving vs
+    degrading? Chance is 0.5; a stale-echo predictor (correction ~ 0) scores ~chance on moved edges."""
+    ct = correction_target.reshape(-1)
+    cp = correction_pred.reshape(-1)
+    moved = ct.abs() > moved_eps
+    if int(moved.sum()) == 0:
+        return float("nan")
+    return float((torch.sign(cp[moved]) == torch.sign(ct[moved])).double().mean())

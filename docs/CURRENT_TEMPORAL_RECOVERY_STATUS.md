@@ -157,6 +157,17 @@ CI for any headline. Commit per stage, do NOT push.
   untrained urban): raw large (raw_abs_mean≈3449, tanh 37.5% railed = Q14 regime), leaky carries ≥ signal
   (0.0164≥0.0149). Honest scope: ENABLING/gradient-level (like R1), no topology conversion (T6); trained-regime
   raw is small (raw-L2) so payoff is robustness when T3's correction drives raw up. Suite 827/0.
-- **Next — T3:** belief target → correction (the highest-value stage; T1-validated). `L_CSI` absolute-`p_t` →
-  stale→current correction (echo = zero-baseline) + directional signal; accept = beat stale-echo floor AND
-  recovered-psucc anchor improves (ranking, not MSE). T3 actor uses `residual_leak>0`.
+- **T3 (this commit) — KEEP parametrization / HONEST NEGATIVE on recovery + conversion.** Belief correction
+  target (`belief_logit = stale_logit + head`, echo = zero-baseline; `csi_belief.py` gains `stale_logit`,
+  `belief_correction_target`, `directional_accuracy`) + `t3_correction_belief_gen.py` (in-policy belief, shares
+  GRU, `residual_leak=0.1`) + 4 load-bearing tests. **5-seed × {random,urban} delay-1:** correction MSE ≈ floor
+  (random 0.09501 vs 0.09506; `cor_beats_floor` random +5e-05 [1e-05,1e-4] negligible / urban spans 0) — does
+  NOT beat the stale-echo floor (R2 reproduced under a better target). Correction marginally < absolute MSE
+  (+5e-4, sig urban). **Direction captured** (`dir_acc` ~0.92 both, ≫ chance) but **magnitude not** — a
+  move-weight sub-pilot overshoots (MSE 0.10→0.35, n=1). No anchor conversion (`cor_feas_gain` spans 0, mean
+  −0.22/−0.09; absolute significantly hurts random −0.1875 [−0.249,−0.126]) — recovered psucc perturbs the
+  anchor ranking (T1's MSE⟂decisions, confirmed on the belief path). Binding limit = magnitude/precision
+  recovery (direction learnable, magnitude not), consistent across T1 (standalone) + T3 (in-policy). Suite
+  831/0.
+- **Next — T4:** edge-level recurrent state (task 3.4) — CSI dynamics are edge attributes; test whether an
+  edge-indexed hidden recovers the magnitude the per-node GRU cannot. One variable vs the T3 correction belief.

@@ -1,0 +1,70 @@
+- claim: >
+    The belief CORRECTION parametrization (belief_logit = stale_logit + head_output) is marginally better than
+    the R2 ABSOLUTE target (echo no longer a global optimum; correction MSE < absolute MSE, sig on urban), but
+    it does NOT beat the stale-echo floor -- it sits AT the floor (magnitude shrinks to echo).
+  scope: T3; in-policy belief head (shares GRU, residual_leak=0.1); 5 seeds x {random,urban}; delay-1; held
+  mechanism: belief correction target (task 3.1)
+  code_path: src/marl_topology/training/csi_belief.py + scripts/diagnostics/t3_correction_belief_gen.py
+  entrypoint: t3_correction_belief_gen._train(mode=correction) / _belief_logit / stale_logit + belief_correction_target
+  config_flags: mode in {absolute, correction}; residual_leak=0.1; use_velocity=True
+  dataset: build_csi_scenes random+urban delay-1; train 5 / held 8 scenes/seed; 4 frames
+  seeds: [0,1,2,3,4]
+  split: train / held (seed-disjoint)
+  loss_uses_mechanism: "yes -- Huber(stale_logit + head, true_logit) = Huber(head, correction_target); true CSI training-only label"
+  eval_uses_mechanism: "held belief MSE + recovered psucc -> anchor feasibility"
+  runtime_activation_artifact: docs/temporal_recovery/T3/correction_belief_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T3_correction.py (4 tests incl. generator single-variable)
+  effect_on_decision_metrics: >
+    cor_beats_floor random +5e-05 [1e-05,1e-4] (negligible) / urban +3.5e-4 [-2e-4,+9e-4] (spans 0);
+    correction_vs_abs_mse +5e-4 (sig urban). cor_belief_mse random 0.09501 vs floor 0.09506.
+  raw_result_artifact: docs/temporal_recovery/T3/correction_belief_metrics.json
+  conclusion_boundary: >
+    KEEP the correction parametrization as the better structure; NEGATIVE on CSI recovery (does NOT beat the
+    floor). Reproduces R2's floor under a better target; magnitude not recovered.
+
+- claim: >
+    The belief captures DIRECTION (which way the channel moved) but NOT MAGNITUDE: directional accuracy ~0.92
+    (>> chance 0.5) on moved edges, while the magnitude shrinks to echo (MSE at floor) or overshoots when
+    magnitude-emphasized (move-weight sub-pilot: MSE 0.10->0.35).
+  scope: T3; 5 seeds (dir_acc) + 1-seed move-weight sub-pilot; delay-1
+  mechanism: directional signal (task 3.2) + magnitude recovery limit
+  code_path: src/marl_topology/training/csi_belief.py (directional_accuracy) + t3 generator (_train move_weight)
+  entrypoint: directional_accuracy / _train(move_weight=...)
+  config_flags: moved_eps=0.1 (logit); move_weight in {0, 3}
+  dataset: build_csi_scenes random+urban delay-1
+  seeds: "[0,1,2,3,4] for dir_acc; n=1 for the move_weight sub-pilot (explicitly labeled)"
+  split: train / held
+  loss_uses_mechanism: "move_weight upweights |correction_target| (training-only label -> weight; inference leak-free)"
+  eval_uses_mechanism: "dir_acc on held; move-weight MSE/feas on held"
+  runtime_activation_artifact: docs/temporal_recovery/T3/correction_belief_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T3_correction.py::test_directional_accuracy_rewards_correct_sign
+  effect_on_decision_metrics: >
+    cor_dir_acc random 0.932 [0.909,0.955] / urban 0.914; move_weight=3 sub-pilot MSE 0.10->0.35, feas -0.25 (n=1)
+  raw_result_artifact: docs/temporal_recovery/T3/correction_belief_metrics.json
+  conclusion_boundary: >
+    Task 3.2 (direction) is addressed; the magnitude is the binding limit (no sweet spot between shrink and
+    overshoot). Motivates T5 (uncertainty). The move-weight backfire is n=1 (a pilot observation, not a headline).
+
+- claim: >
+    Feeding the anchor the belief-recovered psucc does NOT improve feasibility (correction feas_gain spans 0,
+    mean negative; absolute feas_gain significantly negative on random) -- the learned psucc perturbs the ranking
+    the anchor sorts on without recovering the decision-critical magnitude. Stale is a better anchor input.
+  scope: T3; 5 seeds x {random,urban}; deployed 0-eval anchor; true evaluator
+  mechanism: recovered-psucc -> anchor conversion (T1 ranking metric)
+  code_path: t3_correction_belief_gen._held (uses t1_oracle_recovery_gen._anchor_with_psucc + g6._cons)
+  entrypoint: _held -> _anchor_with_psucc(obs, prev, recovered_psucc)
+  config_flags: tau_feas=0.9
+  dataset: build_csi_scenes random+urban delay-1 held
+  seeds: [0,1,2,3,4]
+  split: held
+  loss_uses_mechanism: "n/a (deployed anchor, 0 eval)"
+  eval_uses_mechanism: "yes -- recovered psucc drives the anchor; true evaluator scores the topology"
+  runtime_activation_artifact: docs/temporal_recovery/T3/correction_belief_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T1_oracle.py (the _anchor_with_psucc injection, reused)
+  effect_on_decision_metrics: >
+    cor_feas_gain random -0.219 [-0.494,+0.057] / urban -0.094 [-0.355,+0.168] (spans 0);
+    abs_feas_gain random -0.1875 [-0.249,-0.126] (CI<0, significant harm)
+  raw_result_artifact: docs/temporal_recovery/T3/correction_belief_metrics.json
+  conclusion_boundary: >
+    Confirms T1 (MSE != decisions) for the in-policy belief: no anchor conversion. The binding limit is the
+    deployable magnitude/precision of the recovered channel, on the belief path.

@@ -1,0 +1,145 @@
+{
+  "scope": "T3 belief CORRECTION vs ABSOLUTE parametrization (delay-1); in-policy belief head (shares GRU, residual_leak=0.1); true current psucc = training-only label; 5 seeds x {random,urban}; held belief MSE vs stale-echo floor + directional acc + recovered-psucc anchor feasibility.",
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "by_data": {
+    "random": {
+      "abs_beats_floor": {
+        "mean": -0.00047,
+        "lo": -0.00099,
+        "hi": 6e-05,
+        "n": 5
+      },
+      "cor_beats_floor": {
+        "mean": 5e-05,
+        "lo": 1e-05,
+        "hi": 0.0001,
+        "n": 5
+      },
+      "correction_vs_abs_mse": {
+        "mean": 0.00052,
+        "lo": -0.0,
+        "hi": 0.00104,
+        "n": 5
+      },
+      "cor_dir_acc": {
+        "mean": 0.93162,
+        "lo": 0.90852,
+        "hi": 0.95473,
+        "n": 5
+      },
+      "abs_dir_acc": {
+        "mean": 0.92316,
+        "lo": 0.9019,
+        "hi": 0.94443,
+        "n": 5
+      },
+      "cor_feas_gain": {
+        "mean": -0.21875,
+        "lo": -0.49445,
+        "hi": 0.05695,
+        "n": 5
+      },
+      "abs_feas_gain": {
+        "mean": -0.1875,
+        "lo": -0.24884,
+        "hi": -0.12616,
+        "n": 5
+      },
+      "cor_belief_mse": {
+        "mean": 0.09501,
+        "lo": 0.07994,
+        "hi": 0.11008,
+        "n": 5
+      },
+      "abs_belief_mse": {
+        "mean": 0.09553,
+        "lo": 0.08089,
+        "hi": 0.11017,
+        "n": 5
+      },
+      "floor_mse": {
+        "mean": 0.09506,
+        "lo": 0.07997,
+        "hi": 0.11016,
+        "n": 5
+      },
+      "correction_beats_floor": true
+    },
+    "urban": {
+      "abs_beats_floor": {
+        "mean": -0.0002,
+        "lo": -0.00047,
+        "hi": 8e-05,
+        "n": 5
+      },
+      "cor_beats_floor": {
+        "mean": 0.00035,
+        "lo": -0.00022,
+        "hi": 0.00091,
+        "n": 5
+      },
+      "correction_vs_abs_mse": {
+        "mean": 0.00054,
+        "lo": 5e-05,
+        "hi": 0.00104,
+        "n": 5
+      },
+      "cor_dir_acc": {
+        "mean": 0.91394,
+        "lo": 0.82059,
+        "hi": 1.00728,
+        "n": 5
+      },
+      "abs_dir_acc": {
+        "mean": 0.93034,
+        "lo": 0.90456,
+        "hi": 0.95612,
+        "n": 5
+      },
+      "cor_feas_gain": {
+        "mean": -0.09375,
+        "lo": -0.35544,
+        "hi": 0.16794,
+        "n": 5
+      },
+      "abs_feas_gain": {
+        "mean": -0.1,
+        "lo": -0.29085,
+        "hi": 0.09085,
+        "n": 5
+      },
+      "cor_belief_mse": {
+        "mean": 0.10263,
+        "lo": 0.08423,
+        "hi": 0.12103,
+        "n": 5
+      },
+      "abs_belief_mse": {
+        "mean": 0.10317,
+        "lo": 0.08492,
+        "hi": 0.12143,
+        "n": 5
+      },
+      "floor_mse": {
+        "mean": 0.10298,
+        "lo": 0.08495,
+        "hi": 0.121,
+        "n": 5
+      },
+      "correction_beats_floor": false
+    }
+  }
+}
