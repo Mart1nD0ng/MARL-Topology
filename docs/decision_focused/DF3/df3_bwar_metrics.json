@@ -1,0 +1,116 @@
+{
+  "scope": "DF3 decision-focused BWAR vs MSE on anchor feasibility; recal_mse = global-transform control (catches BWAR global-shift fake positive); PRIMARY = Feas(bwar)-Feas(recal_mse); fast R8 mobility; true CSI = training label only; deployed 0-eval; true evaluator scores.",
+  "config": {
+    "data": "urban",
+    "seeds": 5,
+    "train_count": 6,
+    "held_count": 16,
+    "out": "docs/decision_focused/DF3/df3_bwar_metrics.json"
+  },
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "feas": {
+    "echo": {
+      "mean": 0.62187,
+      "lo": 0.52547,
+      "hi": 0.71828,
+      "n": 5
+    },
+    "mse": {
+      "mean": 0.64375,
+      "lo": 0.54541,
+      "hi": 0.74209,
+      "n": 5
+    },
+    "recal_mse": {
+      "mean": 0.64375,
+      "lo": 0.54541,
+      "hi": 0.74209,
+      "n": 5
+    },
+    "bwar": {
+      "mean": 0.60625,
+      "lo": 0.52939,
+      "hi": 0.68311,
+      "n": 5
+    },
+    "true": {
+      "mean": 0.775,
+      "lo": 0.7056,
+      "hi": 0.8444,
+      "n": 5
+    }
+  },
+  "PRIMARY_bwar_minus_recal": {
+    "mean": -0.0375,
+    "lo": -0.08808,
+    "hi": 0.01308,
+    "n": 5
+  },
+  "bwar_minus_mse": {
+    "mean": -0.0375,
+    "lo": -0.08808,
+    "hi": 0.01308,
+    "n": 5
+  },
+  "bwar_minus_echo": {
+    "mean": -0.01562,
+    "lo": -0.05192,
+    "hi": 0.02067,
+    "n": 5
+  },
+  "mse_landscape": {
+    "echo": {
+      "mean": 0.10895,
+      "lo": 0.09795,
+      "hi": 0.11994,
+      "n": 5
+    },
+    "mse": {
+      "mean": 0.08089,
+      "lo": 0.07545,
+      "hi": 0.08633,
+      "n": 5
+    },
+    "bwar": {
+      "mean": 0.09296,
+      "lo": 0.08797,
+      "hi": 0.09795,
+      "n": 5
+    }
+  },
+  "recal_ab_per_seed": [
+    [
+      0.8,
+      -0.1
+    ],
+    [
+      0.8,
+      -0.1
+    ],
+    [
+      1.0,
+      -0.1
+    ],
+    [
+      1.0,
+      -0.1
+    ],
+    [
+      0.8,
+      -0.1
+    ]
+  ]
+}

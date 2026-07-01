@@ -1,0 +1,64 @@
+{
+  "scope": "DF3d B.3(iii) per-edge boundary-engagement audit: does BWAR improve per-edge decision-side precision at the anchor gate vs MSE (the test that DF3 claimed but never ran)? Fast R8 mobility.",
+  "config": {
+    "data": "urban",
+    "seeds": 5,
+    "train_count": 6,
+    "held_count": 16,
+    "out": "docs/decision_focused/DF3/df3d_boundary_audit_metrics.json"
+  },
+  "boundary_side_acc_mse": {
+    "mean": 0.45556,
+    "lo": 0.10591,
+    "hi": 0.8052,
+    "n": 5
+  },
+  "boundary_side_acc_bwar": {
+    "mean": 0.55556,
+    "lo": 0.09033,
+    "hi": 1.02079,
+    "n": 5
+  },
+  "marginal_boundary_side_acc_mse": {
+    "mean": 0.125,
+    "lo": -0.27275,
+    "hi": 0.52275,
+    "n": 4
+  },
+  "marginal_boundary_side_acc_bwar": {
+    "mean": 0.375,
+    "lo": -0.38663,
+    "hi": 1.13663,
+    "n": 4
+  },
+  "dir_acc_mse": {
+    "mean": 0.32102,
+    "lo": 0.23279,
+    "hi": 0.40924,
+    "n": 5
+  },
+  "dir_acc_bwar": {
+    "mean": 0.40003,
+    "lo": 0.38655,
+    "hi": 0.41351,
+    "n": 5
+  },
+  "bwar_minus_mse_boundary_side_acc": {
+    "mean": 0.1,
+    "lo": -0.41934,
+    "hi": 0.61934,
+    "n": 5
+  },
+  "bwar_minus_mse_marginal_side_acc": {
+    "mean": 0.25,
+    "lo": -0.5455,
+    "hi": 1.0455,
+    "n": 4
+  },
+  "bwar_minus_mse_dir_acc": {
+    "mean": 0.07901,
+    "lo": -0.00904,
+    "hi": 0.16707,
+    "n": 5
+  }
+}

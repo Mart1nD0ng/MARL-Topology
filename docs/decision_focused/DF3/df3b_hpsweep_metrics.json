@@ -1,0 +1,110 @@
+{
+  "scope": "DF3b BWAR hyperparameter robustness. Grid incl. mse_equiv (decision-focus OFF). Select best VAL feasibility per seed, report HELD. If val-best decision-focus config does not beat MSE on held, decision-focus does not help (honest negative). Fast R8 mobility.",
+  "config": {
+    "data": "urban",
+    "seeds": 5,
+    "train_count": 6,
+    "val_count": 10,
+    "held_count": 14,
+    "out": "docs/decision_focused/DF3/df3b_hpsweep_metrics.json"
+  },
+  "grid": [
+    "mse_equiv",
+    "bwar_default",
+    "bwar_beta0p5",
+    "bwar_beta2",
+    "bwar_kappa8",
+    "bwar_kappa0",
+    "bwar_cfd2",
+    "bwar_sym",
+    "bwar_gamma1",
+    "bwar_aux_only"
+  ],
+  "mse_held": {
+    "mean": 0.65357,
+    "lo": 0.52661,
+    "hi": 0.78054,
+    "n": 5
+  },
+  "valbest_held": {
+    "mean": 0.63929,
+    "lo": 0.50317,
+    "hi": 0.7754,
+    "n": 5
+  },
+  "valbest_minus_mse": {
+    "mean": -0.01429,
+    "lo": -0.05693,
+    "hi": 0.02836,
+    "n": 5
+  },
+  "valbest_config_per_seed": [
+    "bwar_default",
+    "bwar_kappa8",
+    "bwar_cfd2",
+    "mse_equiv",
+    "mse_equiv"
+  ],
+  "per_config_held": {
+    "mse_equiv": {
+      "mean": 0.65357,
+      "lo": 0.52661,
+      "hi": 0.78054,
+      "n": 5
+    },
+    "bwar_default": {
+      "mean": 0.62857,
+      "lo": 0.51295,
+      "hi": 0.74419,
+      "n": 5
+    },
+    "bwar_beta0p5": {
+      "mean": 0.62143,
+      "lo": 0.51698,
+      "hi": 0.72588,
+      "n": 5
+    },
+    "bwar_beta2": {
+      "mean": 0.61429,
+      "lo": 0.5144,
+      "hi": 0.71417,
+      "n": 5
+    },
+    "bwar_kappa8": {
+      "mean": 0.63571,
+      "lo": 0.5147,
+      "hi": 0.75673,
+      "n": 5
+    },
+    "bwar_kappa0": {
+      "mean": 0.61786,
+      "lo": 0.52173,
+      "hi": 0.71398,
+      "n": 5
+    },
+    "bwar_cfd2": {
+      "mean": 0.62143,
+      "lo": 0.50904,
+      "hi": 0.73381,
+      "n": 5
+    },
+    "bwar_sym": {
+      "mean": 0.64643,
+      "lo": 0.51213,
+      "hi": 0.78073,
+      "n": 5
+    },
+    "bwar_gamma1": {
+      "mean": 0.60357,
+      "lo": 0.51298,
+      "hi": 0.69417,
+      "n": 5
+    },
+    "bwar_aux_only": {
+      "mean": 0.625,
+      "lo": 0.50874,
+      "hi": 0.74126,
+      "n": 5
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "scope": "DF3c BWAR marginal-slot variant (budget-margin weighting) vs MSE on anchor feasibility -- the last pre-registered gate on the goal-1 negative (DF0 B.3). Fast R8 mobility.",
+  "config": {
+    "data": "urban",
+    "seeds": 5,
+    "train_count": 6,
+    "held_count": 16,
+    "out": "docs/decision_focused/DF3/df3c_marginal_slot_metrics.json"
+  },
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "echo": {
+    "mean": 0.62187,
+    "lo": 0.52547,
+    "hi": 0.71828,
+    "n": 5
+  },
+  "mse": {
+    "mean": 0.64375,
+    "lo": 0.54541,
+    "hi": 0.74209,
+    "n": 5
+  },
+  "bwar_marginal": {
+    "mean": 0.6125,
+    "lo": 0.52214,
+    "hi": 0.70286,
+    "n": 5
+  },
+  "true": {
+    "mean": 0.775,
+    "lo": 0.7056,
+    "hi": 0.8444,
+    "n": 5
+  },
+  "marginal_minus_mse": {
+    "mean": -0.03125,
+    "lo": -0.08944,
+    "hi": 0.02694,
+    "n": 5
+  },
+  "mean_slot_fraction": 0.29450750946998594
+}
