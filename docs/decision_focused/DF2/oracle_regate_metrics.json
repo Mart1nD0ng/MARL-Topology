@@ -1,0 +1,566 @@
+{
+  "scope": "DF2 oracle re-gate under d_corr sweep; slow urban mobility to span rho; nested-subset arms (geometry_only=distance null, mse_realizable=full leak-free); RGF pooled/seed-CI; primary = RGF(realizable)-RGF(geometry); NLOSv ON (faithful); motion_features OFF.",
+  "config": {
+    "data": "urban",
+    "decorrs": [
+      10.0,
+      50.0,
+      100.0,
+      200.0,
+      400.0
+    ],
+    "seeds": 5,
+    "train_count": 8,
+    "held_count": 16,
+    "dt": 2.0,
+    "speed_min": 15.0,
+    "speed_max": 30.0,
+    "out": "docs/decision_focused/DF2/oracle_regate_metrics.json"
+  },
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "by_decorr": {
+    "10.0": {
+      "rho_mean": -0.11632663920319537,
+      "psucc_mean": 0.4817331704111824,
+      "frac_saturated_hi": 0.4802931999449308,
+      "frac_boundary": 0.0006557617062344385,
+      "rho_defined_frac": 0.35170315859434814,
+      "feas": {
+        "stale": {
+          "mean": 0.62187,
+          "lo": 0.52547,
+          "hi": 0.71828,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.28437,
+          "lo": 0.12774,
+          "hi": 0.44101,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.62187,
+          "lo": 0.55696,
+          "hi": 0.68679,
+          "n": 5
+        },
+        "true": {
+          "mean": 0.775,
+          "lo": 0.7056,
+          "hi": 0.8444,
+          "n": 5
+        }
+      },
+      "headroom_true_minus_stale": {
+        "mean": 0.15313,
+        "lo": 0.10482,
+        "hi": 0.20143,
+        "n": 5
+      },
+      "rgf": {
+        "stale": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "geometry": {
+          "mean": -2.25949,
+          "lo": -3.09525,
+          "hi": -1.42373,
+          "n": 5
+        },
+        "realizable": {
+          "mean": -0.01385,
+          "lo": -0.21238,
+          "hi": 0.18469,
+          "n": 5
+        },
+        "true": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 5
+        }
+      },
+      "primary_incremental_real_minus_geo": {
+        "mean": 2.24564,
+        "lo": 1.52281,
+        "hi": 2.96847,
+        "n": 5
+      },
+      "n_seeds_with_headroom": 5,
+      "mse": {
+        "echo": {
+          "mean": 0.10895,
+          "lo": 0.09795,
+          "hi": 0.11994,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.15604,
+          "lo": 0.1507,
+          "hi": 0.16137,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.0799,
+          "lo": 0.07288,
+          "hi": 0.08691,
+          "n": 5
+        }
+      },
+      "boundary_side_acc": {
+        "geometry": {
+          "mean": 0.65833,
+          "lo": 0.15098,
+          "hi": 1.16569,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.63333,
+          "lo": 0.11813,
+          "hi": 1.14854,
+          "n": 5
+        }
+      }
+    },
+    "50.0": {
+      "rho_mean": -0.08588550779460301,
+      "psucc_mean": 0.4761699262524382,
+      "frac_saturated_hi": 0.4745543359041301,
+      "frac_boundary": 0.001255217208229199,
+      "rho_defined_frac": 0.34145518035108624,
+      "feas": {
+        "stale": {
+          "mean": 0.62187,
+          "lo": 0.5514,
+          "hi": 0.69235,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.29063,
+          "lo": 0.12063,
+          "hi": 0.46062,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.6125,
+          "lo": 0.5264,
+          "hi": 0.6986,
+          "n": 5
+        },
+        "true": {
+          "mean": 0.7625,
+          "lo": 0.71229,
+          "hi": 0.81271,
+          "n": 5
+        }
+      },
+      "headroom_true_minus_stale": {
+        "mean": 0.14062,
+        "lo": 0.10433,
+        "hi": 0.17692,
+        "n": 5
+      },
+      "rgf": {
+        "stale": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "geometry": {
+          "mean": -2.41151,
+          "lo": -3.3921,
+          "hi": -1.43091,
+          "n": 5
+        },
+        "realizable": {
+          "mean": -0.1131,
+          "lo": -0.64665,
+          "hi": 0.42046,
+          "n": 5
+        },
+        "true": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 5
+        }
+      },
+      "primary_incremental_real_minus_geo": {
+        "mean": 2.29841,
+        "lo": 1.62481,
+        "hi": 2.97202,
+        "n": 5
+      },
+      "n_seeds_with_headroom": 5,
+      "mse": {
+        "echo": {
+          "mean": 0.10089,
+          "lo": 0.09338,
+          "hi": 0.1084,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.15512,
+          "lo": 0.14866,
+          "hi": 0.16158,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.0725,
+          "lo": 0.06973,
+          "hi": 0.07528,
+          "n": 5
+        }
+      },
+      "boundary_side_acc": {
+        "geometry": {
+          "mean": 0.52127,
+          "lo": 0.35531,
+          "hi": 0.68723,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.59206,
+          "lo": 0.12058,
+          "hi": 1.06354,
+          "n": 5
+        }
+      }
+    },
+    "100.0": {
+      "rho_mean": -0.05475944043868858,
+      "psucc_mean": 0.4796216314571793,
+      "frac_saturated_hi": 0.4779453334252136,
+      "frac_boundary": 0.0009724999576537961,
+      "rho_defined_frac": 0.32956025548885676,
+      "feas": {
+        "stale": {
+          "mean": 0.60938,
+          "lo": 0.50225,
+          "hi": 0.7165,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.2875,
+          "lo": 0.13195,
+          "hi": 0.44305,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.60938,
+          "lo": 0.49462,
+          "hi": 0.72413,
+          "n": 5
+        },
+        "true": {
+          "mean": 0.71562,
+          "lo": 0.63174,
+          "hi": 0.79951,
+          "n": 5
+        }
+      },
+      "headroom_true_minus_stale": {
+        "mean": 0.10625,
+        "lo": 0.05604,
+        "hi": 0.15646,
+        "n": 5
+      },
+      "rgf": {
+        "stale": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "geometry": {
+          "mean": -3.29222,
+          "lo": -5.21145,
+          "hi": -1.37299,
+          "n": 5
+        },
+        "realizable": {
+          "mean": -0.01333,
+          "lo": -0.4109,
+          "hi": 0.38424,
+          "n": 5
+        },
+        "true": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 5
+        }
+      },
+      "primary_incremental_real_minus_geo": {
+        "mean": 3.27889,
+        "lo": 1.08925,
+        "hi": 5.46853,
+        "n": 5
+      },
+      "n_seeds_with_headroom": 5,
+      "mse": {
+        "echo": {
+          "mean": 0.09402,
+          "lo": 0.08525,
+          "hi": 0.1028,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.15426,
+          "lo": 0.14401,
+          "hi": 0.16451,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.07034,
+          "lo": 0.06636,
+          "hi": 0.07431,
+          "n": 5
+        }
+      },
+      "boundary_side_acc": {
+        "geometry": {
+          "mean": 0.53333,
+          "lo": 0.36022,
+          "hi": 0.70645,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.46667,
+          "lo": 0.01809,
+          "hi": 0.91524,
+          "n": 5
+        }
+      }
+    },
+    "200.0": {
+      "rho_mean": -0.02554912316755594,
+      "psucc_mean": 0.4958842247946208,
+      "frac_saturated_hi": 0.49411725581958077,
+      "frac_boundary": 0.0008613590864750713,
+      "rho_defined_frac": 0.3161935518756529,
+      "feas": {
+        "stale": {
+          "mean": 0.60313,
+          "lo": 0.53649,
+          "hi": 0.66976,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.32188,
+          "lo": 0.14914,
+          "hi": 0.49461,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.60625,
+          "lo": 0.51907,
+          "hi": 0.69343,
+          "n": 5
+        },
+        "true": {
+          "mean": 0.69063,
+          "lo": 0.64232,
+          "hi": 0.73893,
+          "n": 5
+        }
+      },
+      "headroom_true_minus_stale": {
+        "mean": 0.0875,
+        "lo": 0.05504,
+        "hi": 0.11996,
+        "n": 5
+      },
+      "rgf": {
+        "stale": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "geometry": {
+          "mean": -3.71667,
+          "lo": -7.18327,
+          "hi": -0.25006,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.08333,
+          "lo": -0.37933,
+          "hi": 0.546,
+          "n": 5
+        },
+        "true": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 5
+        }
+      },
+      "primary_incremental_real_minus_geo": {
+        "mean": 3.8,
+        "lo": -0.00021,
+        "hi": 7.60021,
+        "n": 5
+      },
+      "n_seeds_with_headroom": 5,
+      "mse": {
+        "echo": {
+          "mean": 0.08613,
+          "lo": 0.07652,
+          "hi": 0.09573,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.15838,
+          "lo": 0.1436,
+          "hi": 0.17316,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.07042,
+          "lo": 0.06177,
+          "hi": 0.07907,
+          "n": 5
+        }
+      },
+      "boundary_side_acc": {
+        "geometry": {
+          "mean": 0.4,
+          "lo": -0.07634,
+          "hi": 0.87634,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.38333,
+          "lo": -0.11066,
+          "hi": 0.87733,
+          "n": 5
+        }
+      }
+    },
+    "400.0": {
+      "rho_mean": -0.03627241323668959,
+      "psucc_mean": 0.4972918621409052,
+      "frac_saturated_hi": 0.4951931219628885,
+      "frac_boundary": 0.0012754429334672721,
+      "rho_defined_frac": 0.3162507673662783,
+      "feas": {
+        "stale": {
+          "mean": 0.60938,
+          "lo": 0.49138,
+          "hi": 0.72737,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.31562,
+          "lo": 0.15661,
+          "hi": 0.47464,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.60938,
+          "lo": 0.48669,
+          "hi": 0.73206,
+          "n": 5
+        },
+        "true": {
+          "mean": 0.71875,
+          "lo": 0.61519,
+          "hi": 0.82231,
+          "n": 5
+        }
+      },
+      "headroom_true_minus_stale": {
+        "mean": 0.10938,
+        "lo": 0.08998,
+        "hi": 0.12877,
+        "n": 5
+      },
+      "rgf": {
+        "stale": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "n": 5
+        },
+        "geometry": {
+          "mean": -2.86071,
+          "lo": -5.5775,
+          "hi": -0.14393,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.01429,
+          "lo": -0.40235,
+          "hi": 0.43092,
+          "n": 5
+        },
+        "true": {
+          "mean": 1.0,
+          "lo": 1.0,
+          "hi": 1.0,
+          "n": 5
+        }
+      },
+      "primary_incremental_real_minus_geo": {
+        "mean": 2.875,
+        "lo": 0.25981,
+        "hi": 5.49019,
+        "n": 5
+      },
+      "n_seeds_with_headroom": 5,
+      "mse": {
+        "echo": {
+          "mean": 0.08772,
+          "lo": 0.07833,
+          "hi": 0.09712,
+          "n": 5
+        },
+        "geometry": {
+          "mean": 0.16337,
+          "lo": 0.14941,
+          "hi": 0.17733,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.07041,
+          "lo": 0.0617,
+          "hi": 0.07913,
+          "n": 5
+        }
+      },
+      "boundary_side_acc": {
+        "geometry": {
+          "mean": 0.43556,
+          "lo": 0.34755,
+          "hi": 0.52356,
+          "n": 5
+        },
+        "realizable": {
+          "mean": 0.54111,
+          "lo": 0.23508,
+          "hi": 0.84714,
+          "n": 5
+        }
+      }
+    }
+  }
+}

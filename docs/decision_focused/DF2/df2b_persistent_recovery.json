@@ -1,0 +1,204 @@
+{
+  "scope": "DF2b v2 persistent-link decision-recovery. Idealized boundary-tx links, clean rho sweep. NESTED arms {echo, temporal2=2 stale lags no distance, geometry=echo+current distance, full}. Tests geometry-vs-temporal NON-tautologically: does the PURE-TEMPORAL arm's edge over echo rise with rho? Metric trends use Spearman over rho, not endpoint diffs (DF2-verify hole 4).",
+  "config": {
+    "decorrs": [
+      10.0,
+      25.0,
+      50.0,
+      100.0,
+      200.0
+    ],
+    "links": 200,
+    "frames": 8,
+    "field_seeds": 5,
+    "dt": 1.0,
+    "speed_min": 5.0,
+    "speed_max": 15.0,
+    "dist_min": 60.0,
+    "dist_max": 170.0,
+    "tx_power": -8.0,
+    "tau": 0.5,
+    "seed": 0,
+    "out": "D:\\PhD_works\\MARL-Topology\\docs\\decision_focused\\DF2\\df2b_persistent_recovery.json"
+  },
+  "gate_tau": 0.5,
+  "rho_by_decorr": {
+    "10.0": -0.004359753149937303,
+    "25.0": 0.2853903035498923,
+    "50.0": 0.3622505630029108,
+    "100.0": 0.4188272675854208,
+    "200.0": 0.4124196707326765
+  },
+  "by_decorr": {
+    "10.0": {
+      "rho": -0.004359753149937303,
+      "n_held": 2400,
+      "n_flip": 656,
+      "echo": {
+        "mse": 0.26852089166641235,
+        "side_acc": 0.7266666889190674,
+        "flip_recovery": 0.0
+      },
+      "temporal2": {
+        "mse": 0.18847821652889252,
+        "side_acc": 0.7258333563804626,
+        "flip_recovery": 0.0045731705613434315,
+        "mse_adv_vs_echo": 0.08004267513751984,
+        "side_adv_vs_echo": -0.0008333325386047363
+      },
+      "geometry": {
+        "mse": 0.15455685555934906,
+        "side_acc": 0.7708333134651184,
+        "flip_recovery": 0.30945122241973877,
+        "mse_adv_vs_echo": 0.1139640361070633,
+        "side_adv_vs_echo": 0.044166624546051025
+      },
+      "full": {
+        "mse": 0.1556587666273117,
+        "side_acc": 0.76583331823349,
+        "flip_recovery": 0.3018292784690857,
+        "mse_adv_vs_echo": 0.11286212503910065,
+        "side_adv_vs_echo": 0.03916662931442261
+      }
+    },
+    "25.0": {
+      "rho": 0.2853903035498923,
+      "n_held": 2400,
+      "n_flip": 352,
+      "echo": {
+        "mse": 0.13890880346298218,
+        "side_acc": 0.8533333539962769,
+        "flip_recovery": 0.0
+      },
+      "temporal2": {
+        "mse": 0.11796503514051437,
+        "side_acc": 0.8537499904632568,
+        "flip_recovery": 0.019886363297700882,
+        "mse_adv_vs_echo": 0.020943768322467804,
+        "side_adv_vs_echo": 0.00041663646697998047
+      },
+      "geometry": {
+        "mse": 0.10293692350387573,
+        "side_acc": 0.8583333492279053,
+        "flip_recovery": 0.09375,
+        "mse_adv_vs_echo": 0.035971879959106445,
+        "side_adv_vs_echo": 0.004999995231628418
+      },
+      "full": {
+        "mse": 0.10304371267557144,
+        "side_acc": 0.8608333468437195,
+        "flip_recovery": 0.09375,
+        "mse_adv_vs_echo": 0.035865090787410736,
+        "side_adv_vs_echo": 0.007499992847442627
+      }
+    },
+    "50.0": {
+      "rho": 0.3622505630029108,
+      "n_held": 2400,
+      "n_flip": 178,
+      "echo": {
+        "mse": 0.06680814921855927,
+        "side_acc": 0.9258333444595337,
+        "flip_recovery": 0.0
+      },
+      "temporal2": {
+        "mse": 0.05934722721576691,
+        "side_acc": 0.9312499761581421,
+        "flip_recovery": 0.09550561755895615,
+        "mse_adv_vs_echo": 0.007460922002792358,
+        "side_adv_vs_echo": 0.0054166316986083984
+      },
+      "geometry": {
+        "mse": 0.057032909244298935,
+        "side_acc": 0.9291666746139526,
+        "flip_recovery": 0.09550561755895615,
+        "mse_adv_vs_echo": 0.00977523997426033,
+        "side_adv_vs_echo": 0.0033333301544189453
+      },
+      "full": {
+        "mse": 0.0563998781144619,
+        "side_acc": 0.9320833086967468,
+        "flip_recovery": 0.10674156993627548,
+        "mse_adv_vs_echo": 0.010408271104097366,
+        "side_adv_vs_echo": 0.006249964237213135
+      }
+    },
+    "100.0": {
+      "rho": 0.4188272675854208,
+      "n_held": 2400,
+      "n_flip": 123,
+      "echo": {
+        "mse": 0.04458492249250412,
+        "side_acc": 0.9487500190734863,
+        "flip_recovery": 0.0
+      },
+      "temporal2": {
+        "mse": 0.03718188777565956,
+        "side_acc": 0.9549999833106995,
+        "flip_recovery": 0.13821138441562653,
+        "mse_adv_vs_echo": 0.007403034716844559,
+        "side_adv_vs_echo": 0.006249964237213135
+      },
+      "geometry": {
+        "mse": 0.04031270369887352,
+        "side_acc": 0.9508333206176758,
+        "flip_recovery": 0.10569106042385101,
+        "mse_adv_vs_echo": 0.0042722187936306,
+        "side_adv_vs_echo": 0.002083301544189453
+      },
+      "full": {
+        "mse": 0.03614426776766777,
+        "side_acc": 0.9558333158493042,
+        "flip_recovery": 0.17073170840740204,
+        "mse_adv_vs_echo": 0.00844065472483635,
+        "side_adv_vs_echo": 0.007083296775817871
+      }
+    },
+    "200.0": {
+      "rho": 0.4124196707326765,
+      "n_held": 2400,
+      "n_flip": 94,
+      "echo": {
+        "mse": 0.03345712274312973,
+        "side_acc": 0.9608333110809326,
+        "flip_recovery": 0.0
+      },
+      "temporal2": {
+        "mse": 0.030733859166502953,
+        "side_acc": 0.9641666412353516,
+        "flip_recovery": 0.1595744639635086,
+        "mse_adv_vs_echo": 0.0027232635766267776,
+        "side_adv_vs_echo": 0.0033333301544189453
+      },
+      "geometry": {
+        "mse": 0.031109536066651344,
+        "side_acc": 0.9624999761581421,
+        "flip_recovery": 0.12765957415103912,
+        "mse_adv_vs_echo": 0.002347586676478386,
+        "side_adv_vs_echo": 0.0016666650772094727
+      },
+      "full": {
+        "mse": 0.02554929442703724,
+        "side_acc": 0.9674999713897705,
+        "flip_recovery": 0.19148936867713928,
+        "mse_adv_vs_echo": 0.007907828316092491,
+        "side_adv_vs_echo": 0.006666660308837891
+      }
+    }
+  },
+  "advantage_vs_rho_spearman": {
+    "temporal2": {
+      "mse_adv_vs_rho_spearman": -0.9,
+      "side_adv_vs_rho_spearman": 0.9
+    },
+    "geometry": {
+      "mse_adv_vs_rho_spearman": -0.9,
+      "side_adv_vs_rho_spearman": -0.9
+    },
+    "full": {
+      "mse_adv_vs_rho_spearman": -0.9,
+      "side_adv_vs_rho_spearman": -0.6
+    }
+  },
+  "note_flip_recovery_floor": "0 = arm copies the WRONG echo call; ~0.5 = independent guess; higher = recovery."
+}
