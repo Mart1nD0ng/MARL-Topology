@@ -133,6 +133,19 @@ CI for any headline. Commit per stage, do NOT push.
 
 ## 5. Progress ledger
 
-- **T0 (this commit):** audit above; `docs/temporal_recovery/T0/`; `tests/unit/test_temporal_recovery_T0_audit.py`
+- **T0 (commit 2c09691):** audit above; `docs/temporal_recovery/T0/`; `tests/unit/test_temporal_recovery_T0_audit.py`
   pins the 4 defects (direct-`p_t` target / `tanh` saturation / per-node-GRU vs edge-CSI / no edge recurrence)
-  as load-bearing regression tripwires that flip when T2–T4 fix them. Suite green. — *in progress this commit.*
+  as load-bearing regression tripwires that flip when T2–T4 fix them. Suite 820/0.
+- **T1 (this commit) — GATE PASS → proceed to the model redesign.** `t1_oracle_recovery_gen.py` (4-arm anchor
+  oracle: stale/direct/physics/true psucc + MSE landscape) + `test_temporal_recovery_T1_oracle.py` (3 load-bearing
+  tests: injection / leak-free inference / floor-stale-ceiling-true). **5-seed × {random,urban}, delay-1, true
+  evaluator, 0-eval:** ceiling `D−A` **random +0.055 [+0.009,+0.101] / urban +0.165 [+0.118,+0.212]** (CI>0 both,
+  reproduces R8 → perfect recovery converts, oracle validated); direct `B−A` **random −0.25 [−0.477,−0.023] /
+  urban −0.25 [−0.326,−0.174]** (CI<0 both → the current absolute-`p_t` architecture is *actively harmful*);
+  correction `C−B` **random +0.21 [+0.036,+0.384] / urban +0.275 [+0.165,+0.385]** (CI>0 both → correction/physics
+  structure essential); realizable `C−A` random −0.04 [−0.140,+0.060] / urban +0.025 [−0.041,+0.091] (spans 0 —
+  crude geometry-MLP neutral, not yet a conversion). **MSE ⟂ decisions:** B has the best MSE (0.081) but the worst
+  feasibility. **Verdict:** not the env-feature fallback (perfect recovery succeeds); the bottleneck is the model
+  architecture, and T1 validates the fix direction — *correction not absolute, ranking not MSE*. Artifact
+  `docs/temporal_recovery/T1/oracle_recovery_metrics.json`. Suite 823/0.
+- **Next — T2:** activation redesign (non-saturating recurrent→logit; the T0 saturation tripwire flips).

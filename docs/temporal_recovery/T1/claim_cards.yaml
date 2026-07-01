@@ -1,0 +1,69 @@
+- claim: >
+    Perfect CSI recovery converts to anchor feasibility: feeding the local_hysteresis anchor the TRUE current
+    psucc recovers the full stale drop (ceiling D-A > 0), reproducing R8's stale_drop sign and scale.
+  scope: T1; delay-1 stale; 5 seeds x {random,urban}; deployed 0-eval; true evaluator scores produced topology
+  mechanism: oracle CSI recovery -> anchor (psucc col 0 injection)
+  code_path: scripts/diagnostics/t1_oracle_recovery_gen.py
+  entrypoint: t1_oracle_recovery_gen.main (_anchor_with_psucc, _eval_arms)
+  config_flags: CsiObservationModel(mode=delay, delay_frames=1); arms A_stale/D_true
+  dataset: build_csi_scenes random+urban, held 10 scenes/seed, 4 frames
+  seeds: [0,1,2,3,4]
+  split: train (predictor fit, unused for A/D) / held (scored)
+  loss_uses_mechanism: "n/a (A/D are non-learned anchor arms)"
+  eval_uses_mechanism: "yes -- the injected psucc drives the deployable anchor; true evaluator scores the topology"
+  runtime_activation_artifact: docs/temporal_recovery/T1/oracle_recovery_metrics.json
+  load_bearing_tests: >
+    tests/unit/test_temporal_recovery_T1_oracle.py::test_recovered_psucc_injects_into_anchor,
+    ::test_floor_is_stale_ceiling_is_true
+  effect_on_decision_metrics: "ceiling D-A random +0.055 [+0.009,+0.101]; urban +0.165 [+0.118,+0.212] (both CI>0)"
+  raw_result_artifact: docs/temporal_recovery/T1/oracle_recovery_metrics.json
+  conclusion_boundary: >
+    Proves the recoverable info EXISTS and CONVERTS at the oracle (clairvoyant) level; does NOT prove a
+    realizable predictor achieves it (that is realizable_C_minus_A, which spans 0).
+
+- claim: >
+    The current architecture (a DIRECT absolute-p_t predictor, the R2 belief-head style) is significantly
+    HARMFUL to the anchor under stale CSI (model B-A < 0), despite having a LOWER psucc MSE than the stale echo.
+  scope: T1; 5 seeds x {random,urban}; deployed 0-eval; true evaluator
+  mechanism: direct absolute-psucc prediction -> anchor
+  code_path: scripts/diagnostics/t1_oracle_recovery_gen.py
+  entrypoint: _train_predictor(mode=direct) / _predict / _eval_arms (arm B_direct)
+  config_flags: mode=direct (pred = sigmoid(net(feats)))
+  dataset: build_csi_scenes random+urban; predictor trained on train, scored on held
+  seeds: [0,1,2,3,4]
+  split: train / held
+  loss_uses_mechanism: "yes -- MSE(pred, true current psucc), true CSI training-only label"
+  eval_uses_mechanism: "yes -- predicted psucc drives the anchor"
+  runtime_activation_artifact: docs/temporal_recovery/T1/oracle_recovery_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T1_oracle.py::test_predictor_inference_is_leak_free
+  effect_on_decision_metrics: >
+    B-A random -0.25 [-0.477,-0.023]; urban -0.25 [-0.326,-0.174] (both CI<0). MSE_B (0.081-0.085) BEATS echo
+    (0.102-0.109) yet feasibility is worst -> MSE is anti-correlated with decision quality here.
+  raw_result_artifact: docs/temporal_recovery/T1/oracle_recovery_metrics.json
+  conclusion_boundary: >
+    Explains R2's failure as an ARCHITECTURE defect (direct prediction destroys the psucc ranking the anchor
+    sorts on), not an information limit. Motivates T3 (correction target) and a ranking objective, not MSE.
+
+- claim: >
+    The correction/physics structure (predict a correction on the stale value; echo = zero-baseline) is
+    significantly better than direct prediction (arch C-B > 0), flipping the realizable arm from
+    significantly-harmful to neutral (realizable C-A spans 0).
+  scope: T1; 5 seeds x {random,urban}; deployed 0-eval; true evaluator
+  mechanism: physics-residual (stale + geometry-informed correction) -> anchor
+  code_path: scripts/diagnostics/t1_oracle_recovery_gen.py
+  entrypoint: _train_predictor(mode=physics) / _predict / _eval_arms (arm C_physics)
+  config_flags: mode=physics (pred = clamp(stale + net(feats), 0, 1)); features incl. CURRENT distance (col 5)
+  dataset: build_csi_scenes random+urban; train / held
+  seeds: [0,1,2,3,4]
+  split: train / held
+  loss_uses_mechanism: "yes -- MSE(clamp(stale+correction), true current psucc)"
+  eval_uses_mechanism: "yes -- corrected psucc drives the anchor"
+  runtime_activation_artifact: docs/temporal_recovery/T1/oracle_recovery_metrics.json
+  load_bearing_tests: tests/unit/test_temporal_recovery_T1_oracle.py::test_predictor_inference_is_leak_free
+  effect_on_decision_metrics: >
+    C-B random +0.21 [+0.036,+0.384]; urban +0.275 [+0.165,+0.385] (CI>0 both). C-A random -0.04 [-0.140,+0.060]
+    / urban +0.025 [-0.041,+0.091] (spans 0 -- neutral, not yet a conversion).
+  conclusion_boundary: >
+    Validates the T3 correction-target direction and the T5 physical-residual model. Does NOT prove a realizable
+    conversion (C-A spans 0); the oracle-vs-realizable gap (+0.165 vs +0.025 urban) is a decision-boundary
+    precision limit the in-policy temporal module (T3-T5) must beat.

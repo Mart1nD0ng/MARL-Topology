@@ -1,0 +1,163 @@
+{
+  "scope": "T1 CSI-recovery upper-bound oracle (delay-1): 4 anchor arms stale/direct/physics/true, 5 seeds x {random,urban}; predictors trained on stale features + current geometry, true current psucc = training-only label; deployed 0-eval, true evaluator scores.",
+  "csi": {
+    "mode": "delay",
+    "delay_frames": 1,
+    "probe_probability": 1.0,
+    "noise_std": 0.0,
+    "seed": 0,
+    "csi_columns": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "is_active": true
+  },
+  "arms": [
+    "A_stale",
+    "B_direct",
+    "C_physics",
+    "D_true"
+  ],
+  "by_data": {
+    "random": {
+      "A_stale_feas": {
+        "mean": 0.32,
+        "lo": 0.08527,
+        "hi": 0.55473,
+        "n": 5
+      },
+      "B_direct_feas": {
+        "mean": 0.07,
+        "lo": -0.01612,
+        "hi": 0.15612,
+        "n": 5
+      },
+      "C_physics_feas": {
+        "mean": 0.28,
+        "lo": 0.08444,
+        "hi": 0.47556,
+        "n": 5
+      },
+      "D_true_feas": {
+        "mean": 0.375,
+        "lo": 0.14905,
+        "hi": 0.60095,
+        "n": 5
+      },
+      "ceiling_D_minus_A": {
+        "mean": 0.055,
+        "lo": 0.00897,
+        "hi": 0.10103,
+        "n": 5
+      },
+      "realizable_C_minus_A": {
+        "mean": -0.04,
+        "lo": -0.13961,
+        "hi": 0.05961,
+        "n": 5
+      },
+      "arch_C_minus_B": {
+        "mean": 0.21,
+        "lo": 0.03636,
+        "hi": 0.38364,
+        "n": 5
+      },
+      "model_B_minus_A": {
+        "mean": -0.25,
+        "lo": -0.47701,
+        "hi": -0.02299,
+        "n": 5
+      },
+      "mse_echo": {
+        "mean": 0.10219,
+        "lo": 0.09371,
+        "hi": 0.11067,
+        "n": 5
+      },
+      "mse_B": {
+        "mean": 0.08483,
+        "lo": 0.07593,
+        "hi": 0.09373,
+        "n": 5
+      },
+      "mse_C": {
+        "mean": 0.09307,
+        "lo": 0.08457,
+        "hi": 0.10157,
+        "n": 5
+      },
+      "realizable_recovery": false
+    },
+    "urban": {
+      "A_stale_feas": {
+        "mean": 0.65,
+        "lo": 0.57398,
+        "hi": 0.72602,
+        "n": 5
+      },
+      "B_direct_feas": {
+        "mean": 0.4,
+        "lo": 0.3306,
+        "hi": 0.4694,
+        "n": 5
+      },
+      "C_physics_feas": {
+        "mean": 0.675,
+        "lo": 0.61694,
+        "hi": 0.73306,
+        "n": 5
+      },
+      "D_true_feas": {
+        "mean": 0.815,
+        "lo": 0.74355,
+        "hi": 0.88645,
+        "n": 5
+      },
+      "ceiling_D_minus_A": {
+        "mean": 0.165,
+        "lo": 0.11793,
+        "hi": 0.21207,
+        "n": 5
+      },
+      "realizable_C_minus_A": {
+        "mean": 0.025,
+        "lo": -0.04084,
+        "hi": 0.09084,
+        "n": 5
+      },
+      "arch_C_minus_B": {
+        "mean": 0.275,
+        "lo": 0.16527,
+        "hi": 0.38473,
+        "n": 5
+      },
+      "model_B_minus_A": {
+        "mean": -0.25,
+        "lo": -0.32602,
+        "hi": -0.17398,
+        "n": 5
+      },
+      "mse_echo": {
+        "mean": 0.10943,
+        "lo": 0.09854,
+        "hi": 0.12032,
+        "n": 5
+      },
+      "mse_B": {
+        "mean": 0.08086,
+        "lo": 0.07318,
+        "hi": 0.08854,
+        "n": 5
+      },
+      "mse_C": {
+        "mean": 0.0849,
+        "lo": 0.07563,
+        "hi": 0.09418,
+        "n": 5
+      },
+      "realizable_recovery": false
+    }
+  }
+}
